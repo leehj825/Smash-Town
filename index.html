@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Smash Town</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800;900&family=Noto+Sans+KR:wght@500;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <div id="hud" hidden>
+      <button id="btn-pause" class="hud-btn" aria-label="Pause">☰</button>
+
+      <div id="status">
+        <div id="stars" title="WANTED">
+          <span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span>
+        </div>
+        <div id="cash">$0</div>
+        <div id="combo"><span data-i18n="ui.smash_combo">SMASH COMBO</span><div id="combo-bar"><div id="combo-fill"></div></div></div>
+      </div>
+
+      <canvas id="minimap" width="280" height="280"></canvas>
+
+      <div id="telemetry">
+        <div id="speedo-wrap">
+          <canvas id="speedo" width="240" height="240"></canvas>
+          <div id="speed-readout"><span id="speed-num">0</span><small data-i18n="ui.kmh">km/h</small></div>
+        </div>
+        <div class="bars">
+          <div class="bar"><label data-i18n="ui.nitro">NITRO</label><div class="track"><div id="nitro-fill" class="fill nitro"></div></div></div>
+          <div class="bar"><label data-i18n="ui.hp">HP</label><div class="track"><div id="hp-fill" class="fill hp"></div></div></div>
+        </div>
+        <ul id="hints">
+          <li data-i18n="ui.hint.drive"></li>
+          <li data-i18n="ui.hint.handbrake"></li>
+          <li data-i18n="ui.hint.nitro"></li>
+          <li data-i18n="ui.hint.time"></li>
+          <li data-i18n="ui.hint.reset"></li>
+        </ul>
+      </div>
+    </div>
+
+    <div id="title" class="overlay">
+      <div class="panel title-panel">
+        <h1 data-i18n="ui.title">SMASH TOWN</h1>
+        <p data-i18n="ui.tagline"></p>
+        <button id="btn-play" class="big" data-i18n="ui.play">PLAY</button>
+        <div class="lang-row">
+          <button class="seg lang" data-lang="en">English</button>
+          <button class="seg lang" data-lang="ko">한국어</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="pause" class="overlay" hidden>
+      <div class="panel">
+        <h2 data-i18n="ui.paused">PAUSED</h2>
+        <div class="row"><span data-i18n="ui.settings.language">Language</span>
+          <div class="segs"><button class="seg lang" data-lang="en">English</button><button class="seg lang" data-lang="ko">한국어</button></div>
+        </div>
+        <div class="row"><span data-i18n="ui.settings.graphics">Graphics</span>
+          <div class="segs">
+            <button class="seg quality" data-q="high" data-i18n="ui.quality.high"></button>
+            <button class="seg quality" data-q="medium" data-i18n="ui.quality.medium"></button>
+            <button class="seg quality" data-q="low" data-i18n="ui.quality.low"></button>
+          </div>
+        </div>
+        <div class="row"><span data-i18n="ui.settings.time">Time of day</span>
+          <div class="segs">
+            <button class="seg tod" data-t="noon" data-i18n="ui.time.noon"></button>
+            <button class="seg tod" data-t="sunset" data-i18n="ui.time.sunset"></button>
+            <button class="seg tod" data-t="night" data-i18n="ui.time.night"></button>
+          </div>
+        </div>
+        <button id="btn-resume" class="big" data-i18n="ui.resume">RESUME</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
