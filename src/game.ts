@@ -95,6 +95,8 @@ export class Game {
   private foot = { position: new THREE.Vector3(), heading: 0, lateralSpeed: 0, forwardSpeed: 0, speed: 0, nitroActive: false, camScale: 1, foot: true, sprinting: false };
   private copCars: { x: number; z: number }[] = [];
   private assaultCooldown = 0;
+  private marker: THREE.Sprite;
+  private dustAcc = 0;
   private garageLock = false;
   private garageBeacons: Beacon[] = [];
   private time = 0;
@@ -109,6 +111,8 @@ export class Game {
     this.hud = d.hud; this.input = d.input; this.env = d.env; this.cameraRig = d.cameraRig;
     this.humans = new Humans(d.world, this.humanHooks());
     this.scene.add(this.humans.group, this.popups.group, this.slash.mesh);
+    this.marker = this.makePlayerMarker();
+    this.scene.add(this.marker);
     this.gigs = new GigManager(this, this.scene);
 
     for (let i = 0; i < 80; i++) this.blipPool.push({ x: 0, z: 0, color: '#fff' });
@@ -621,6 +625,18 @@ export class Game {
       time: this.time,
     };
     this.humans.update(dt, ctx);
+    this.marker.visible = this.onFoot && pl.state !== 8;
+    if (this.onFoot) {
+      this.marker.position.set(pl.x, pl.y + 2.55 + Math.sin(this.time * 4) * 0.08, pl.z);
+      // sprint dust puffs at the feet
+      if (pl.speed > 6.2 && pl.grounded) {
+        this.dustAcc += dt;
+        if (this.dustAcc > 0.1) {
+          this.dustAcc = 0;
+          this.vfx.emitDust(pl.x - Math.sin(pl.heading) * 0.3, pl.z - Math.cos(pl.heading) * 0.3, -Math.sin(pl.heading) * 2, -Math.cos(pl.heading) * 2, 1);
+        }
+      }
+    }
     if (this.onFoot) {
       const f = this.foot;
       f.position.set(pl.x, pl.y - 0.1, pl.z);
@@ -628,6 +644,26 @@ export class Game {
       f.forwardSpeed = pl.speed; f.speed = pl.speed;
       f.sprinting = pl.speed > 6.2;
     }
+  }
+
+  /** Yellow downward triangle with a PLAYER label, shown above the avatar while on foot. */
+  private makePlayerMarker(): THREE.Sprite {
+    const c = document.createElement('canvas');
+    c.width = 256; c.height = 160;
+    const g = c.getContext('2d')!;
+    g.font = '900 54px Montserrat, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = 10; g.strokeStyle = '#1a1a24'; g.strokeText('PLAYER', 128, 38);
+    g.fillStyle = '#ffd500'; g.fillText('PLAYER', 128, 38);
+    g.beginPath(); g.moveTo(88, 88); g.lineTo(168, 88); g.lineTo(128, 148); g.closePath();
+    g.fillStyle = '#ffd500'; g.fill(); g.lineWidth = 8; g.strokeStyle = '#1a1a24'; g.stroke();
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, fog: false }));
+    sp.scale.set(1.6, 1, 1);
+    sp.renderOrder = 11;
+    sp.visible = false;
+    return sp;
   }
 
   private idleInput = { throttle: 0, steer: 0, handbrake: false, nitro: false, wasPressed: () => false } as unknown as Input;
