@@ -31,6 +31,18 @@ function storedSet(key: string, value: string): void {
 }
 
 // ---------------------------------------------------------------- renderer / scene
+function showError(msg: string): void {
+  let box = document.getElementById('err');
+  if (!box) {
+    box = document.createElement('pre');
+    box.id = 'err';
+    document.body.appendChild(box);
+  }
+  box.textContent += msg + '\n';
+}
+window.addEventListener('error', (e) => showError(`Error: ${e.message}`));
+window.addEventListener('unhandledrejection', (e) => showError(`Error: ${String(e.reason)}`));
+
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -121,10 +133,16 @@ const hudEl = document.getElementById('hud')!;
 let state: 'title' | 'playing' | 'paused' = 'title';
 
 function startGame(): void {
-  game.audio.init(); // needs a user gesture
+  if (state !== 'title') return;
+  // Switch the UI first so a failure in optional systems (audio, pointer lock) can never block starting.
   state = 'playing';
   titleEl.hidden = true;
   hudEl.hidden = false;
+  try {
+    game.audio.init(); // needs a user gesture
+  } catch (err) {
+    console.warn('Audio unavailable:', err);
+  }
 }
 function setPaused(p: boolean): void {
   if (state === 'title') return;
@@ -155,6 +173,14 @@ const timer = new THREE.Timer();
 
 function frame(): void {
   requestAnimationFrame(frame);
+  try {
+    tick();
+  } catch (err) {
+    showError(`Frame error: ${(err as Error).message}`);
+  }
+}
+
+function tick(): void {
   timer.update();
   let dt = Math.min(timer.getDelta(), 0.05);
 
