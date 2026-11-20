@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { blendPose, computePose, type AnimInput } from './animator';
-import { CharacterRenderer, newPose, type Look, type Pose } from './characters';
+import { CharacterRenderer, type Look } from './characters';
+import { AnimPlayer, CLIPS } from './mocap';
 import {
   ATTACKS, DODGE, GRAVITY, JUMP_VY, PUNCH_COMBO, SPRINT_SPEED, SWING_COMBO, St, WALK_SPEED, type Attack,
 } from './combat';
@@ -38,12 +38,13 @@ export class Human {
   buffered = 0; // 0 none, 1 attack, 2 kick
   hitIds = new Int32Array(16); hitCount = 0;
   invuln = 0; dodgeCd = 0; flash = 0; flashed = false;
-  lie = 0;
   phase = 0; speed = 0; fleeing = false;
   scale = 1;
   look: Look = { shirt: 0xffffff, pants: 0x222222, skin: 0xf1c27d, shoe: 0x222222, hair: 0x222222, cap: false };
-  pose: Pose = newPose();
-  target: Pose = newPose();
+  anim = new AnimPlayer();
+  /** Normalized phase of the current looping clip. */
+  clipU = 0;
+  downT = 0; airT = 0; prevState = -1;
   rendered = false;
   prevWeapon = 0; equipT = 0;
   lastStepSign = 1;
@@ -93,9 +94,6 @@ export class Humans {
   private walkLots: Lot[];
   private copSpawnT = 0;
   readonly pickups: Pickup[] = [];
-  private ai: AnimInput = {
-    state: 0, speed: 0, phase: 0, time: 0, attack: null, atkPhase: 0, atkU: 0, weapon: 0, airborne: false, stateT: 0, stateDur: 1, fleeing: false,
-  };
   private ctx!: HumanCtx;
   private time = 0;
 
@@ -164,7 +162,7 @@ export class Humans {
     h.x = x; h.z = z; h.y = GROUND; h.vy = 0; h.vx = h.vz = 0; h.grounded = true;
     h.pathSpeed = 1.3 + this.rng() * 0.8;
     h.phase = this.rng() * 6.28;
-    h.state = St.Walk; h.hp = h.maxHp = 30; h.lie = 0; h.active = true; h.fleeing = false;
+    h.state = St.Walk; h.hp = h.maxHp = 30; h.active = true; h.fleeing = false;
   }
 
   private hide(h: Human): void {
@@ -178,7 +176,7 @@ export class Humans {
     p.active = active;
     if (!active) { this.hide(p); return; }
     p.x = x; p.z = z; p.heading = heading; p.y = GROUND; p.vy = 0; p.vx = p.vz = p.mvx = p.mvz = 0;
-    p.state = St.Idle; p.attack = null; p.lie = 0; p.grounded = true; p.invuln = 0.4;
+    p.state = St.Idle; p.attack = null; p.grounded = true; p.invuln = 0.4;
     if (p.hp <= 0) p.hp = p.maxHp * 0.5;
   }
 
@@ -250,7 +248,13 @@ export class Humans {
       const dl = Math.hypot(dvx, dvz);
       const step = 35 * dt;
       if (dl <= step) { h.mvx += dvx; h.mvz += dvz; } else { h.mvx += (dvx / dl) * step; h.mvz += (dvz / dl) * step; }
-      if (mag > 0.1) {
+      // In a fight (a cop within 12 m) the character stays facing the enemy and strafes / backpedals with the
+      // stick; otherwise it turns toward the direction of travel (camera-relative run).
+      const foe = this.nearestCop(h, 12);
+      if (foe && (this.combatTimer > 0 || Math.hypot(foe.x - h.x, foe.z - h.z) < 9)) {
+        const d = wrap(Math.atan2(foe.x - h.x, foe.z - h.z) - h.heading);
+        h.heading += Math.max(-11 * dt, Math.min(11 * dt, d));
+      } else if (mag > 0.1) {
         const want = Math.atan2(mx, mz);
         const d = wrap(want - h.heading);
         h.heading += Math.max(-14 * dt, Math.min(14 * dt, d));
@@ -261,6 +265,17 @@ export class Humans {
     h.speed = Math.hypot(h.mvx, h.mvz);
     const stillFree = h.state === St.Idle || h.state === St.Walk || h.state === St.Run;
     if (free && stillFree) h.state = h.speed > 6.2 ? St.Run : h.speed > 0.4 ? St.Walk : St.Idle;
+  }
+
+  private nearestCop(h: Human, range: number): Human | null {
+    let best: Human | null = null, bd = range;
+    for (let i = COP_FIRST; i <= COP_LAST; i++) {
+      const c = this.list[i];
+      if (!c.active || c.leaving || c.state === St.Down || c.state === St.Dead) continue;
+      const d = Math.hypot(c.x - h.x, c.z - h.z);
+      if (d < bd) { bd = d; best = c; }
+    }
+    return best;
   }
 
   /** Start (or continue) the unarmed / weapon combo. */
@@ -471,7 +486,7 @@ export class Humans {
     const h = slot;
     h.active = true; h.role = Role.Cop;
     h.x = x; h.z = z; h.y = GROUND; h.vy = 0; h.vx = h.vz = h.mvx = h.mvz = 0; h.grounded = true;
-    h.state = St.Idle; h.hp = h.maxHp = 60; h.weapon = 2; h.lie = 0; h.leaving = false; h.cd = 0.6 + this.rng();
+    h.state = St.Idle; h.hp = h.maxHp = 60; h.weapon = 2; h.leaving = false; h.cd = 0.6 + this.rng();
     h.atkScale = 0.55; h.scale = 1.03; h.attack = null; h.invuln = 0;
     h.heading = Math.atan2(px - x, pz - z);
     h.slotAngle = (count * TWO_PI) / Math.max(3, this.ctx.wantCops) + this.rng() * 0.4;
@@ -609,7 +624,7 @@ export class Humans {
       case St.GetUp:
         h.stateT -= dt;
         if (h.stateT <= 0) {
-          h.state = St.Idle; h.lie = 0;
+          h.state = St.Idle;
           if (h.role === Role.Civ) { h.hp = h.maxHp; this.assign(h, this.ctx.playerCarX, this.ctx.playerCarZ); h.fleeing = true; }
         }
         break;
@@ -691,36 +706,100 @@ export class Humans {
     }
   }
 
+  // ------------------------------------------------------------------ mocap clip selection (model_check clips)
+  /** Natural ground speed (m/s) of each locomotion clip, used to scale playback so feet don't slide. */
+  private static readonly NATURAL: Record<string, number> = {
+    walk: 1.5, walkCalm: 1.4, walkB: 1.3, run: 4.0, runCalm: 3.4, runB: 3.2,
+    strafeWalkN: 1.2, strafeWalkP: 1.2, strafeRunN: 3.2, strafeRunP: 3.2,
+  };
+
+  /** Mocap clip for each attack. `weapon > 0` uses the sword slashes (the bat / baton swing). */
+  private attackClip(_h: Human, a: Attack): string {
+    switch (a.id) {
+      case 'jab': return 'attack1';
+      case 'cross': return 'attack2';
+      case 'upper': return 'attack3';
+      case 'kick': return 'kick';
+      case 'swing1': return 'slash1';
+      default: return 'slash3';
+    }
+  }
+
+  private selName = 'idle';
+  private selU = 0;
+  private selFade = 0.15;
+
+  private chooseClip(h: Human, dt: number): void {
+    const civ = h.role === Role.Civ;
+    this.selFade = 0.15;
+    switch (h.state) {
+      case St.Attack: {
+        const a = h.attack ?? ATTACKS.jab;
+        const name = this.attackClip(h, a);
+        const c = CLIPS[name];
+        const total = a.wind + a.act + a.rec;
+        const center = a.wind + a.act / 2;
+        // warp so the clip's strike frame lands in the middle of the GDD active window
+        const hitT = a.id === 'kick' ? 0.6 : c.hit; // the kick clip's stored hit marker is early; its leg extends at ~0.6 s
+        const t = h.atkT < center ? (h.atkT / center) * hitT : hitT + ((h.atkT - center) / Math.max(0.001, total - center)) * (c.d - hitT);
+        this.selName = name; this.selU = t / c.d; this.selFade = 0.05;
+        return;
+      }
+      case St.Dodge: {
+        this.selName = 'dive'; this.selU = 1 - h.stateT / h.stateDur; this.selFade = 0.04;
+        return;
+      }
+      case St.Hit:
+        this.selName = h.slot % 2 ? 'impact2' : 'impact'; this.selU = 1 - h.stateT / h.stateDur; this.selFade = 0.03;
+        return;
+      case St.Down:
+      case St.Dead:
+        this.selName = 'die'; this.selU = Math.min(1, h.downT / 0.9); this.selFade = 0.04;
+        return;
+      case St.GetUp:
+        this.selName = 'die'; this.selU = Math.max(0, h.stateT / h.stateDur); this.selFade = 0.04; // rise = the fall played backwards
+        return;
+    }
+    // airborne (jump): the Sword-and-Shield jump clip, apex at 0.5 s mapped to the physics apex
+    if (!h.grounded) {
+      this.selName = 'gsJump'; this.selU = Math.min(1, (h.airT * (0.5 / (JUMP_VY / GRAVITY))) / CLIPS.gsJump.d); this.selFade = 0.06;
+      return;
+    }
+    const speed = h.speed;
+    if (speed < 0.4) {
+      this.selName = civ ? 'idleCalm' : h.role === Role.Cop ? 'idleAlert' : 'idle';
+      h.clipU += dt / CLIPS[this.selName].d;
+      this.selU = h.clipU;
+      return;
+    }
+    // locomotion direction relative to facing: forward / backward / strafe left or right
+    const fwd = h.mvx * Math.sin(h.heading) + h.mvz * Math.cos(h.heading);
+    const left = h.mvx * Math.cos(h.heading) - h.mvz * Math.sin(h.heading);
+    const run = speed > 3.0 || (civ && h.fleeing);
+    let name: string;
+    if (civ || (Math.abs(left) < Math.abs(fwd) * 0.9 && fwd >= 0) || h.mvx * h.mvx + h.mvz * h.mvz < 0.01) {
+      name = civ ? (run ? 'runCalm' : 'walkCalm') : run ? 'run' : 'walk';
+    } else if (Math.abs(fwd) >= Math.abs(left) * 0.9 && fwd < 0) name = run ? 'runB' : 'walkB';
+    else name = left > 0 ? (run ? 'strafeRunP' : 'strafeWalkP') : (run ? 'strafeRunN' : 'strafeWalkN');
+    const nat = Humans.NATURAL[name] ?? 1.5;
+    const rate = Math.max(0.5, Math.min(2.4, speed / nat));
+    h.clipU += (dt * rate) / CLIPS[name].d;
+    this.selName = name; this.selU = h.clipU;
+  }
+
   private animate(h: Human, dt: number): void {
-    const sprinting = h.speed > 6.2;
-    if (h.speed > 0.4) h.phase += dt * (sprinting || h.fleeing ? 13 : 8);
+    if (h.state !== h.prevState) { h.prevState = h.state; h.downT = 0; }
+    if (h.state === St.Down || h.state === St.Dead) h.downT += dt;
+    h.airT = h.grounded ? 0 : h.airT + dt;
+
     // footsteps from the player's stride
-    if (h.role === Role.Player && h.speed > 0.4 && h.grounded) {
-      const sgn = Math.sin(h.phase) >= 0 ? 1 : -1;
+    if (h.role === Role.Player && h.speed > 0.4 && h.grounded && h.state !== St.Attack) {
+      const sgn = Math.sin(h.clipU * Math.PI * 2) >= 0 ? 1 : -1;
       if (sgn !== h.lastStepSign) { h.lastStepSign = sgn; this.hooks.onStep(); }
     }
-    const a = this.ai;
-    a.state = h.state; a.speed = h.speed; a.phase = h.phase; a.time = this.time + h.slot;
-    a.attack = h.attack; a.atkPhase = h.atkPhase; a.atkU = h.atkU; a.weapon = h.weapon;
-    a.airborne = !h.grounded && (h.state === St.Idle || h.state === St.Walk || h.state === St.Run);
-    a.stateT = h.stateT; a.stateDur = h.stateDur; a.fleeing = h.fleeing && h.role === Role.Civ;
-    computePose(h.target, a);
-    const k = 1 - Math.exp(-dt * (h.state === St.Attack || h.state === St.Hit ? 24 : 14));
-    blendPose(h.pose, h.target, k);
 
-    // lie angle (knockdown tumble)
-    if (h.state === St.Down || h.state === St.Dead) {
-      if (!h.grounded) h.lie -= dt * 10;
-      else {
-        const tgt = -Math.PI / 2 + TWO_PI * Math.round((h.lie + Math.PI / 2) / TWO_PI);
-        h.lie += (tgt - h.lie) * (1 - Math.exp(-dt * 16));
-      }
-    } else if (h.state === St.GetUp) {
-      const tgt = TWO_PI * Math.round(h.lie / TWO_PI);
-      h.lie += (tgt - h.lie) * (1 - Math.exp(-dt * 9));
-    } else if (h.lie !== 0) {
-      h.lie = 0;
-    }
+    this.chooseClip(h, dt);
+    h.anim.play(this.selName, this.selU, dt, this.selFade);
 
     if (h.flash > 0) { this.renderer.setLook(h.slot, h.look, h.flash); h.flashed = true; }
     else if (h.flashed) { this.renderer.setLook(h.slot, h.look); h.flashed = false; }
@@ -729,7 +808,7 @@ export class Humans {
     if (h.weapon !== h.prevWeapon) { h.prevWeapon = h.weapon; h.equipT = 0.15; }
     h.equipT = Math.max(0, h.equipT - dt);
     const pop = 1 + (h.equipT / 0.15) * 0.7;
-    this.renderer.draw(h.slot, h.x, h.y, h.z, h.heading, h.scale, h.lie, h.pose, h.look.cap, h.weapon, pop);
+    this.renderer.draw(h.slot, h.x, h.y, h.z, h.heading, h.scale, 0, h.anim.out, h.look.cap, h.weapon, pop);
     h.rendered = true;
   }
 

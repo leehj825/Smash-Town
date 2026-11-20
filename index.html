@@ -108,13 +108,21 @@
     <div id="garage" class="overlay" hidden></div>
 
     <div id="touch" hidden>
-      <div class="tpad left"><button data-vbtn="left">&#9664;</button><button data-vbtn="right">&#9654;</button></div>
-      <div class="tpad right">
-        <div class="only-car"><button data-vbtn="nitro" class="sm">N2O</button><button data-vbtn="hand" class="sm">DRIFT</button><button data-vbtn="down" class="sm">&#9660;</button></div>
-        <div class="only-foot"><button data-tap="KeyK" class="sm">KICK</button><button data-tap="Space" class="sm">DODGE</button><button data-tap="KeyC" class="sm">JUMP</button><button data-tap="KeyV" class="sm">WPN</button></div>
-        <button data-tap="KeyF" class="sm">F</button>
-        <button data-tap="KeyJ" class="gas only-foot">HIT</button>
-        <button data-vbtn="up" class="gas">&#9650;</button>
+      <!-- left zone: steering arrows while driving, analog stick on foot (forward / back / strafe) -->
+      <div class="zone-left">
+        <div class="steer only-car"><button data-vbtn="left">&#9664;</button><button data-vbtn="right">&#9654;</button></div>
+        <div id="stick" class="only-foot"><div id="stick-knob"></div></div>
+      </div>
+      <!-- right zone: action buttons -->
+      <div class="zone-right">
+        <div class="grid3 only-car">
+          <button data-vbtn="nitro">N2O</button><button data-vbtn="hand">DRIFT</button><button data-tap="KeyF">F</button>
+          <button data-vbtn="down">&#9660;</button><span></span><button data-vbtn="up" class="gas">&#9650;</button>
+        </div>
+        <div class="grid3 only-foot">
+          <button data-tap="KeyK">KICK</button><button data-tap="Space">DODGE</button><button data-tap="KeyC">JUMP</button>
+          <button data-tap="KeyV">WPN</button><button data-tap="KeyF">F</button><button data-tap="KeyJ" class="hit">HIT</button>
+        </div>
       </div>
     </div>
 

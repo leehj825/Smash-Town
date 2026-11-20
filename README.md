@@ -26,13 +26,13 @@ npm run build    # typecheck + production bundle in dist/
 | On foot | `1` `2` `3` / wheel / `V` | Fists / Baseball bat / Police baton (dropped by defeated cops) |
 | On foot | Mouse (click to capture) / drag | Orbit camera; auto-aligns behind you while sprinting |
 | Always | `T` / `R` / `Esc` | Time of day / reset car / pause & settings |
-| Touch | on-screen buttons | Steering, gas, nitro, drift, and context combat buttons; drag the canvas to orbit |
+| Touch | left stick / buttons | On foot: analog stick (forward, back, strafe) + KICK / DODGE / JUMP / WPN / F / HIT; driving: steer arrows + gas, nitro, drift; drag the canvas to orbit |
 
 ## What's in the game
 
 - **City:** 8×8 grid of 40 m blocks, four districts (Sunset Beach, Old Town with lit `24h MOTEL` / `DONUTS` signboards, Downtown, Harbor), canvas road/window textures, instanced palms, lamps, hydrants, benches, newsstands and trash cans, and beach/road jump ramps.
 - **Vehicles:** 10 procedural vehicles - six unlockable player cars (sports, sedan, taxi, pickup, muscle, supercar) plus police cruiser, interceptor, SWAT van and armored truck - with arcade drift physics, nitro, damage stages (sparks → smoke → flames → explosion) and ramp jumps.
-- **On-foot combat:** blocky humanoid rig on the same 15-joint skeleton as [`model_check`](https://github.com/leehj825/model_check) (`hips, torso, head, hip/knee/ank, sh/el/wr`, left = +x, right-hand weapon socket), driven by a procedural animator (idle, walk, run, punch ×3, kick, bat swings, dodge roll somersault, hit react, knockdown, get-up). Hit-stop, screen shake, slash trails and comic `POW!` / `WHAM!` / `SMASH!` popups (localized `퍽!` / `쾅!` / `박살!`).
+- **On-foot combat:** blocky humanoid rig on the same 15-joint skeleton as [`model_check`](https://github.com/leehj825/model_check) (`hips, torso, head, hip/knee/ank, sh/el/wr`, left = +x, right-hand weapon socket), animated with the **motion-capture clips from `model_check`** (idle, walk, run, strafe, backpedal, punch ×3, kick, bat swings, dodge roll, hit react, knockdown/get-up, jump), time-warped so each strike lands in the GDD's active window. Hit-stop, screen shake, slash trails and comic `POW!` / `WHAM!` / `SMASH!` popups (localized `퍽!` / `쾅!` / `박살!`).
 - **Smash combos:** hydrants (5 s water spray), lamps, palms, benches, newsstands and trash cans tumble away as pooled physics bodies; combo multiplier ×1–×10 with a 4 s timer.
 - **Living city:** waypoint civilian traffic, pooled walking/fleeing pedestrians.
 - **Wanted 1–5★:** patrol cruisers with PIT ramming, roadblocks, interceptors, SWAT vans with predictive steering, armored units, and foot cops that exit cruisers, surround you and melee with batons.
