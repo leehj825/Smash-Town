@@ -1,0 +1,68 @@
+name: Android debug APK
+
+# Builds Smash Town as a debug APK: a full-screen WebView around the Vite production build (see android/).
+# The APK is published as a pre-release on the repository (one per branch, replaced by each build), so it does not use
+# the Actions artifact storage quota. Install it on a phone by opening the downloaded file or with `adb install`.
+# Pull requests only build it. A debug build allows chrome://inspect for inspecting the game from a computer.
+
+on:
+  push:
+    paths: ['index.html', 'src/**', 'package.json', 'package-lock.json', 'vite.config.ts', 'tsconfig.json', 'android/**', '.github/workflows/android-debug.yml']
+  pull_request:
+    paths: ['index.html', 'src/**', 'package.json', 'package-lock.json', 'vite.config.ts', 'tsconfig.json', 'android/**', '.github/workflows/android-debug.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write # to create the pre-release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Build the web game (dist/)
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # The runner image already has the Android SDK (platform 34 and build tools); this installs Gradle itself, so no wrapper is committed
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build the debug APK
+        working-directory: android
+        run: gradle --no-daemon assembleDebug
+
+      - name: Publish the APK as a pre-release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SAFE="${GITHUB_REF_NAME//[^A-Za-z0-9._-]/-}"
+          TAG="apk-${SAFE}"
+          mkdir -p apk-out
+          cp android/app/build/outputs/apk/debug/*.apk "apk-out/smash-town-${SAFE}-debug.apk"
+          NOTES="Debug APK built from ${GITHUB_SHA::7} on ${GITHUB_REF_NAME}. Replaced by every build of this branch."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --prerelease --notes "$NOTES"
+          else
+            gh release create "$TAG" --prerelease --target "$GITHUB_SHA" --title "Debug APK (${GITHUB_REF_NAME})" --notes "$NOTES"
+          fi
+          gh release upload "$TAG" "apk-out/smash-town-${SAFE}-debug.apk" --clobber
+
+      - name: Check the APK was built (pull requests)
+        if: github.event_name == 'pull_request'
+        run: ls -l android/app/build/outputs/apk/debug/*.apk

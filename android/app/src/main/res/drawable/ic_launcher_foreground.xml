@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- the yellow sports car, side view (kept inside the 66dp safe zone) -->
+    <path
+        android:fillColor="#FFD500"
+        android:pathData="M30,66 L33,56 Q36,50 44,50 L62,50 Q69,50 74,57 L80,60 Q83,62 83,66 L83,70 L30,70 Z" />
+    <path
+        android:fillColor="#1A1A24"
+        android:pathData="M45,53 L52,53 L52,59 L39,59 Z M55,53 L62,53 Q66,53 69,58 L69,59 L55,59 Z" />
+    <path android:fillColor="#FF2A55" android:pathData="M30,64 h3 v4 h-3z" />
+    <path
+        android:fillColor="#1A1A24"
+        android:pathData="M40,72 m-6.5,0 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0 M72,72 m-6.5,0 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0" />
+    <path
+        android:fillColor="#C9CCD6"
+        android:pathData="M40,72 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0 M72,72 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+</vector>

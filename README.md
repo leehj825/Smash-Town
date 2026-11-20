@@ -39,3 +39,9 @@ npm run build    # typecheck + production bundle in dist/
 - **Pay & Spray garages:** repair + clear heat, and a vehicle shop (unlocks and cash persist in `localStorage`).
 - **Quick gigs:** Defeat the Police (brawl), Smash Rampage, Hot Delivery, Grand Hijack.
 - **Presentation:** 2-light rig, player-following texel-snapped shadows, ACES + selective bloom, day/sunset/night cycle with glowing windows/lamps/signs/headlights, procedural Web Audio (engine, tire screech, siren, footsteps, whooshes, impacts), rotating minimap with blips, EN/KO i18n, High/Medium/Low quality, mobile touch controls.
+
+## Android debug APK
+
+`android/` wraps the production build in a full-screen WebView (the Android back button acts as Escape / pause). The workflow `.github/workflows/android-debug.yml` runs `npm ci && npm run build`, builds a debug APK with Gradle, and publishes it as a **pre-release** on this repository (one per branch, tag `apk-<branch>`, replaced by every build). Pull requests only build it. Download `smash-town-<branch>-debug.apk` from the repo's Releases page and open it on a phone (allow installs from your browser/file manager), or use `adb install`.
+
+To build it yourself you need Node 20+, JDK 17, the Android SDK (platform 34) and Gradle 8.9: `npm run build && cd android && gradle assembleDebug`. Debug builds allow `chrome://inspect` to inspect the game from a computer.
