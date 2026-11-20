@@ -142,3 +142,6 @@ button.big.ghost { background: transparent; border: 2px solid rgba(255,255,255,.
   #telemetry { display: none; }
   #toast { top: 60px; }
 }
+
+#err { position: fixed; left: 8px; bottom: 8px; max-width: 90vw; max-height: 40vh; overflow: auto; margin: 0; padding: 8px 12px; z-index: 99; background: rgba(120,0,20,.92); color: #fff; font: 12px/1.4 monospace; white-space: pre-wrap; border-radius: 8px; }
+#err:empty { display: none; }
