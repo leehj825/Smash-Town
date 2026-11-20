@@ -5,10 +5,11 @@
   "type": "module",
   "description": "Smash Town - instant, zero-install arcade open-world driving & destruction sandbox (Three.js).",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node scripts/render-build.mjs"
   },
   "dependencies": {
     "three": "^0.187.0"

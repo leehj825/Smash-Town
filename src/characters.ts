@@ -46,6 +46,7 @@ const MESHES: MeshSpec[] = [
   { name: 'pelvis', joints: [J.hips], parts: [{ c: [0, -0.02, 0], s: [0.3, 0.2, 0.2] }] },
   { name: 'torso', joints: [J.torso], parts: [
     { c: [0, -0.07, 0], s: [0.28, 0.14, 0.19] }, { c: [0, 0.25, 0], s: [0.4, 0.5, 0.23] }, { c: [0, 0.44, 0], s: [0.62, 0.12, 0.2] },
+    { c: [0, -0.1, 0], s: [0.31, 0.06, 0.21], color: 0x3a3a3a }, // utility belt
   ] },
   { name: 'head', joints: [J.head], parts: [{ c: [0, 0.03, 0], s: [0.09, 0.06, 0.09] }, { c: [0, 0.2, 0], s: [0.26, 0.28, 0.26] }] },
   { name: 'hair', joints: [J.head], parts: [{ c: [0, 0.34, -0.01], s: [0.28, 0.1, 0.28] }, { c: [0, 0.22, -0.12], s: [0.28, 0.22, 0.06] }] },
@@ -162,7 +163,7 @@ export class CharacterRenderer {
    * FK for one character and write all part instances.
    * `lie` rotates the whole body about the hips (knockdown), `weapon` 0 none / 1 bat / 2 baton.
    */
-  draw(slot: number, x: number, y: number, z: number, heading: number, scale: number, lie: number, pose: Pose, hasCap: boolean, weapon: number): void {
+  draw(slot: number, x: number, y: number, z: number, heading: number, scale: number, lie: number, pose: Pose, hasCap: boolean, weapon: number, weaponScale = 1): void {
     // base transform: root position, facing, and a hips-pivoted lie rotation
     this.q.setFromEuler(this.e.set(0, heading, 0));
     this.base.compose(this.p.set(x, y - Math.abs(Math.sin(lie)) * 0.62 * scale, z), this.q, this.s.setScalar(scale));
@@ -192,8 +193,12 @@ export class CharacterRenderer {
       for (let k = 0; k < per; k++) mesh.setMatrixAt(slot * per + k, this.world[spec.joints[k]]);
     }
     const wb = this.weapons.bat, wt = this.weapons.baton;
-    if (weapon === 1) { this.tmp.copy(this.world[J.wrR]).multiply(this.grip); wb.setMatrixAt(slot, this.tmp); wt.setMatrixAt(slot, this.zero); }
-    else if (weapon === 2) { this.tmp.copy(this.world[J.wrR]).multiply(this.grip); wt.setMatrixAt(slot, this.tmp); wb.setMatrixAt(slot, this.zero); }
+    if (weapon > 0) {
+      this.tmp.copy(this.world[J.wrR]).multiply(this.grip);
+      if (weaponScale !== 1) this.tmp.scale(this.s.setScalar(weaponScale));
+      (weapon === 1 ? wb : wt).setMatrixAt(slot, this.tmp);
+      (weapon === 1 ? wt : wb).setMatrixAt(slot, this.zero);
+    }
     else { wb.setMatrixAt(slot, this.zero); wt.setMatrixAt(slot, this.zero); }
   }
 

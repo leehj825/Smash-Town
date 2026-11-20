@@ -45,6 +45,7 @@ export class Human {
   pose: Pose = newPose();
   target: Pose = newPose();
   rendered = false;
+  prevWeapon = 0; equipT = 0;
   lastStepSign = 1;
   // civilian path
   lot!: Lot; s = 0; dir = 1; pathSpeed = 1.6;
@@ -110,6 +111,7 @@ export class Humans {
     this.player.role = Role.Player;
     this.player.look = { shirt: 0xd93636, pants: 0x2a4a8a, skin: 0xe0ac69, shoe: 0xffffff, hair: 0x2a1a10, cap: false };
     this.player.weapon = 0;
+    this.renderer.setLook(0, this.player.look); // bright red hoodie, jeans, white sneakers
     for (let i = COP_LAST + 1; i < N; i++) this.initCivilian(this.list[i]);
     const baton = new THREE.CylinderGeometry(0.04, 0.04, 0.7, 6).rotateZ(Math.PI / 2);
     for (let i = 0; i < 4; i++) {
@@ -723,7 +725,11 @@ export class Humans {
     if (h.flash > 0) { this.renderer.setLook(h.slot, h.look, h.flash); h.flashed = true; }
     else if (h.flashed) { this.renderer.setLook(h.slot, h.look); h.flashed = false; }
 
-    this.renderer.draw(h.slot, h.x, h.y, h.z, h.heading, h.scale, h.lie, h.pose, h.look.cap, h.weapon);
+    // quick 0.15 s equip pop when the weapon changes
+    if (h.weapon !== h.prevWeapon) { h.prevWeapon = h.weapon; h.equipT = 0.15; }
+    h.equipT = Math.max(0, h.equipT - dt);
+    const pop = 1 + (h.equipT / 0.15) * 0.7;
+    this.renderer.draw(h.slot, h.x, h.y, h.z, h.heading, h.scale, h.lie, h.pose, h.look.cap, h.weapon, pop);
     h.rendered = true;
   }
 
