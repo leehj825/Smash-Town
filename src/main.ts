@@ -8,16 +8,18 @@ import { applyDom, getLang, onLangChange, setLang, type Lang } from './i18n';
 import { Input } from './input';
 import { buildWorld } from './world';
 import { buildProps } from './props';
-import { VehicleFactory } from './vehicle';
-import { CarController } from './carController';
 import { Environment, type TimeOfDay } from './environment';
 import { Vfx } from './vfx';
 import { CameraRig } from './cameraRig';
 import { Hud } from './hud';
+import { Game } from './game';
+import { setupTouch } from './touch';
 
 type Quality = 'high' | 'medium' | 'low';
 const QUALITY_KEY = 'smashtown.quality';
 const TIME_KEY = 'smashtown.time';
+const AUDIO_KEY = 'smashtown.audio';
+const TRAFFIC: Record<Quality, number> = { high: 14, medium: 10, low: 6 };
 
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || matchMedia('(pointer: coarse)').matches;
 
@@ -41,40 +43,25 @@ const env = new Environment(scene);
 
 const world = buildWorld();
 scene.add(world.group);
-const props = buildProps(world);
-scene.add(props.group);
-
 const vfx = new Vfx();
 scene.add(vfx.group);
-
-const model = VehicleFactory.createSportsCar(0xffd500);
-scene.add(model.root);
+const props = buildProps(world, vfx);
+scene.add(props.group);
 
 const input = new Input();
+input.attachCanvas(canvas);
+setupTouch(input);
 const cameraRig = new CameraRig(camera);
+cameraRig.obstacles = world.boxes;
 const hud = new Hud(world);
-
-let hitStop = 0;
-const car = new CarController(model, world, {
-  onImpact(strength) {
-    cameraRig.shake(Math.min(1, strength / 22));
-    if (strength > 9) hitStop = Math.max(hitStop, 0.03);
-  },
-});
-const respawn = () => {
-  car.reset(world.spawn.x, world.spawn.z, world.spawn.heading);
-  cameraRig.snap();
-};
-respawn();
+const game = new Game({ scene, world, props, vfx, hud, input, env, cameraRig });
 
 // ---------------------------------------------------------------- post-processing / quality
 const composer = new EffectComposer(renderer);
-const renderPass = new RenderPass(scene, camera);
 const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.5, 1.0);
-const outputPass = new OutputPass();
-composer.addPass(renderPass);
+composer.addPass(new RenderPass(scene, camera));
 composer.addPass(bloom);
-composer.addPass(outputPass);
+composer.addPass(new OutputPass());
 
 let quality: Quality = 'high';
 function applyQuality(q: Quality): void {
@@ -85,10 +72,10 @@ function applyQuality(q: Quality): void {
   env.sun.castShadow = shadows;
   env.setShadowMapSize(isMobile ? 512 : 1024);
   bloom.enabled = q === 'high';
-  model.blob.visible = !shadows;
+  game.useBlob = !shadows;
+  game.trafficTarget = TRAFFIC[q];
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, q === 'low' ? 1.25 : 2));
   resize();
-  // Materials must recompile when shadows toggle.
   scene.traverse((o) => {
     const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
     if (Array.isArray(m)) m.forEach((x) => (x.needsUpdate = true));
@@ -111,7 +98,7 @@ window.addEventListener('resize', resize);
 const savedQ = storedGet(QUALITY_KEY);
 applyQuality(savedQ === 'high' || savedQ === 'medium' || savedQ === 'low' ? savedQ : isMobile ? 'medium' : 'high');
 
-// ---------------------------------------------------------------- time of day
+// ---------------------------------------------------------------- time of day / audio
 function applyTime(t: TimeOfDay, instant = false): void {
   env.setTime(t, instant);
   storedSet(TIME_KEY, t);
@@ -120,6 +107,13 @@ function applyTime(t: TimeOfDay, instant = false): void {
 const savedT = storedGet(TIME_KEY);
 applyTime(savedT === 'noon' || savedT === 'sunset' || savedT === 'night' ? savedT : 'noon', true);
 
+function applyAudio(on: boolean): void {
+  game.audio.setEnabled(on);
+  storedSet(AUDIO_KEY, on ? '1' : '0');
+  document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.classList.toggle('sel', (b.dataset.a === '1') === on));
+}
+applyAudio(storedGet(AUDIO_KEY) !== '0');
+
 // ---------------------------------------------------------------- UI wiring
 const titleEl = document.getElementById('title')!;
 const pauseEl = document.getElementById('pause')!;
@@ -127,6 +121,7 @@ const hudEl = document.getElementById('hud')!;
 let state: 'title' | 'playing' | 'paused' = 'title';
 
 function startGame(): void {
+  game.audio.init(); // needs a user gesture
   state = 'playing';
   titleEl.hidden = true;
   hudEl.hidden = false;
@@ -135,19 +130,15 @@ function setPaused(p: boolean): void {
   if (state === 'title') return;
   state = p ? 'paused' : 'playing';
   pauseEl.hidden = !p;
+  if (p) input.releaseMouse();
 }
 document.getElementById('btn-play')!.addEventListener('click', startGame);
 document.getElementById('btn-pause')!.addEventListener('click', () => setPaused(true));
 document.getElementById('btn-resume')!.addEventListener('click', () => setPaused(false));
-document.querySelectorAll<HTMLElement>('.lang').forEach((b) =>
-  b.addEventListener('click', () => setLang(b.dataset.lang as Lang)),
-);
-document.querySelectorAll<HTMLElement>('.quality').forEach((b) =>
-  b.addEventListener('click', () => applyQuality(b.dataset.q as Quality)),
-);
-document.querySelectorAll<HTMLElement>('.tod').forEach((b) =>
-  b.addEventListener('click', () => applyTime(b.dataset.t as TimeOfDay)),
-);
+document.querySelectorAll<HTMLElement>('.lang').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang as Lang)));
+document.querySelectorAll<HTMLElement>('.quality').forEach((b) => b.addEventListener('click', () => applyQuality(b.dataset.q as Quality)));
+document.querySelectorAll<HTMLElement>('.tod').forEach((b) => b.addEventListener('click', () => applyTime(b.dataset.t as TimeOfDay)));
+document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.addEventListener('click', () => applyAudio(b.dataset.a === '1')));
 applyDom();
 document.documentElement.lang = getLang();
 const syncLangButtons = () =>
@@ -161,9 +152,6 @@ window.addEventListener('keydown', (e) => {
 
 // ---------------------------------------------------------------- main loop
 const timer = new THREE.Timer();
-const focus = new THREE.Vector3();
-const spawnSkid = (x: number, z: number, h: number) => vfx.addSkid(x, z, h);
-const spawnDust = (x: number, z: number, vx: number, vz: number, n: number) => vfx.emitDust(x, 0.2, z, vx, vz, n);
 
 function frame(): void {
   requestAnimationFrame(frame);
@@ -171,50 +159,35 @@ function frame(): void {
   let dt = Math.min(timer.getDelta(), 0.05);
 
   if (state === 'playing') {
-    if (input.wasPressed('Escape') || input.wasPressed('KeyP')) setPaused(true);
-    if (input.wasPressed('KeyT')) {
-      const next = env.cycleTime();
-      applyTime(next);
-    }
-    if (input.wasPressed('KeyR')) respawn();
+    if (game.state !== 'garage' && (input.wasPressed('Escape') || input.wasPressed('KeyP'))) setPaused(true);
+    if (input.wasPressed('KeyT')) applyTime(env.cycleTime());
   } else if (state === 'paused') {
     if (input.wasPressed('Escape') || input.wasPressed('KeyP')) setPaused(false);
     dt = 0;
   } else {
-    dt = dt * 0.0; // title screen: freeze the sim, still render
+    dt = 0; // title screen: freeze the sim, still render
   }
 
-  if (hitStop > 0) {
-    hitStop -= dt;
+  if (game.hitStop > 0) {
+    game.hitStop -= dt;
     dt = 0;
   }
 
-  if (dt > 0) {
+  if (state === 'playing' && dt > 0) {
     // sub-step for stable collisions
     const steps = Math.ceil(dt / (1 / 60));
-    const h = dt / steps;
-    for (let i = 0; i < steps; i++) car.update(h, input, spawnSkid, spawnDust);
+    for (let i = 0; i < steps; i++) game.update(dt / steps);
     vfx.update(dt);
   }
 
-  cameraRig.update(state === 'title' ? 0.016 : dt || 0.0001, car);
-
-  // night-driven emissives
-  const n = env.night;
-  world.windowMaterial.emissiveIntensity = n * 1.1;
-  props.lampHeadMaterial.emissiveIntensity = 0.15 + n * 3.2;
-  model.headMat.emissiveIntensity = 0.6 + n * 2.6;
-  model.headGlow.visible = n > 0.05;
-  (model.headGlow.material as THREE.MeshBasicMaterial).opacity = Math.min(0.6, n * 0.6);
-
-  focus.copy(car.position);
-  env.update(Math.max(dt, 0.016), focus, camera);
-
-  hud.update(car);
+  cameraRig.update(state === 'title' ? 0.016 : dt || 0.0001, game.followable);
+  env.update(Math.max(dt, 0.016), game.followable.position, camera);
   composer.render();
   input.endFrame();
 }
 frame();
 
 // Debug handle for tests and tinkering from the console.
-(window as unknown as { __smash: unknown }).__smash = { car, env, hud, applyQuality, applyTime, startGame, get quality() { return quality; } };
+(window as unknown as { __smash: unknown }).__smash = {
+  game, env, hud, renderer, scene, camera, applyQuality, applyTime, startGame, get quality() { return quality; },
+};

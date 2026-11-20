@@ -65,3 +65,80 @@ button.big:active { transform: translateY(4px); box-shadow: 0 2px 0 #a3153a; }
   #stars { font-size: 26px; }
   #cash { font-size: 24px; }
 }
+
+/* ---- Phase 2-4 HUD ---- */
+#combo-mult { font-size: 15px; color: #ffd500; margin-left: 6px; }
+#combo-mult.hot { color: #ff2a55; font-size: 19px; }
+#toast { top: 96px; left: 50%; transform: translate(-50%, -8px); padding: 8px 18px; border-radius: 12px; background: rgba(14,18,28,.82); border: 2px solid rgba(255,255,255,.4); font-size: 16px; opacity: 0; transition: opacity .2s, transform .2s; white-space: nowrap; }
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+#gig { top: 14px; left: 50%; transform: translateX(-50%); min-width: 260px; max-width: 80vw; text-align: center; padding: 8px 18px; border-radius: 12px; background: rgba(14,18,28,.78); border: 2px solid #ffd500; }
+#gig-title { color: #ffd500; letter-spacing: 2px; font-size: 13px; }
+#gig-obj { font-size: 14px; margin-top: 2px; font-weight: 600; }
+#gig-time { font-size: 20px; margin-top: 2px; }
+#prompt { bottom: 22%; left: 50%; transform: translateX(-50%); padding: 8px 16px; border-radius: 10px; background: rgba(14,18,28,.8); font-size: 15px; border: 2px solid rgba(255,255,255,.45); }
+#overlay-msg { inset: 0; display: grid; place-content: center; text-align: center; background: radial-gradient(circle, rgba(0,0,0,.1), rgba(0,0,0,.65)); }
+#overlay-msg b { font-size: clamp(54px, 12vw, 120px); letter-spacing: 6px; color: #ff2a55; text-shadow: 0 6px 0 #5b0b1c; }
+#overlay-msg small { font-size: 22px; opacity: .9; }
+.garage-panel { width: min(94vw, 640px); }
+.garage-panel h3 { margin: 18px 0 8px; font-size: 13px; letter-spacing: 2px; opacity: .8; }
+.gcash { margin-bottom: 10px; font-size: 14px; } .gcash b { color: #a4e87a; }
+button.big.small { font-size: 15px; padding: 10px 22px; letter-spacing: 1px; margin-top: 8px; }
+button.big.ghost { background: transparent; border: 2px solid rgba(255,255,255,.5); box-shadow: none; }
+.vgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.vcard { border: 2px solid rgba(255,255,255,.2); border-radius: 12px; padding: 10px; text-align: left; }
+.vcard.sel { border-color: #ffd500; }
+.vname { font-size: 14px; margin-bottom: 6px; }
+.vbars { display: grid; gap: 3px; margin-bottom: 8px; }
+.vb { display: block; height: 5px; background: rgba(255,255,255,.15); border-radius: 3px; overflow: hidden; }
+.vb i { display: block; height: 100%; background: linear-gradient(90deg, #1e90ff, #6fe3ff); }
+.vbtn { width: 100%; font-size: 12px; } .vbtn:disabled { opacity: .55; cursor: default; }
+
+/* ---- touch controls ---- */
+#touch { position: fixed; inset: auto 0 0 0; height: 0; z-index: 5; pointer-events: none; }
+#touch .tpad { position: fixed; bottom: 18px; display: flex; gap: 10px; align-items: flex-end; pointer-events: auto; touch-action: none; }
+#touch .left { left: 14px; bottom: 170px; }
+#touch .right { right: 14px; bottom: 150px; flex-wrap: wrap; width: 220px; justify-content: flex-end; }
+#touch button { width: 74px; height: 74px; border-radius: 50%; border: 2px solid rgba(255,255,255,.7); background: rgba(14,18,28,.55); color: #fff; font: inherit; font-size: 22px; touch-action: none; }
+#touch button.sm { width: 54px; height: 54px; font-size: 11px; }
+#touch button.gas { width: 84px; height: 84px; background: rgba(40,160,90,.6); }
+#touch button.down { background: rgba(255,255,255,.35); }
+.is-touch #hints { display: none; }
+.is-touch #minimap { bottom: auto; top: 70px; left: 14px; width: 96px; height: 96px; }
+.is-touch #telemetry { bottom: 14px; right: 14px; }
+.is-touch #speedo-wrap, .is-touch .bars, .is-touch #foot-hud { display: none; }
+
+/* ---- on-foot HUD (GDD v2) ---- */
+#phealth { display: grid; grid-template-columns: 44px 150px; align-items: center; gap: 6px; margin-top: 6px; font-size: 10px; letter-spacing: 1px; justify-content: end; }
+#phealth .track { height: 10px; }
+#phealth .fill { transition: width .12s; }
+#wanted-banner { left: 16px; bottom: 164px; padding: 3px 14px; font-size: 13px; letter-spacing: 3px; border-radius: 8px; background: rgba(200,20,40,.85); border: 2px solid #ff8a96; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { background: rgba(40,90,220,.85); border-color: #8ab0ff; } }
+#foot-hud { display: none; flex-direction: column; align-items: flex-end; gap: 6px; }
+#telemetry.foot #foot-hud { display: flex; }
+#telemetry.foot #speedo-wrap, #telemetry.foot .bars, #telemetry.foot .hints-drive { display: none; }
+#weapon-slots { display: flex; gap: 6px; }
+.slot { width: 62px; padding: 5px 4px; text-align: center; border-radius: 10px; background: rgba(14,18,28,.7); border: 2px solid rgba(255,255,255,.35); font-size: 10px; line-height: 1.2; position: relative; }
+.slot b { position: absolute; top: 2px; left: 6px; font-size: 10px; opacity: .8; }
+.slot i { display: block; font-style: normal; font-size: 22px; }
+.slot.sel { border-color: #ffd500; background: rgba(60,50,0,.75); box-shadow: 0 0 10px rgba(255,213,0,.5); }
+.slot.locked { opacity: .35; }
+.hints-foot { list-style: none; margin: 0; padding: 0; text-align: right; font-size: 11px; line-height: 1.5; font-weight: 600; opacity: .92; }
+
+/* touch: switch button sets by mode, keep clear of HUD */
+.only-foot, #touch .only-foot { display: none; }
+.foot-mode #touch .only-foot { display: flex; }
+.foot-mode #touch .only-car { display: none; }
+#touch .only-car, #touch .only-foot { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-height: 520px) {
+  #touch button { width: 58px; height: 58px; font-size: 18px; }
+  #touch button.sm { width: 46px; height: 46px; font-size: 10px; }
+  #touch button.gas { width: 68px; height: 68px; }
+  #touch .left { left: 10px; bottom: 10px !important; }
+  #touch .right { right: 10px; bottom: 10px !important; width: 210px; }
+  #status { transform: scale(.85); transform-origin: top right; }
+  #phealth { grid-template-columns: 22px 110px; }
+  .is-touch #minimap { top: 62px; width: 84px; height: 84px; }
+  .is-touch #wanted-banner { top: 150px; bottom: auto; left: 12px; font-size: 10px; padding: 2px 8px; }
+  #telemetry { display: none; }
+  #toast { top: 60px; }
+}

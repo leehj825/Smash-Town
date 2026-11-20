@@ -1,43 +1,48 @@
 import * as THREE from 'three';
+import { ParticlePool } from './particles';
 
-/** Pooled dust puffs (instanced low-poly icosahedrons) and a ring buffer of skid-mark quads. No allocations in update(). */
+const rnd = (a = 1) => (Math.random() - 0.5) * 2 * a;
+
+/** All low-poly particle effects: dust, smoke, fire, sparks, water, debris, skid marks. */
 export class Vfx {
   readonly group = new THREE.Group();
-
-  private readonly DUST_MAX = 160;
-  private dust: THREE.InstancedMesh;
-  private dustPos = new Float32Array(this.DUST_MAX * 3);
-  private dustVel = new Float32Array(this.DUST_MAX * 3);
-  private dustLife = new Float32Array(this.DUST_MAX); // remaining
-  private dustTotal = new Float32Array(this.DUST_MAX);
-  private dustSize = new Float32Array(this.DUST_MAX);
-  private dustNext = 0;
+  private dust = new ParticlePool({
+    geometry: new THREE.IcosahedronGeometry(0.5, 0),
+    material: new THREE.MeshLambertMaterial({ flatShading: true }), max: 160, gravity: -0.5, mode: 'puff',
+  });
+  private smoke = new ParticlePool({
+    geometry: new THREE.IcosahedronGeometry(0.5, 0),
+    material: new THREE.MeshLambertMaterial({ flatShading: true }), max: 120, gravity: -2, mode: 'puff',
+  });
+  private fire = new ParticlePool({
+    geometry: new THREE.OctahedronGeometry(0.5, 0),
+    material: new THREE.MeshBasicMaterial({ fog: false }), max: 160, gravity: -3, mode: 'shrink', spin: true,
+  });
+  private sparks = new ParticlePool({
+    geometry: new THREE.BoxGeometry(0.05, 0.05, 0.4),
+    material: new THREE.MeshBasicMaterial({ fog: false }), max: 80, gravity: 14, mode: 'shrink', bounce: true, spin: true,
+  });
+  private water = new ParticlePool({
+    geometry: new THREE.BoxGeometry(0.14, 0.14, 0.14),
+    material: new THREE.MeshBasicMaterial({ fog: false }), max: 260, gravity: 16, mode: 'solid', bounce: true,
+  });
+  private debris = new ParticlePool({
+    geometry: new THREE.BoxGeometry(0.22, 0.22, 0.22),
+    material: new THREE.MeshLambertMaterial({ flatShading: true }), max: 260, gravity: 20, mode: 'solid', bounce: true, spin: true,
+  });
 
   private readonly SKID_MAX = 700;
   private skids: THREE.InstancedMesh;
   private skidNext = 0;
-
   private m = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private p = new THREE.Vector3();
-  private s = new THREE.Vector3();
+  private s = new THREE.Vector3(1, 1, 1);
   private e = new THREE.Euler();
   private zero = new THREE.Matrix4().makeScale(0, 0, 0);
-  private color = new THREE.Color();
 
   constructor() {
-    this.dust = new THREE.InstancedMesh(
-      new THREE.IcosahedronGeometry(0.5, 0),
-      new THREE.MeshLambertMaterial({ flatShading: true, color: 0xffffff }),
-      this.DUST_MAX,
-    );
-    this.dust.frustumCulled = false;
-    for (let i = 0; i < this.DUST_MAX; i++) {
-      this.dust.setMatrixAt(i, this.zero);
-      this.dust.setColorAt(i, this.color.set(0xd8c9a8));
-    }
-    this.group.add(this.dust);
-
+    for (const pool of [this.dust, this.smoke, this.fire, this.sparks, this.water, this.debris]) this.group.add(pool.mesh);
     const skidGeo = new THREE.PlaneGeometry(0.34, 0.9).rotateX(-Math.PI / 2);
     this.skids = new THREE.InstancedMesh(
       skidGeo,
@@ -52,20 +57,48 @@ export class Vfx {
     this.group.add(this.skids);
   }
 
-  emitDust(x: number, y: number, z: number, vx: number, vz: number, amount = 1): void {
-    for (let n = 0; n < amount; n++) {
-      const i = this.dustNext;
-      this.dustNext = (this.dustNext + 1) % this.DUST_MAX;
-      this.dustPos[i * 3] = x + (Math.random() - 0.5) * 0.4;
-      this.dustPos[i * 3 + 1] = y + Math.random() * 0.2;
-      this.dustPos[i * 3 + 2] = z + (Math.random() - 0.5) * 0.4;
-      this.dustVel[i * 3] = vx * 0.15 + (Math.random() - 0.5) * 1.6;
-      this.dustVel[i * 3 + 1] = 0.8 + Math.random() * 1.4;
-      this.dustVel[i * 3 + 2] = vz * 0.15 + (Math.random() - 0.5) * 1.6;
-      const life = 0.5 + Math.random() * 0.5;
-      this.dustLife[i] = this.dustTotal[i] = life;
-      this.dustSize[i] = 0.25 + Math.random() * 0.3;
+  emitDust(x: number, z: number, vx: number, vz: number, n = 1): void {
+    for (let i = 0; i < n; i++) {
+      this.dust.emit(x + rnd(0.2), 0.2, z + rnd(0.2), vx * 0.15 + rnd(0.8), 0.8 + Math.random() * 1.4, vz * 0.15 + rnd(0.8),
+        0.5 + Math.random() * 0.5, 0.35 + Math.random() * 0.35, Math.random() < 0.5 ? 0xd8c9a8 : 0xbfb4a0);
     }
+  }
+
+  /** Rising low-poly smoke. `dark` for heavily damaged vehicles. */
+  emitSmoke(x: number, y: number, z: number, dark: boolean, n = 1): void {
+    for (let i = 0; i < n; i++) {
+      this.smoke.emit(x + rnd(0.3), y, z + rnd(0.3), rnd(0.5), 2 + Math.random() * 1.5, rnd(0.5),
+        1.1 + Math.random() * 0.6, 0.7 + Math.random() * 0.6, dark ? 0x3a3a40 : 0xf2f2f5);
+    }
+  }
+
+  emitFire(x: number, y: number, z: number, n = 1, spread = 0.5): void {
+    for (let i = 0; i < n; i++) {
+      this.fire.emit(x + rnd(spread), y, z + rnd(spread), rnd(1), 2.5 + Math.random() * 2.5, rnd(1),
+        0.35 + Math.random() * 0.3, 0.45 + Math.random() * 0.5, Math.random() < 0.5 ? 0xff8c00 : 0xffd23a);
+    }
+  }
+
+  emitSparks(x: number, y: number, z: number, n = 4): void {
+    for (let i = 0; i < n; i++) this.sparks.emit(x, y, z, rnd(5), 2 + Math.random() * 4, rnd(5), 0.4 + Math.random() * 0.3, 1, 0xffe14d);
+  }
+
+  emitWater(x: number, y: number, z: number, vx: number, vy: number, vz: number): void {
+    this.water.emit(x, y, z, vx, vy, vz, 1.4, 1, Math.random() < 0.5 ? 0x5ec4ff : 0xb6e6ff);
+  }
+
+  emitDebris(x: number, y: number, z: number, vx: number, vz: number, color: number, n = 8): void {
+    for (let i = 0; i < n; i++) {
+      this.debris.emit(x + rnd(0.3), y + Math.random() * 0.5, z + rnd(0.3), vx * 0.4 + rnd(4), 3 + Math.random() * 5, vz * 0.4 + rnd(4),
+        1.6 + Math.random(), 0.5 + Math.random() * 0.8, color);
+    }
+  }
+
+  explosion(x: number, z: number): void {
+    this.emitFire(x, 0.8, z, 26, 1.6);
+    this.emitSmoke(x, 1.2, z, true, 12);
+    this.emitSparks(x, 1, z, 14);
+    this.emitDebris(x, 1, z, 0, 0, 0x2a2a2e, 10);
   }
 
   addSkid(x: number, z: number, heading: number): void {
@@ -73,34 +106,17 @@ export class Vfx {
     this.skidNext = (this.skidNext + 1) % this.SKID_MAX;
     this.q.setFromEuler(this.e.set(0, heading, 0));
     this.p.set(x, 0.045, z);
-    this.s.set(1, 1, 1);
     this.m.compose(this.p, this.q, this.s);
     this.skids.setMatrixAt(i, this.m);
     this.skids.instanceMatrix.needsUpdate = true;
   }
 
   update(dt: number): void {
-    for (let i = 0; i < this.DUST_MAX; i++) {
-      const life = this.dustLife[i];
-      if (life <= 0) continue;
-      const nl = life - dt;
-      this.dustLife[i] = nl;
-      if (nl <= 0) {
-        this.dust.setMatrixAt(i, this.zero);
-        continue;
-      }
-      this.dustPos[i * 3] += this.dustVel[i * 3] * dt;
-      this.dustPos[i * 3 + 1] += this.dustVel[i * 3 + 1] * dt;
-      this.dustPos[i * 3 + 2] += this.dustVel[i * 3 + 2] * dt;
-      const t = 1 - nl / this.dustTotal[i];
-      // expand then shrink
-      const size = this.dustSize[i] * Math.sin(Math.min(1, t * 1.1) * Math.PI) + 0.03;
-      this.p.set(this.dustPos[i * 3], this.dustPos[i * 3 + 1], this.dustPos[i * 3 + 2]);
-      this.s.setScalar(size);
-      this.q.identity();
-      this.m.compose(this.p, this.q, this.s);
-      this.dust.setMatrixAt(i, this.m);
-    }
-    this.dust.instanceMatrix.needsUpdate = true;
+    this.dust.update(dt);
+    this.smoke.update(dt);
+    this.fire.update(dt);
+    this.sparks.update(dt);
+    this.water.update(dt);
+    this.debris.update(dt);
   }
 }

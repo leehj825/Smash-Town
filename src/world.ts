@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MeshBuilder, makeRng, paletteMaterial } from './geo';
 
 export const CELL = 40;
@@ -9,7 +10,11 @@ export const BOUNDS = { minX: -10, maxX: WORLD_SIZE + 10, minZ: -10, maxZ: WORLD
 export type District = 'beach' | 'oldtown' | 'downtown' | 'harbor';
 
 export interface BoxCollider { minX: number; maxX: number; minZ: number; maxZ: number }
-export interface CircleCollider { x: number; z: number; r: number }
+export interface SmashRef { type: 'hydrant' | 'lamp' | 'palm' | 'bench' | 'newsstand' | 'trash'; index: number; value: number }
+export interface CircleCollider { x: number; z: number; r: number; smash?: SmashRef; dead?: boolean }
+/** Climbable wedge. (dx,dz) is the uphill direction; (x,z) is the center. */
+export interface Ramp { x: number; z: number; dx: number; dz: number; len: number; width: number; h: number }
+export interface Spot { x: number; z: number }
 
 export interface Lot {
   i: number; j: number;
@@ -22,7 +27,10 @@ export interface World {
   lots: Lot[];
   boxes: BoxCollider[];
   circles: CircleCollider[];
+  ramps: Ramp[];
+  garages: Spot[];
   windowMaterial: THREE.MeshStandardMaterial;
+  signMaterial: THREE.MeshStandardMaterial;
   spawn: { x: number; z: number; heading: number };
   /** Draws a top-down image of the city for the minimap. */
   minimapCanvas: HTMLCanvasElement;
@@ -81,6 +89,32 @@ function windowTextures(): { map: THREE.CanvasTexture; emissive: THREE.CanvasTex
     t.anisotropy = 4;
   }
   return { map, emissive };
+}
+
+const SIGN_TEXTS = ['24h MOTEL', 'DONUTS', 'PIZZA', 'CAFE', 'BAR', 'ARCADE', 'BOOKS', 'SUSHI'];
+const SIGN_COLORS = [['#2a2f7a', '#ffd34d'], ['#ff7eb6', '#ffffff'], ['#c0392b', '#fff3c4'], ['#1f7a5a', '#ffffff'], ['#3a2a5a', '#7fe0ff'], ['#101a40', '#ff4d9a'], ['#7a4a1f', '#ffe9b0'], ['#e8f4ff', '#d62828']];
+
+/** One 2x4 atlas holding every shop signboard (a single draw call). Cell (c, r) -> uv rect. */
+function signAtlas(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 1024; c.height = 512;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#1b1b22';
+  g.fillRect(0, 0, 1024, 512);
+  SIGN_TEXTS.forEach((text, i) => {
+    const cx = (i % 2) * 512, cy = Math.floor(i / 2) * 128;
+    const [bg, fg] = SIGN_COLORS[i];
+    g.fillStyle = bg; g.fillRect(cx + 6, cy + 6, 500, 116);
+    g.lineWidth = 8; g.strokeStyle = fg; g.strokeRect(cx + 14, cy + 14, 484, 100);
+    g.font = '900 64px Montserrat, "Noto Sans KR", sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = fg;
+    g.fillText(text, cx + 256, cy + 68, 450);
+  });
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
 }
 
 /** Procedural asphalt with lane markings. Texture u = across the road, v = along it. */
@@ -319,6 +353,14 @@ export function buildWorld(): World {
   const addBoxCollider = (x: number, z: number, w: number, d: number) =>
     boxes.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
 
+  const signs: { x: number; z: number; dirX: number; dirZ: number; w: number; idx: number }[] = [];
+  let signCount = 0;
+  const addSign = (x: number, z: number, dirX: number, dirZ: number, w: number) => {
+    if (signCount >= 14) return;
+    signs.push({ x, z, dirX, dirZ, w: Math.min(5.6, w * 0.7), idx: signCount % SIGN_TEXTS.length });
+    signCount++;
+  };
+
   const awning = (cx: number, cz: number, dirX: number, dirZ: number, len: number) => {
     const color = pick(AWNINGS);
     const strips = 6;
@@ -396,9 +438,11 @@ export function buildWorld(): World {
         if (alongX) {
           const dirZ = lot.j < 4 ? -1 : 1;
           awning(x, z + dirZ * d / 2, 0, dirZ, w * 0.82);
+          addSign(x, z + dirZ * d / 2, 0, dirZ, w);
         } else {
           const dirX = lot.i < 4 ? -1 : 1;
           awning(x + dirX * w / 2, z, dirX, 0, d * 0.82);
+          addSign(x + dirX * w / 2, z, dirX, 0, d);
         }
       }
     } else if (lot.district === 'harbor') {
@@ -450,6 +494,79 @@ export function buildWorld(): World {
   buildingMesh.receiveShadow = true;
   group.add(buildingMesh);
 
+  // ---------- jump ramps ----------
+  const ramps: Ramp[] = [
+    { x: 66, z: 320, dx: 1, dz: 0, len: 10, width: 9, h: 3.2 },   // coastal highway, eastbound (stunt jump)
+    { x: 282, z: 320, dx: -1, dz: 0, len: 10, width: 9, h: 3.2 }, // coastal highway, westbound
+    { x: 165, z: 118, dx: 0, dz: -1, len: 10, width: 9, h: 3.2 }, // downtown avenue, northbound
+    { x: 240, z: 196, dx: 0, dz: 1, len: 10, width: 9, h: 3.2 },  // harbor road, southbound
+  ];
+  const rb = new MeshBuilder();
+  for (const r of ramps) {
+    const m = new THREE.Matrix4().compose(
+      new THREE.Vector3(r.x, r.h / 2, r.z),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.atan2(r.dx, r.dz), 0)),
+      new THREE.Vector3(1, 1, 1),
+    );
+    const g = new THREE.BoxGeometry(r.width, r.h, r.len);
+    const pos = g.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) if (pos.getZ(i) < 0 && pos.getY(i) > 0) pos.setY(i, -r.h / 2);
+    rb.add(g, 0xff8c00, m);
+    for (const sx of [-1, 1]) {
+      const side = new THREE.Matrix4().compose(
+        new THREE.Vector3(r.x - r.dz * sx * (r.width / 2 + 0.1), 0.2, r.z + r.dx * sx * (r.width / 2 + 0.1)),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.atan2(r.dx, r.dz), 0)),
+        new THREE.Vector3(1, 1, 1),
+      );
+      rb.add(new THREE.BoxGeometry(0.2, 0.4, r.len), 0xffffff, side);
+    }
+  }
+  const rampMesh = new THREE.Mesh(rb.build(), paletteMaterial());
+  rampMesh.castShadow = true;
+  rampMesh.receiveShadow = true;
+  group.add(rampMesh);
+
+  const garages: Spot[] = [
+    { x: 80, z: 220 },   // Old Town
+    { x: 240, z: 100 },  // Harbor
+    { x: 160, z: 60 },   // Downtown avenue
+  ];
+
+  // ---------- shop signboards ----------
+  const signMaterial = new THREE.MeshStandardMaterial({
+    map: signAtlas(), flatShading: true, roughness: 0.7, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0.15,
+  });
+  signMaterial.emissiveMap = signMaterial.map;
+  {
+    const geos: THREE.BufferGeometry[] = [];
+    for (const sg of signs) {
+      const along = sg.dirZ !== 0;
+      const g = new THREE.BoxGeometry(along ? sg.w : 0.3, 1.5, along ? 0.3 : sg.w);
+      const uv = g.attributes.uv as THREE.BufferAttribute;
+      // BoxGeometry face order: +x, -x, +y, -y, +z, -z (4 verts each). The front is the face looking along the sign direction.
+      const front = along ? (sg.dirZ > 0 ? 4 : 5) : (sg.dirX > 0 ? 0 : 1);
+      const col = sg.idx % 2, row = Math.floor(sg.idx / 2);
+      for (let f = 0; f < 6; f++) {
+        for (let v = 0; v < 4; v++) {
+          const i = f * 4 + v;
+          if (f === front) {
+            uv.setXY(i, col * 0.5 + uv.getX(i) * 0.5, 1 - row * 0.25 - 0.25 + uv.getY(i) * 0.25);
+          } else {
+            uv.setXY(i, 0.5 * col + 0.003, 1 - row * 0.25 - 0.01); // dark border pixel of the atlas
+          }
+        }
+      }
+      g.translate(sg.x + sg.dirX * 0.2, 5.6, sg.z + sg.dirZ * 0.2);
+      geos.push(g);
+    }
+    if (geos.length) {
+      const merged = mergeGeometries(geos, false)!;
+      const mesh = new THREE.Mesh(merged, signMaterial);
+      mesh.castShadow = true;
+      group.add(mesh);
+    }
+  }
+
   // ---------- minimap image ----------
   const MM = 4; // px per metre
   const mm = document.createElement('canvas');
@@ -475,5 +592,9 @@ export function buildWorld(): World {
 
   const spawn = { x: 4 * CELL + 3, z: 6 * CELL, heading: Math.PI }; // on the avenue, facing north (-Z)
 
-  return { group, lots, boxes, circles, windowMaterial, spawn, minimapCanvas: mm };
+  return { group, lots, boxes, circles, ramps, garages, windowMaterial, signMaterial, spawn, minimapCanvas: mm };
 }
+
+// ------------------------------------------------------------------ road graph helpers (AI)
+export const nodeX = (b: number): number => b * CELL;
+export const nodeZ = (a: number): number => a * CELL;
