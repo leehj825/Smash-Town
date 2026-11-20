@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'io.github.leehj825.smashtown'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'io.github.leehj825.smashtown'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '0.1.0'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+            debuggable true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // The game is the Vite production build in <repo>/dist (run `npm run build` first). It is copied, not duplicated
+    // in git, into the app's assets under www/ before every build, and served to the WebView from a https:// origin.
+    sourceSets {
+        main.assets.srcDir(layout.buildDirectory.dir('generated/www'))
+    }
+}
+
+def webRoot = new File(rootProject.projectDir.parentFile, 'dist')
+tasks.register('copyWeb', Copy) {
+    doFirst {
+        if (!new File(webRoot, 'index.html').exists()) {
+            throw new GradleException("dist/index.html not found. Run 'npm install && npm run build' in the repository root first.")
+        }
+    }
+    from(webRoot)
+    into layout.buildDirectory.dir('generated/www/www')
+}
+tasks.matching { it.name == 'preBuild' }.configureEach { dependsOn 'copyWeb' }

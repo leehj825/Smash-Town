@@ -300,11 +300,12 @@ Legend: ✅ done · ◐ partial · ⬜ not done. "Tested" means exercised by a s
 | Old Town signboards (`24h MOTEL`, `DONUTS`, …) | ✅ | One canvas atlas, one draw call, emissive at night. English text only. |
 | Props: palms, lamps, hydrants, benches, **newsstands, trash cans** | ✅ | Instanced; smash → pooled tumbling bodies + debris + 5 s hydrant spray. Newspaper "sheets" are white debris cubes. |
 | Vehicles (sports, sedan, taxi, pickup, muscle, supercar, police, interceptor, SWAT, armored) | ✅ | Player car has animated wheels; AI cars use a single merged mesh. Damage stages and explosion implemented. |
-| Humanoid rig (15 joints, right-hand weapon socket) | ◐ | Same joint names, parents-first order, left = +x and blocky proportions as `model_check` (`src/rig.js`, `src/figure.js`), but it is a re-implementation in this repo, not imported code (model_check is a global-THREE r128 JS library; this game uses Three r187 + TypeScript). |
-| Character animator (idle, walk, run, punch ×3, kick, swing ×2, dodge roll, hit react, knockdown, get-up, jump) | ✅ | Pure procedural, damped blend. 2-segment limbs are always present, so no single-segment fallback is needed. |
+| Humanoid rig (15 joints, right-hand weapon socket) | ✅ | Same joint names, parents-first order, left = +x and blocky proportions as `model_check` (`src/rig.js`, `src/figure.js`). The rig code is a re-implementation in this repo (model_check is a global-THREE r128 JS library; this game uses Three r187 + TypeScript). Right-hand items use model_check's holder tilt ("blade up and a little forward"). |
+| Character animation | ✅ | **v3 change:** instead of hand-made poses, characters play the **motion-capture clips from `model_check`** (`data/anims.js`, Mixamo clips retargeted to the shared rig), extracted by `scripts/extract-anims.mjs` into `src/data/anims.json` (41 clips, ~112 KB gzipped) and played by `src/mocap.ts` (quaternion slerp, 0.03–0.15 s cross-fades). This supersedes §4.4's "zero external animation clips"; the angles in §4.4 are now targets the clips approximate, while frame timings still come from the §4.3 table: each attack clip is time-warped so its strike frame lands in the middle of the active window. |
+| Clip map | ✅ | idle / idleCalm (civilians) / idleAlert (cops); walk, run, walkB/runB (backpedal), strafeWalk/RunN/P (strafe); jab = `attack1`, cross = `attack2`, uppercut = `attack3`; kick = `kick` (strike anchored at 0.6 s); bat/baton swings = `slash1` / `slash3`; dodge roll = `dive`; hit react = `impact`/`impact2`; knockdown and get-up = `die` (forward / reversed); jump = `gsJump` mapped to the physics apex. |
 | Player look (red hoodie, jeans, white sneakers, hair, overhead `PLAYER` marker) | ✅ | Marker added in v3 work. |
 | Police look (navy uniform, peaked cap, belt, baton) | ✅ | Utility belt added in v3 work. |
-| On-foot controls (camera-relative walk/sprint, jump, dodge, combo, kick, weapon swap) | ✅ | Frame data matches the §4.3 table. Space = dodge in combat, otherwise jump. |
+| On-foot controls (camera-relative walk/sprint, jump, dodge, combo, kick, weapon swap) | ✅ | Frame data matches the §4.3 table. Space = dodge in combat, otherwise jump. With a cop within ~12 m the character faces the enemy and strafes/backpedals with the stick; otherwise it turns toward the direction of travel. |
 | Combat resolution (cone hit test, once-per-swing hit ids, knockback, launch, hit-stop, shake, slash trail, comic popups) | ✅ | Shake is not directional. |
 | Weapons: fists, bat, baton | ◐ | Baton is dropped by defeated cops; "found in Old Town alleys" is not implemented. |
 | Foot cops (exit cruisers, surround, baton melee) | ✅ | Count scales with stars; telegraphed wind-up. |
@@ -318,7 +319,7 @@ Legend: ✅ done · ◐ partial · ⬜ not done. "Tested" means exercised by a s
 | Post-processing: ACES + selective bloom | ✅ | Toggle via Graphics preset. |
 | HUD (context-switching bottom-right, health bar, WANTED banner, objective pill, minimap blips) | ✅ | |
 | Procedural audio (engine, screech, siren, footsteps, whoosh, impacts, prop smash) | ✅ | No music. |
-| Mobile touch controls | ◐ | Steering/gas/combat buttons + drag-to-orbit exist; not tested on a real device. |
+| Mobile touch controls | ◐ | Driving: steer arrows + gas/brake/nitro/drift. On foot: **analog left stick** (forward/back + strafe, with deadzone), KICK / DODGE / JUMP / WPN / F / HIT buttons, drag-to-orbit. Layout verified overlap-free at 667×375, 740×360, 844×390 and 915×412; not tested on a real device. |
 | Performance targets (60 fps, <100 draw calls) | ◐ | ≈100 draw calls measured with shadow pass included, ~290k triangles. Frame rate unverified. |
 
 ## 10. Known Gaps & Technical Debt

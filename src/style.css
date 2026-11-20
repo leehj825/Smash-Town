@@ -93,19 +93,6 @@ button.big.ghost { background: transparent; border: 2px solid rgba(255,255,255,.
 .vb i { display: block; height: 100%; background: linear-gradient(90deg, #1e90ff, #6fe3ff); }
 .vbtn { width: 100%; font-size: 12px; } .vbtn:disabled { opacity: .55; cursor: default; }
 
-/* ---- touch controls ---- */
-#touch { position: fixed; inset: auto 0 0 0; height: 0; z-index: 5; pointer-events: none; }
-#touch .tpad { position: fixed; bottom: 18px; display: flex; gap: 10px; align-items: flex-end; pointer-events: auto; touch-action: none; }
-#touch .left { left: 14px; bottom: 170px; }
-#touch .right { right: 14px; bottom: 150px; flex-wrap: wrap; width: 220px; justify-content: flex-end; }
-#touch button { width: 74px; height: 74px; border-radius: 50%; border: 2px solid rgba(255,255,255,.7); background: rgba(14,18,28,.55); color: #fff; font: inherit; font-size: 22px; touch-action: none; }
-#touch button.sm { width: 54px; height: 54px; font-size: 11px; }
-#touch button.gas { width: 84px; height: 84px; background: rgba(40,160,90,.6); }
-#touch button.down { background: rgba(255,255,255,.35); }
-.is-touch #hints { display: none; }
-.is-touch #minimap { bottom: auto; top: 70px; left: 14px; width: 96px; height: 96px; }
-.is-touch #telemetry { bottom: 14px; right: 14px; }
-.is-touch #speedo-wrap, .is-touch .bars, .is-touch #foot-hud { display: none; }
 
 /* ---- on-foot HUD (GDD v2) ---- */
 #phealth { display: grid; grid-template-columns: 44px 150px; align-items: center; gap: 6px; margin-top: 6px; font-size: 10px; letter-spacing: 1px; justify-content: end; }
@@ -124,24 +111,46 @@ button.big.ghost { background: transparent; border: 2px solid rgba(255,255,255,.
 .slot.locked { opacity: .35; }
 .hints-foot { list-style: none; margin: 0; padding: 0; text-align: right; font-size: 11px; line-height: 1.5; font-weight: 600; opacity: .92; }
 
-/* touch: switch button sets by mode, keep clear of HUD */
-.only-foot, #touch .only-foot { display: none; }
-.foot-mode #touch .only-foot { display: flex; }
-.foot-mode #touch .only-car { display: none; }
-#touch .only-car, #touch .only-foot { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-@media (max-height: 520px) {
-  #touch button { width: 58px; height: 58px; font-size: 18px; }
-  #touch button.sm { width: 46px; height: 46px; font-size: 10px; }
-  #touch button.gas { width: 68px; height: 68px; }
-  #touch .left { left: 10px; bottom: 10px !important; }
-  #touch .right { right: 10px; bottom: 10px !important; width: 210px; }
-  #status { transform: scale(.85); transform-origin: top right; }
-  #phealth { grid-template-columns: 22px 110px; }
-  .is-touch #minimap { top: 62px; width: 84px; height: 84px; }
-  .is-touch #wanted-banner { top: 150px; bottom: auto; left: 12px; font-size: 10px; padding: 2px 8px; }
-  #telemetry { display: none; }
-  #toast { top: 60px; }
-}
 
 #err { position: fixed; left: 8px; bottom: 8px; max-width: 90vw; max-height: 40vh; overflow: auto; margin: 0; padding: 8px 12px; z-index: 99; background: rgba(120,0,20,.92); color: #fff; font: 12px/1.4 monospace; white-space: pre-wrap; border-radius: 8px; }
 #err:empty { display: none; }
+
+/* ---- touch controls: every control has its own zone so nothing overlaps ----
+   left column (top->bottom): pause button, minimap, WANTED banner ... joystick / steering at the bottom
+   right column (top->bottom): wanted stars, cash, health, combo ... action buttons at the bottom */
+#touch { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+#touch button { width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255,255,255,.7); background: rgba(14,18,28,.55); color: #fff; font: inherit; font-size: 13px; touch-action: none; padding: 0; }
+#touch button.down, #touch button:active { background: rgba(255,213,0,.45); }
+#touch button.hit { width: 78px; height: 78px; font-size: 16px; background: rgba(220,40,60,.6); }
+#touch button.gas { width: 78px; height: 78px; font-size: 22px; background: rgba(40,160,90,.6); }
+#touch .zone-left { position: absolute; left: 14px; bottom: 14px; pointer-events: auto; touch-action: none; }
+#touch .zone-right { position: absolute; right: 14px; bottom: 14px; pointer-events: auto; touch-action: none; display: grid; gap: 10px; justify-items: end; align-items: end; }
+#touch .steer { display: flex; gap: 16px; }
+#touch .grid3 { display: grid; grid-template-columns: repeat(3, auto); gap: 10px; justify-items: end; align-items: end; }
+/* analog stick: forward/back + strafe left/right */
+#stick { position: relative; width: 132px; height: 132px; border-radius: 50%; background: rgba(14,18,28,.45); border: 2px solid rgba(255,255,255,.6); touch-action: none; }
+#stick::before { content: ''; position: absolute; inset: 40px; border-radius: 50%; border: 1px dashed rgba(255,255,255,.35); }
+#stick-knob { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; background: rgba(255,213,0,.75); border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.5); transform: translate(0, 0); }
+/* mode switching: car shows steering + driving buttons, on foot shows the stick + combat buttons */
+#touch .only-foot { display: none; }
+.foot-mode #touch .only-foot { display: block; }
+.foot-mode #touch .grid3.only-foot { display: grid; }
+.foot-mode #touch .only-car { display: none; }
+.is-touch #hints, .is-touch .bars, .is-touch #foot-hud, .is-touch #speedo-wrap { display: none; }
+.is-touch #telemetry { display: none; }
+.is-touch #minimap { bottom: auto; top: 66px; left: 14px; width: 92px; height: 92px; }
+.is-touch #wanted-banner { top: 162px; bottom: auto; left: 14px; font-size: 11px; padding: 2px 10px; }
+@media (max-height: 460px) {
+  #touch button { width: 52px; height: 52px; font-size: 11px; }
+  #touch button.hit, #touch button.gas { width: 66px; height: 66px; }
+  #touch .zone-left, #touch .zone-right { bottom: 10px; }
+  #touch .zone-left { left: 10px; } #touch .zone-right { right: 10px; gap: 8px; }
+  #touch .grid3 { gap: 8px; }
+  #stick { width: 116px; height: 116px; }
+  #stick-knob { width: 50px; height: 50px; margin: -25px 0 0 -25px; }
+  #status { transform: scale(.82); transform-origin: top right; }
+  #phealth { grid-template-columns: 38px 110px; }
+  .is-touch #minimap { top: 62px; width: 80px; height: 80px; }
+  .is-touch #wanted-banner { top: 146px; font-size: 10px; padding: 2px 8px; }
+  #toast { top: 58px; }
+}

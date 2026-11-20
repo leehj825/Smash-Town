@@ -25,16 +25,20 @@ const REST: [number, number, number][] = [
   [-0.3, 0.5, 0], [0, -0.3, 0], [0, -0.3, 0],
 ];
 export const HIPS_Y = 0.83;
-export const POSE_LEN = 16 * 3; // 15 joints x 3 euler + hips offset (stored in slot 15)
-const HIPS_OFF = 45; // index of the hips vertical offset
-
-/** Rotation target buffer for one character. */
+/** A pose is one local quaternion (x,y,z,w) per joint in BONES order, then the pelvis height offset and forward shift. */
+export const POSE_LEN = 15 * 4 + 2;
+const HIPS_OFF_Y = 60;
+const HIPS_OFF_Z = 61;
 export type Pose = Float32Array;
-export const newPose = (): Pose => new Float32Array(POSE_LEN);
-export const rx = (p: Pose, joint: number, v: number): void => { p[joint * 3] = v; };
-export const ry = (p: Pose, joint: number, v: number): void => { p[joint * 3 + 1] = v; };
-export const rz = (p: Pose, joint: number, v: number): void => { p[joint * 3 + 2] = v; };
-export const setHipsY = (p: Pose, v: number): void => { p[HIPS_OFF] = v; };
+export const POSE_HIPS_Y = HIPS_OFF_Y;
+export const POSE_HIPS_Z = HIPS_OFF_Z;
+/** All joints at rest (identity rotations, no pelvis offset). */
+export function resetPose(p: Pose): Pose {
+  p.fill(0);
+  for (let i = 0; i < 15; i++) p[i * 4 + 3] = 1;
+  return p;
+}
+export const newPose = (): Pose => resetPose(new Float32Array(POSE_LEN));
 
 // ---------------------------------------------------------------------------------------------
 // Instanced renderer: one InstancedMesh per rigid joint group (so ~13 draw calls for every human).
@@ -64,16 +68,15 @@ function partGeometry(spec: MeshSpec): THREE.BufferGeometry {
   return b.build();
 }
 
+/** Weapons have the grip at the origin and their length along +y, like model_check's hand items. */
 function weaponGeometry(kind: 'bat' | 'baton'): THREE.BufferGeometry {
   const b = new MeshBuilder();
-  const R = Math.PI / 2;
   if (kind === 'bat') {
-    b.cylinder(0.022, 0.022, 0.2, 6, 0, 0, 0.08, 0x1a1a1a, R, 0, 0); // grip tape
-    b.cylinder(0.05, 0.028, 0.62, 7, 0, 0, 0.5, 0xd8a868, R, 0, 0);  // barrel
-    b.cylinder(0.01, 0.01, 0.01, 4, 0, 0, 0.82, 0xd8a868, R, 0, 0);
+    b.cylinder(0.022, 0.022, 0.22, 6, 0, 0.06, 0, 0x1a1a1a);   // grip tape
+    b.cylinder(0.028, 0.05, 0.62, 7, 0, 0.47, 0, 0xd8a868);     // barrel
   } else {
-    b.cylinder(0.026, 0.026, 0.55, 6, 0, 0, 0.26, 0x16161c, R, 0, 0);
-    b.cylinder(0.034, 0.034, 0.1, 6, 0, 0, 0.0, 0x333340, R, 0, 0);
+    b.cylinder(0.026, 0.026, 0.55, 6, 0, 0.24, 0, 0x16161c);
+    b.cylinder(0.034, 0.034, 0.1, 6, 0, -0.02, 0, 0x333340);
   }
   return b.build();
 }
@@ -99,7 +102,12 @@ export class CharacterRenderer {
   private zero = new THREE.Matrix4().makeScale(0, 0, 0);
   private col = new THREE.Color();
   private white = new THREE.Color(0xffffff);
-  private grip = new THREE.Matrix4().makeTranslation(0, -0.06, 0);
+  // model_check holds right-hand items tilted "blade up and a little forward from the forearm"
+  private grip = new THREE.Matrix4().compose(
+    new THREE.Vector3(-0.003, -0.09, -0.002),
+    new THREE.Quaternion(0.7931, -0.1585, 0.1425, 0.5706),
+    new THREE.Vector3(1, 1, 1),
+  );
 
   constructor(readonly count: number) {
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
@@ -178,9 +186,10 @@ export class CharacterRenderer {
     }
     for (let i = 0; i < BONES.length; i++) {
       const r = REST[i];
-      const oy = i === 0 ? pose[HIPS_OFF] : 0;
-      this.q.setFromEuler(this.e.set(pose[i * 3], pose[i * 3 + 1], pose[i * 3 + 2], 'XYZ'));
-      this.localM.compose(this.p.set(r[0], r[1] + oy, r[2]), this.q, this.one);
+      const oy = i === 0 ? pose[HIPS_OFF_Y] : 0;
+      const oz = i === 0 ? pose[HIPS_OFF_Z] : 0;
+      this.q.fromArray(pose, i * 4);
+      this.localM.compose(this.p.set(r[0], r[1] + oy, r[2] + oz), this.q, this.one);
       const parent = PARENT_IDX[i];
       this.world[i].copy(parent < 0 ? this.base : this.world[parent]).multiply(this.localM);
     }

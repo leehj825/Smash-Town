@@ -12,6 +12,9 @@ export class Input implements ControlState {
   private down = new Set<string>();
   private pressed = new Set<string>();
   private virtual = new Set<VirtualButton>();
+  /** Analog stick (touch): x right +, y forward +, both -1..1. */
+  private stickX = 0;
+  private stickY = 0;
 
   /** Accumulated camera-look deltas (pixels) since the last `takeLook`. */
   private lookX = 0;
@@ -73,6 +76,11 @@ export class Input implements ControlState {
     return codes.some((c) => this.down.has(c));
   }
 
+  setStick(x: number, y: number): void {
+    this.stickX = x;
+    this.stickY = y;
+  }
+
   setVirtual(b: VirtualButton, on: boolean): void {
     if (on) this.virtual.add(b);
     else this.virtual.delete(b);
@@ -86,12 +94,14 @@ export class Input implements ControlState {
   get throttle(): number {
     const up = this.any('KeyW', 'ArrowUp') || this.virtual.has('up');
     const dn = this.any('KeyS', 'ArrowDown') || this.virtual.has('down');
-    return (up ? 1 : 0) - (dn ? 1 : 0);
+    const digital = (up ? 1 : 0) - (dn ? 1 : 0);
+    return digital !== 0 ? digital : this.stickY;
   }
   get steer(): number {
     const r = this.any('KeyD', 'ArrowRight') || this.virtual.has('right');
     const l = this.any('KeyA', 'ArrowLeft') || this.virtual.has('left');
-    return (r ? 1 : 0) - (l ? 1 : 0);
+    const digital = (r ? 1 : 0) - (l ? 1 : 0);
+    return digital !== 0 ? digital : this.stickX;
   }
   get handbrake(): boolean {
     return this.any('Space') || this.virtual.has('hand');
