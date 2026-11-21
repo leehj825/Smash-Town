@@ -170,8 +170,8 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       put(cops[0], -10, 0.5); put(cops[1], 22, 0); put(cops[2], 70, 0);   // behind and close, ahead and further, far away
       const out = {};
       // police on duty never wander off during the check
-      const step = (n) => { for (let i = 0; i < n; i++) { for (const c of cops) { c.leaving = false; c.state = c.state === 1 ? 0 : c.state; } G.update(1 / 60); } };
-      G.cameraRig.footYaw = sp.heading; pl.heading = sp.heading;
+      const step = (n) => { for (let i = 0; i < n; i++) { for (const c of cops) { c.leaving = false; c.state = c.state === 1 ? 0 : c.state; } G.update(1 / 60); G.cameraRig.update(1 / 60, G.followable); window.__smash.camera.updateMatrixWorld(true); } };
+      G.cameraRig.footYaw = sp.heading; pl.heading = sp.heading; G.cameraRig.snap();
       step(60);
       const ap = gs.aimPoint;
       const chEl = document.getElementById('crosshair');
