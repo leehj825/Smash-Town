@@ -156,3 +156,20 @@ button.big.ghost { background: transparent; border: 2px solid rgba(255,255,255,.
 }
 
 .kids-row .hint { display: block; font-size: 10px; font-weight: 600; opacity: .7; margin-top: 2px; max-width: 220px; }
+
+/* ---- story ---- */
+#top-center { top: 14px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: min(440px, 46vw); }
+#top-center #gig { position: static; transform: none; min-width: 0; max-width: 100%; }
+#story-pill { width: 100%; text-align: center; padding: 6px 14px; border-radius: 12px; background: rgba(14,18,28,.8); border: 2px solid #ffd23a; }
+#story-title { color: #ffd23a; font-size: 10px; letter-spacing: 1.2px; }
+#story-text { font-size: 13px; margin-top: 2px; font-weight: 600; line-height: 1.25; }
+#stars-count { color: #ffd23a; font-size: 14px; margin-top: 2px; }
+#dialog { left: 50%; bottom: 7%; transform: translateX(-50%); width: min(640px, 92vw); padding: 14px 20px 10px; border-radius: 16px; background: rgba(14,18,28,.94); border: 2px solid #ffd23a; pointer-events: auto; cursor: pointer; z-index: 8; text-shadow: none; }
+#dlg-who { color: #ffd23a; font-size: 14px; letter-spacing: 1.5px; margin-bottom: 4px; }
+#dlg-text { font-size: 17px; line-height: 1.4; font-weight: 600; min-height: 3em; }
+#dlg-hint { margin-top: 8px; text-align: right; font-size: 11px; opacity: .65; animation: blinkhint 1.2s ease-in-out infinite; }
+@keyframes blinkhint { 50% { opacity: .2; } }
+#story-progress { font-size: 12px; font-weight: 600; opacity: .9; max-width: 260px; text-align: right; }
+@media (max-height: 460px) { #story-text { font-size: 11px; } #dialog { bottom: 4%; padding: 10px 14px 8px; } #dlg-text { font-size: 14px; min-height: 2.6em; } }
+
+body.dialog-open #touch { visibility: hidden; }

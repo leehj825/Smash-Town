@@ -20,8 +20,8 @@ const QUALITY_KEY = 'smashtown.quality';
 const TIME_KEY = 'smashtown.time';
 const AUDIO_KEY = 'smashtown.audio';
 const KIDS_KEY = 'smashtown.kids';
-// fewer civilian cars: the map is bigger and the streets should feel calm
-const TRAFFIC: Record<Quality, number> = { high: 6, medium: 4, low: 3 };
+// ordinary civilian cars (police are never counted here)
+const TRAFFIC: Record<Quality, number> = { high: 18, medium: 12, low: 8 };
 
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || matchMedia('(pointer: coarse)').matches;
 
@@ -132,7 +132,8 @@ applyAudio(storedGet(AUDIO_KEY) !== '0');
 function applyKids(on: boolean): void {
   game.humans.kids = on;
   storedSet(KIDS_KEY, on ? '1' : '0');
-  document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.classList.toggle('sel', (b.dataset.k === '1') === on));
+  document.getElementById('dialog')!.addEventListener('click', () => game.story.advanceDialog());
+document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.classList.toggle('sel', (b.dataset.k === '1') === on));
 }
 applyKids(storedGet(KIDS_KEY) !== '0');
 

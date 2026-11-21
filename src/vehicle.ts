@@ -118,6 +118,8 @@ interface Built {
   tail: THREE.BufferGeometry;
   barRed: THREE.BufferGeometry | null;
   barBlue: THREE.BufferGeometry | null;
+  /** Head + tail lights in one vertex-coloured geometry (used by AI cars). */
+  lights: THREE.BufferGeometry;
 }
 
 const taperTweak = (taper: number) => (p: THREE.BufferAttribute) => {
@@ -206,7 +208,10 @@ function buildGeometry(kind: VehicleKind, color: number, bakeWheels: boolean): B
     bb.box(s.w * 0.27, 0.16, 0.34, -s.w * 0.17, cabinTop + 0.2, s.cabinZ, 0xffffff);
     barBlue = bb.build();
   }
-  return { chassis: b.build(), head: hb.build(), tail: tb.build(), barRed, barBlue };
+  const lb = new MeshBuilder();
+  for (const sx of [-1, 1]) lb.box(0.55, 0.13, 0.06, sx * (s.w / 2 - 0.38), hy, s.len / 2 + 0.14, 0xfff3c4);
+  lb.box(s.w * 0.82, 0.1, 0.06, 0, s.clr + s.bodyH * 0.78, -s.len / 2 - 0.14, 0xff2a3a);
+  return { chassis: b.build(), head: hb.build(), tail: tb.build(), barRed, barBlue, lights: lb.build() };
 }
 
 const geoCache = new Map<string, Built>();
@@ -221,6 +226,8 @@ export class VehicleFactory {
   static sirenRed = new THREE.MeshStandardMaterial({ color: 0xff0033, emissive: 0xff0033, emissiveIntensity: 0.2, flatShading: true });
   static sirenBlue = new THREE.MeshStandardMaterial({ color: 0x0066ff, emissive: 0x0066ff, emissiveIntensity: 0.2, flatShading: true });
   static charred = charredMat;
+  /** Unlit vertex-coloured material for the lights of AI cars (they stay bright at night). */
+  private static lightsBasic = new THREE.MeshBasicMaterial({ vertexColors: true });
   private static paletteMat = paletteMaterial();
   private static wheelGeo: THREE.BufferGeometry | null = null;
   private static glowTex: THREE.CanvasTexture | null = null;
@@ -260,9 +267,11 @@ export class VehicleFactory {
     if (full) {
       headMat = this.sharedHead.clone();
       tailMat = this.sharedTail.clone();
+      body.add(new THREE.Mesh(built.head, headMat));
+      body.add(new THREE.Mesh(built.tail, tailMat));
+    } else {
+      body.add(new THREE.Mesh(built.lights, this.lightsBasic)); // one draw call for both lights
     }
-    body.add(new THREE.Mesh(built.head, headMat));
-    body.add(new THREE.Mesh(built.tail, tailMat));
     if (built.barRed) body.add(new THREE.Mesh(built.barRed, this.sirenRed));
     if (built.barBlue) body.add(new THREE.Mesh(built.barBlue, this.sirenBlue));
 

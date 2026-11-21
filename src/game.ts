@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { AudioEngine } from './audio';
 import { Beacon } from './beacon';
+import { Collectibles } from './collectibles';
+import { StoryManager, type StorySave } from './story';
 import { PoliceBrain, TrafficBrain, type PoliceRole } from './ai';
 import type { CameraRig, Followable } from './cameraRig';
 import type { Environment } from './environment';
@@ -18,7 +20,7 @@ import type { Vfx } from './vfx';
 import type { CircleCollider, World } from './world';
 
 const SAVE_KEY = 'smashtown.save.v1';
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[] }
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
 const STAR_HEAT = [30, 90, 170, 270, 400];
@@ -60,14 +62,17 @@ export class Game {
   readonly popups = new Popups();
   readonly slash = new SlashTrail();
   readonly gigs: GigManager;
+  readonly story: StoryManager;
+  readonly collectibles: Collectibles;
+  smashTotal = 0;
 
   vehicles: GameVehicle[] = [];
   driving: GameVehicle | null = null;
   onFoot = false;
-  state: 'play' | 'garage' | 'busted' | 'wrecked' | 'wasted' = 'play';
+  state: 'play' | 'garage' | 'busted' | 'wrecked' | 'wasted' | 'dialog' = 'play';
   damageTotal = 0;
   hitStop = 0;
-  trafficTarget = 6;
+  trafficTarget = 14;
   useBlob = false;
 
   private rng = makeRng(99);
@@ -123,6 +128,11 @@ export class Game {
     this.cash = this.save.cash;
     this.hud.setCash(this.cash);
 
+    this.collectibles = new Collectibles(d.world.landmarks.collectibles, this.save.collected ?? []);
+    this.scene.add(this.collectibles.group);
+    this.hud.setCollectibles(this.collectibles.count, this.collectibles.total);
+    this.story = new StoryManager(this, this.scene, this.save.story);
+
     for (const g of this.world.garages) {
       const b = new Beacon(0x3dff8a, 6);
       b.setPosition(g.x, g.z);
@@ -151,13 +161,17 @@ export class Game {
       const unlocked = (s.unlocked ?? []).filter((k): k is VehicleKind => PLAYER_ROSTER.includes(k as VehicleKind));
       for (const k of fallback.unlocked) if (!unlocked.includes(k)) unlocked.push(k);
       const selected = s.selected && unlocked.includes(s.selected) ? s.selected : 'sports';
-      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected };
+      const st = s.story;
+      const story = st && Number.isFinite(st.ch) && Number.isFinite(st.step) && Number.isFinite(st.prog) ? { ch: st.ch, step: st.step, prog: st.prog } : undefined;
+      const collected = Array.isArray(s.collected) ? s.collected.filter((n): n is number => Number.isInteger(n)) : [];
+      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected };
     } catch {
       return fallback;
     }
   }
   private flushSave(): void {
     this.save.cash = Math.round(this.cash);
+    this.save.collected = this.collectibles.indices();
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch { /* ignore */ }
     this.saveDirty = false;
   }
@@ -173,6 +187,24 @@ export class Game {
     this.saveDirty = true;
     this.hud.setCash(this.cash);
     if (n >= 100) this.audio.cash();
+  }
+
+  /** Called by the story when its position changes. */
+  saveStory(s: StorySave): void {
+    this.save.story = s;
+    this.saveDirty = true;
+  }
+
+  unlockVehicle(kind: VehicleKind): void {
+    if (!this.save.unlocked.includes(kind)) { this.save.unlocked.push(kind); this.saveDirty = true; }
+  }
+
+  /** Opens / closes a story conversation: the player stops and input is ignored until it ends. */
+  setDialogOpen(open: boolean): void {
+    if (open && this.state === 'play') {
+      this.state = 'dialog';
+      if (this.driving) { this.driving.ctrl.vx = this.driving.ctrl.vz = 0; }
+    } else if (!open && this.state === 'dialog') this.state = 'play';
   }
 
   setMinStars(n: number): void {
@@ -249,6 +281,8 @@ export class Game {
     c.dead = true;
     const value = this.props.smash(c.smash, c.x, c.z, vx, vz);
     if (!byPlayer) return;
+    this.smashTotal++;
+    this.story.onSmash();
     this.damageTotal += value;
     this.comboCount++;
     this.comboTimer = 4;
@@ -291,6 +325,7 @@ export class Game {
         v.police = null;
         v.traffic = new TrafficBrain(this.rng);
         v.traffic.attachNearest(v.x, v.z, v.ctrl.heading);
+        v.despawnT = 6 + this.rng() * 6; // they drive off and are removed once out of sight, so police never pile up in the traffic
       }
     }
     for (const rb of [...this.roadblocks]) this.removeRoadblock(rb);
@@ -526,6 +561,7 @@ export class Game {
     const input = this.input;
 
     if (input.wasPressed('Escape') && this.state === 'garage') this.closeGarage();
+    if (this.state === 'dialog' && (input.wasPressed('KeyF') || input.wasPressed('Enter') || input.wasPressed('Space'))) this.story.advanceDialog();
 
     if (this.state === 'play') {
       if (input.wasPressed('KeyF') || input.wasPressed('KeyE')) this.enterExit();
@@ -578,6 +614,9 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
+    this.story.update(dt);
+    this.collectibles.update(dt);
+    this.collectStars();
     this.updateStateMachine(dt);
 
     // ---- presentation
@@ -588,6 +627,8 @@ export class Game {
     const d = this.driving;
     this.hud.update(this.followable, d ? d.ctrl.hp : 1, d ? d.ctrl.nitro : 1, d ? d.ctrl.nitroActive : false, this.blips.slice(0, this.blipCount), dt);
     const pl = this.humans.player;
+    this.hud.setStory(this.story.hudInfo());
+    this.hud.setStoryProgress(this.story.progressText());
     this.hud.setTelemetryVisible(!!d);
     this.hud.setFootMode(this.onFoot, pl.weapon, this.humans.unlockedBaton);
     this.hud.setPlayerHp(Math.max(0, pl.hp / pl.maxHp));
@@ -597,6 +638,18 @@ export class Game {
       this.saveTimer -= dt;
       if (this.saveTimer <= 0) { this.flushSave(); this.saveTimer = 3; }
     }
+  }
+
+  /** Pick up golden stars by touching them (in a car or on foot). */
+  private collectStars(): void {
+    if (this.state !== 'play') return;
+    const i = this.collectibles.tryCollect(this.focusX, this.focusZ, this.onFoot ? 2.4 : 4);
+    if (i < 0) return;
+    this.addCash(300);
+    this.saveDirty = true;
+    this.hud.setCollectibles(this.collectibles.count, this.collectibles.total);
+    this.hud.toast(`${t('ui.stars_found')} ${this.collectibles.count}/${this.collectibles.total}  +$300`, 2200);
+    this.audio.cash();
   }
 
   private fx = {
@@ -826,19 +879,43 @@ export class Game {
           if (c.hp < 0.3) this.vfx.emitFire(hx, 1.0, hz, 1, 0.3);
         }
       }
-      // recycle faraway AI
-      if (v.ai === 'traffic' && !this.nearPlayer(v.x, v.z, 200)) this.relocate(v);
+      // police that stood down leave once nobody can see them
+      if (v.despawnT > 0 && v.ai === 'traffic') {
+        v.despawnT -= dt;
+        if (v.despawnT <= 0) {
+          // leave as soon as they are out of the camera's view (or far away); if they linger in view, give up after 20 s more
+          if (!this.nearPlayer(v.x, v.z, 50) || !this.inCameraView(v.x, v.z) || v.despawnExtra > 20) { this.removeVehicle(v); continue; }
+          v.despawnT = 2; v.despawnExtra += 2;
+        }
+      }
+      // recycle faraway AI (police are removed instead of being moved back into the city)
+      if (v.ai === 'traffic' && !this.nearPlayer(v.x, v.z, 200)) {
+        if (v.isPolice) { this.removeVehicle(v); continue; }
+        this.relocate(v);
+      }
       else if (v.ai === 'police' && !this.nearPlayer(v.x, v.z, 190)) { this.removeVehicle(v); continue; } // they give up when left far behind (no rubber-banding back)
       else if (v.ai === 'parked' && !v.owned && !v.isGigTarget && !this.nearPlayer(v.x, v.z, 240) && !this.roadblocks.some((r) => r.cars.includes(v))) this.removeVehicle(v);
     }
   }
 
+  private camDir = new THREE.Vector3();
+  /** Is the ground point in front of the camera (roughly on screen) and not too far? */
+  private inCameraView(x: number, z: number): boolean {
+    const cam = this.cameraRig.camera;
+    cam.getWorldDirection(this.camDir);
+    const dx = x - cam.position.x, dz = z - cam.position.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 240) return false;
+    const fl = Math.hypot(this.camDir.x, this.camDir.z) || 1;
+    return (dx * this.camDir.x + dz * this.camDir.z) / (Math.max(d, 0.001) * fl) > 0.3;
+  }
+
   private maintainTraffic(): void {
     let n = 0;
-    for (const v of this.vehicles) if (v.ai === 'traffic') n++;
+    for (const v of this.vehicles) if (v.ai === 'traffic' && !v.isPolice) n++; // only ordinary cars count toward the traffic quota
     if (n < this.trafficTarget) this.spawnTraffic(false);
     else if (n > this.trafficTarget + 2) {
-      const v = this.vehicles.find((q) => q.ai === 'traffic' && !this.nearPlayer(q.x, q.z, 60));
+      const v = this.vehicles.find((q) => q.ai === 'traffic' && !q.isPolice && !this.nearPlayer(q.x, q.z, 60));
       if (v) this.removeVehicle(v);
     }
   }
@@ -1005,6 +1082,12 @@ export class Game {
     this.blipCount = 0;
     for (const g of this.world.garages) this.pushBlip(g.x, g.z, '#3dff8a', false, 5);
     this.gigs.blips(this.pushBlip);
+    this.story.blips(this.pushBlip);
+    for (let i = 0; i < this.collectibles.total; i++) {
+      if (this.collectibles.isCollected(i)) continue;
+      const sp = this.collectibles.spot(i);
+      if (Math.hypot(sp.x - this.focusX, sp.z - this.focusZ) < 110) this.pushBlip(sp.x, sp.z, '#ffe27a', false, 3.2);
+    }
     for (const v of this.vehicles) {
       if (v.isPolice && !v.ctrl.wrecked && (v.ai === 'police' || v.ai === 'parked')) this.pushBlip(v.x, v.z, '#ff2a3a', true, 4.5);
     }

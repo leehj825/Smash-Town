@@ -28,6 +28,9 @@ export class GameVehicle {
   isGigTarget = false;
   owned = false;
   ramCooldown = 0;
+  /** Seconds until this car is removed once out of sight (cops that stood down after a chase). 0 = never. */
+  despawnT = 0;
+  despawnExtra = 0;
 
   constructor(
     readonly kind: VehicleKind,

@@ -234,6 +234,24 @@ To achieve the punchy, comic-book arcade feel shown in the visual direction:
 
 ---
 
+### 5.5 Story & Goals — "Save Old Town" (v3.3, implemented)
+
+A five-chapter story that the player can follow **or ignore**: the gold marker, objective pill and minimap blip are only suggestions. Gigs, golden stars and free roaming are available at all times, the story waits for the player, and conversations only start when the player is not wanted ("Lose the police first!").
+
+| Chapter | Characters | Objectives | Reward |
+| :--- | :--- | :--- | :--- |
+| 1 · Welcome to Sunset Bay | Donna (donut shop) | Drive to Donna's Donut Shop → talk → smash 6 street props → return → talk | $1,000 |
+| 2 · Smash for Good | Mr. Park (24h Motel), Ally (reporter) | Meet Mr. Park → smash 12 props → take the petition to City Hall (the plaza) | $1,500 |
+| 3 · Inside Job | Captain Lee (harbor) | Borrow Mayor Bigsby's black limo → drive it to the Harbor gate (if it is wrecked a fresh one spawns and the step restarts) | $2,500 |
+| 4 · The Big Shipment | Captain Lee | Find three crates around the harbor → bring the blueprints to the plaza | $3,000 |
+| 5 · Save the Day | Donna, Ally, Mayor Bigsby | Smash 10 more props → finale conversation, fireworks over the plaza, **Supercar unlocked** | $10,000 |
+
+* All story text is bilingual (EN/KO) and switches live. Conversations are short pages advanced with `F`, `Enter`, `Space` or a tap; the player stops while one is open and the touch controls hide.
+* **Free-roam goals available throughout:** the four gigs, **12 golden stars** hidden along the roads (+$300 each, counted in the HUD and shown on the minimap when near), smashing combos, garages and the car shop.
+* Progress (chapter, step, smash progress, collected stars, unlocked cars) is saved in `localStorage`.
+
+---
+
 ## 6. World & Level Design
 
 * **Road Network (v3.2):** a procedurally generated network of ~600 m × 580 m (about 3.5× the original 320 m square). Vertical and horizontal road lines have **individual spacing (36–66 m) and widths** — narrow alleys (pedestrian only), streets, avenues, and a wide coastal highway with a median — and ~20 % of ordinary segments are removed (pedestrian streets, superblocks, dead ends) while keeping the drivable network fully connected. Block sizes, lot shapes and building footprints vary accordingly. The generator is seeded, so the city is identical every run.
@@ -248,7 +266,7 @@ To achieve the punchy, comic-book arcade feel shown in the visual direction:
   7. **River:** a river runs north–south through the city; roads cross it on **bridges with railings**.
   8. **Forest corners:** the north-west and north-east corners are woods with no ring road, so the outline is not a square; **mountains** ring the north, west and east horizons.
 * **Landmarks on real roads:** garages (5), gig markers, delivery checkpoints, hijack spots and the player spawn are chosen from actual drivable road segments (never inside buildings).
-* **Traffic density (v3.2):** civilian cars are limited to 6 / 4 / 3 on High / Medium / Low (it was 14 / 10 / 6), and they stop for people standing in their lane.
+* **Traffic density (v3.3):** 18 / 12 / 8 ordinary civilian cars on High / Medium / Low (police are never part of this count), and they stop for people standing in their lane.
 
 ---
 
@@ -318,7 +336,8 @@ Legend: ✅ done · ◐ partial · ⬜ not done. "Tested" means exercised by a s
 | Foot cops (exit cruisers, surround, baton melee) | ✅ | Count scales with stars; telegraphed wind-up. |
 | Wanted 1–5★, PIT, roadblocks, interceptors, SWAT prediction, armored | ✅ | |
 | Pay & Spray garages + vehicle shop + persistence | ✅ | `localStorage` only. |
-| Gigs: Defeat the Police, Smash Rampage, Hot Delivery, Grand Hijack | ✅ | |
+| Gigs: Defeat the Police, Smash Rampage, Hot Delivery, Grand Hijack | ✅ | Markers sit on real roads of the generated city; the delivery time limit scales with the route. |
+| Story (5 chapters), golden stars, saved progress | ✅ | See §5.5. |
 | Lighting: 2-light rig, day/sunset/night, glowing windows/lamps/signs | ✅ | |
 | Headlights: additive cone meshes | ◐ | Road glow quad only; no cone meshes. |
 | Shadows: player-following frustum, texel snapping | ✅ | Three r187 removed `PCFSoftShadowMap`; `PCFShadowMap` is used. |
@@ -338,7 +357,8 @@ Playtesting showed that once wanted, too many police arrived and escaping was ne
 | Heat per star | 25 / 70 / 130 / 210 / 320 | 30 / 90 / 170 / 270 / 400 |
 | Heat from a smashed prop / hit pedestrian / hit civilian car / hijack | +6 / +25 / +15 / +25 | +3 / +15 / +10 / +20 |
 | Police cars by stars (1→5) | 1 · 3 · 4 · 6 · 8 | **1 · 3 · 5 · 8 · 10** (design target set by the project owner): ★1 1 cruiser; ★2 3 cruisers; ★3 3 cruisers + 2 interceptors; ★4 4 cruisers + 2 interceptors + 2 SWAT; ★5 4 cruisers + 2 interceptors + 2 SWAT + 2 armored |
-| Civilian traffic cars (High / Medium / Low) | 14 / 10 / 6 | 6 / 4 / 3 (bigger map, calmer streets) |
+| Civilian traffic cars (High / Medium / Low) | 14 / 10 / 6 | **18 / 12 / 8** (ordinary cars only; police never count toward this quota) |
+| Police after a chase | chasers became permanent patrol cars that crowded out normal traffic | they drive off and are removed once out of the camera's view (or after 20 s more), so the streets are full of ordinary cars again |
 | Reinforcements | a new car every 1.4 s, 80–170 m away, always replenished | one every 2.5 s (first after 3 s), 110–220 m away, **none while you are evading** |
 | Police speed | 100 % of top speed | 88 % of top speed (a fast car can outrun them; ramming capped at 92 %) |
 | Giving up | cars far away teleported back near the player | cars left more than 190 m behind are removed |

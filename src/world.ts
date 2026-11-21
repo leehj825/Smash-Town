@@ -43,6 +43,10 @@ export interface Landmarks {
   gigs: { rampage: Spot; delivery: Spot; hijack: Spot; brawl: Spot };
   checkpoints: Spot[];
   hijackSpots: { x: number; z: number; h: number }[];
+  /** Story locations (all on drivable roads) and the mayor's limo (curb spot with heading). */
+  story: { donna: Spot; motel: Spot; hall: Spot; gate: Spot; crates: Spot[]; limo: { x: number; z: number; h: number } };
+  /** Golden stars to find while exploring. */
+  collectibles: Spot[];
 }
 
 export interface World {
@@ -822,7 +826,30 @@ export function buildWorld(): World {
     return { x: s.x + -s.dz * off, z: s.z + s.dx * off, h: Math.atan2(s.dx, s.dz) };
   };
   const hijackSpots = [curb(0.45, 0.3), curb(0.12, 0.45), curb(0.78, 0.35)];
-  const landmarks: Landmarks = { garages, gigs, checkpoints, hijackSpots };
+  // story locations: Donna's donut shop and the 24h motel (Old Town), City Hall by the plaza, the harbor gate and three crates
+  const plazaLot = lots.find((l) => l.district === 'plaza');
+  const hallSeg = plazaLot ? pickSeg((plazaLot.x0 + plazaLot.x1) / 2, plazaLot.z1 + 6, [], 0, 30) : pickSeg(W * 0.5, D * 0.45, [], 0, 30);
+  const hall: Spot = { x: hallSeg.x, z: hallSeg.z };
+  used.push(hall);
+  const story = {
+    donna: gigSpot(0.18, 0.72),
+    motel: gigSpot(0.07, 0.5),
+    hall,
+    gate: gigSpot(0.86, 0.16),
+    crates: [gigSpot(0.9, 0.42), gigSpot(0.8, 0.28), gigSpot(0.93, 0.6)],
+    limo: curb(0.6, 0.27),
+  };
+  // golden stars scattered along the drivable roads
+  const collectibles: Spot[] = [];
+  for (let tries = 0; tries < 400 && collectibles.length < 12; tries++) {
+    const s = segments[Math.floor(rng() * segments.length)];
+    if (s.len < 34) continue;
+    const t = rand(-s.len * 0.3, s.len * 0.3), lat = rand(-s.hw * 0.6, s.hw * 0.6);
+    const p = { x: s.x + s.dx * t + -s.dz * lat, z: s.z + s.dz * t + s.dx * lat };
+    if (used.some((u) => Math.hypot(u.x - p.x, u.z - p.z) < 30) || collectibles.some((c) => Math.hypot(c.x - p.x, c.z - p.z) < 60)) continue;
+    collectibles.push(p);
+  }
+  const landmarks: Landmarks = { garages, gigs, checkpoints, hijackSpots, story, collectibles };
 
   const sp = pickSeg(W * 0.5, D * 0.58, [], 0, 60);
   const lane = Math.min(3.3, sp.hw * 0.52);

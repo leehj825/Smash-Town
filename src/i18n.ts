@@ -5,6 +5,10 @@ const dict = {
   en: {
     'ui.title': 'SMASH TOWN',
     'ui.wasted': 'WASTED',
+    'ui.story': 'STORY',
+    'ui.dialog.continue': 'Press F or tap to continue',
+    'ui.stars_found': 'Golden stars',
+    'ui.story.wait': 'Lose the police first!',
     'ui.knocked_out': 'KNOCKED OUT',
     'ui.settings.kids': 'Kids Play',
     'ui.settings.kids_hint': 'Nobody gets hurt: everyone is just knocked out',
@@ -90,6 +94,10 @@ const dict = {
   ko: {
     'ui.title': '스매시 타운',
     'ui.wasted': '기절함',
+    'ui.story': '스토리',
+    'ui.dialog.continue': 'F 키 또는 화면을 눌러 계속',
+    'ui.stars_found': '황금 별',
+    'ui.story.wait': '먼저 경찰을 따돌리세요!',
     'ui.knocked_out': '기절!',
     'ui.settings.kids': '어린이 모드',
     'ui.settings.kids_hint': '아무도 다치지 않아요: 모두 기절만 해요',
@@ -194,6 +202,11 @@ export function t(key: I18nKey): string {
 /** Translate with `{name}` placeholders. */
 export function tf(key: I18nKey, params: Record<string, string | number>): string {
   return t(key).replace(/\{(\w+)\}/g, (_, k: string) => String(params[k] ?? ''));
+}
+
+/** Pick the English or Korean text for the active language (used for story dialogue). */
+export function bi(en: string, ko: string): string {
+  return current === 'ko' ? ko : en;
 }
 
 export function getLang(): Lang {

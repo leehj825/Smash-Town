@@ -38,6 +38,7 @@ npm run build    # typecheck + production bundle in dist/
 - **Kids Play (default on):** nobody dies - defeated cops and the player are only knocked out (toggle in Settings).
 - **Wanted 1–5★** (1 / 3 / 5 / 8 / 10 police cars): patrol cruisers with PIT ramming, roadblocks, interceptors, SWAT vans with predictive steering, armored units, and foot cops that exit cruisers, surround you and melee with batons.
 - **Pay & Spray garages:** repair + clear heat, and a vehicle shop (unlocks and cash persist in `localStorage`).
+- **Story + freedom:** "Save Old Town", five chapters with short bilingual conversations, a limo mission, harbor crates and a fireworks finale - optional, with a gold marker to follow. Gigs, 12 golden stars and free roaming stay available the whole time.
 - **Quick gigs:** Defeat the Police (brawl), Smash Rampage, Hot Delivery, Grand Hijack.
 - **Presentation:** 2-light rig, player-following texel-snapped shadows, ACES + selective bloom, day/sunset/night cycle with glowing windows/lamps/signs/headlights, procedural Web Audio (engine, tire screech, siren, footsteps, whooshes, impacts), rotating minimap with blips, EN/KO i18n, High/Medium/Low quality, mobile touch controls.
 

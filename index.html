@@ -20,11 +20,16 @@
           <span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span>
         </div>
         <div id="cash">$0</div>
+        <div id="stars-count" title="Golden stars">★ 0/12</div>
         <div id="phealth"><span data-i18n="ui.hp">HP</span><div class="track"><div id="phealth-fill" class="fill hp"></div></div></div>
         <div id="combo"><span data-i18n="ui.smash_combo">SMASH COMBO</span> <b id="combo-mult"></b><div id="combo-bar"><div id="combo-fill"></div></div></div>
       </div>
 
-      <div id="gig" hidden><div id="gig-title"></div><div id="gig-obj"></div><div id="gig-time"></div></div>
+      <div id="top-center">
+        <div id="story-pill" hidden><div id="story-title"></div><div id="story-text"></div></div>
+        <div id="gig" hidden><div id="gig-title"></div><div id="gig-obj"></div><div id="gig-time"></div></div>
+      </div>
+      <div id="dialog" hidden><div id="dlg-who"></div><div id="dlg-text"></div><div id="dlg-hint"></div></div>
       <div id="toast"></div>
       <div id="prompt" hidden></div>
       <div id="overlay-msg" hidden></div>
@@ -78,6 +83,7 @@
     <div id="pause" class="overlay" hidden>
       <div class="panel">
         <h2 data-i18n="ui.paused">PAUSED</h2>
+        <div class="row"><span data-i18n="ui.story">STORY</span><span id="story-progress"></span></div>
         <div class="row"><span data-i18n="ui.settings.language">Language</span>
           <div class="segs"><button class="seg lang" data-lang="en">English</button><button class="seg lang" data-lang="ko">한국어</button></div>
         </div>

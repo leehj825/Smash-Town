@@ -52,6 +52,17 @@ export class Hud {
   private wantedBanner = $('wanted-banner');
   private slots = Array.from(document.querySelectorAll<HTMLElement>('#weapon-slots .slot'));
   private lastFoot: boolean | null = null;
+  private dialogEl = $('dialog');
+  private dlgWho = $('dlg-who');
+  private dlgText = $('dlg-text');
+  private dlgHint = $('dlg-hint');
+  private storyPill = $('story-pill');
+  private storyTitle = $('story-title');
+  private storyText = $('story-text');
+  private starCount = $('stars-count');
+  private storyProgress = $('story-progress');
+  private lastStory = '';
+  private lastProgress = '';
 
   constructor(private world: World) {
     this.setWanted(0);
@@ -89,6 +100,38 @@ export class Hud {
     this.gigTitle.textContent = title;
     this.gigObj.textContent = obj;
     this.gigTime.textContent = time;
+  }
+
+  /** The story objective pill (top centre). */
+  setStory(info: { title: string; text: string } | null): void {
+    const key = info ? info.title + '|' + info.text : '';
+    if (key === this.lastStory) return;
+    this.lastStory = key;
+    this.storyPill.hidden = !info;
+    if (info) { this.storyTitle.textContent = info.title; this.storyText.textContent = info.text; }
+  }
+
+  setStoryProgress(text: string): void {
+    if (text === this.lastProgress) return;
+    this.lastProgress = text;
+    this.storyProgress.textContent = text;
+  }
+
+  setCollectibles(n: number, total: number): void {
+    this.starCount.textContent = `\u2605 ${n}/${total}`;
+  }
+
+  showDialog(who: string, text: string, hint: string): void {
+    this.dialogEl.hidden = false;
+    document.body.classList.add('dialog-open');
+    this.dlgWho.textContent = who;
+    this.dlgText.textContent = text;
+    this.dlgHint.textContent = hint;
+  }
+
+  hideDialog(): void {
+    this.dialogEl.hidden = true;
+    document.body.classList.remove('dialog-open');
   }
 
   setPrompt(text: string | null): void {
