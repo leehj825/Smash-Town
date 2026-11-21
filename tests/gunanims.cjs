@@ -91,9 +91,9 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       G.guns.update(1 / 60, true, true); // an SMG fires while the button is held
       const shot = { recoil: pl.recoil > 0.9, aim: pl.aimT > 1.4 };
       G.guns.mag.smg = 5; G.guns.reload(); G.guns.update(0.5, false, false); G.guns.update(0.1, false, false);
-      return { ...shot, reload: pl.reloadK > 0.3 };
+      return { ...shot, reload: pl.reloadU > 0.1 };
     });
-    ok(kick.recoil && kick.aim && kick.reload, 'a shot kicks and raises the gun; reloading dips it', JSON.stringify(kick));
+    ok(kick.recoil && kick.aim && kick.reload, 'a shot kicks and raises the gun; reloading starts the reload clip', JSON.stringify(kick));
 
     // the rifle reload clip drives the arms of long guns; handguns keep the short dip
     const rel = await S(() => {
@@ -127,14 +127,17 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       gs.buyGun('grenade'); G.humans.guns = gs.flags(); G.humans.equip(8);
       gs.cool = 0; gs.reloading = null; gs.mag.grenade = 1; gs.reserve.grenade = 3;
       let blasts = 0; const orig = G.vfx.explosion.bind(G.vfx); G.vfx.explosion = (x, z) => { blasts++; orig(x, z); };
+      // open road, nothing within reach of the hand
+      const sp = G.world.spawn; G.humans.setPlayerActive(true, sp.x, sp.z, 0); pl.aimT = 0;
+      for (const h of G.humans.list) if (h !== pl) { h.x += 500; }
+      let releasedAt = -1, clock = 0; const rel = gs.release.bind(gs); gs.release = (dx, dz) => { releasedAt = Math.round(clock * 100) / 100; rel(dx, dz); };
       G.state = 'play';
       gs.update(1 / 60, false, true);
       const thrown = { throwT: pl.throwT > 1.3, pending: !!gs.pendingThrow, mag: gs.mag.grenade };
       G.update(1 / 60);
       const clip = pl.anim.clipName;
-      let released = -1, t = 0;
-      for (let i = 0; i < 200; i++) { gs.tick(0.02); t += 0.02; if (released < 0 && gs.grenades.length) released = Math.round(t * 100) / 100; if (released >= 0 && !gs.grenades.length) break; }
-      return { ...thrown, clip, released, blasts, left: gs.grenades.length };
+      for (let i = 0; i < 200; i++) { gs.tick(0.02); clock += 0.02; if (releasedAt >= 0 && !gs.grenades.length) break; }
+      return { ...thrown, clip, released: releasedAt, blasts, left: gs.grenades.length };
     });
     ok(gren.throwT && gren.pending && gren.mag === 0 && gren.clip === 'rifleGrenade', 'a grenade throw starts the throw clip', JSON.stringify(gren));
     ok(gren.released > 0.7 && gren.released < 1.1 && gren.blasts === 1 && gren.left === 0, 'the grenade leaves the hand at the release frame and explodes once', JSON.stringify(gren));

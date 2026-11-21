@@ -23,7 +23,7 @@ npm run build    # typecheck + production bundle in dist/
 | On foot | Left click / `J` | Punch 3-hit combo, or weapon swing (buffered in the last 0.12 s of recovery) |
 | On foot | Right click / `Q` / `K` | Power kick (huge knockback; smashes props) |
 | On foot | `Space` | Dodge roll in combat (i-frames), otherwise jump; `Ctrl`/`Alt` always dodge, `C` always jumps |
-| On foot | `1`-`8` / wheel / `V` | Fists / bat / baton (dropped by defeated cops) / pistol / SMG / shotgun / rocket launcher / paintball gun (guns are bought in the garage or the Gun Shop) |
+| On foot | `1`-`9` / wheel / `V` | Fists / bat / baton (dropped by defeated cops) / pistol / SMG / shotgun / rocket launcher / paintball gun / grenades (guns are bought in the garage or the Gun Shop) |
 | On foot | Left click (hold) / `R` | Fire a gun (automatic guns repeat) / reload |
 | On foot | `F` at a ladder or shop door | Climb to a rooftop, or walk into a shop (doors are locked while the police are after you) |
 | On foot | Mouse (click to capture) / drag | Orbit camera; auto-aligns behind you while sprinting |
@@ -59,7 +59,7 @@ Plug in or pair a controller, then press any button; the on-screen hints switch 
 - **Kids Play (default on):** nobody dies - defeated cops and the player are only knocked out (toggle in Settings).
 - **Wanted 1–5★** (1 / 3 / 5 / 8 / 10 police cars): patrol cruisers with PIT ramming, roadblocks, interceptors, SWAT vans with predictive steering, armored units, and foot cops that exit cruisers, surround you and melee with batons.
 - **Pay & Spray garages:** repair (also fixes shredded tyres), Quick Respray to clear the heat ($500 per star, not while police are close), a vehicle shop (eight cars including a stretch limo and a monster truck), per-car tuning (engine, nitro, armor, tyres), paint and neon, on-foot training and an Arms tab. Money, upgrades, guns and ammo persist in `localStorage`; bail is free under $500 so you can never be locked out.
-- **Guns:** pistol (unlimited spare ammo), SMG, shotgun, rocket launcher and a harmless paintball gun with magazines, reloading, soft aim assist, tracers and blasts. Kids Play stays on: hits stun instead of kill. Firing adds heat; getting busted costs spare ammo.
+- **Guns:** pistol (unlimited spare ammo), SMG, shotgun, rocket launcher, a harmless paintball gun and grenades with magazines, real reload and throw animations, soft aim assist, tracers and blasts. Kids Play stays on: hits stun instead of kill. Firing adds heat; getting busted costs spare ammo.
 - **Pickups:** health packs, armor, cash, ammo and burger stands ($15, full health) on the pavements, plus drops from police.
 - **Tougher police:** riot cops with shields (4+ stars), a searchlight helicopter at 5 stars (a rocket brings it down for a bounty) and spike strips ahead of roadblocks.
 - **Rooftops and shops:** ladders to the roofs of eight old-town buildings, rooftop golden stars, the Rooftop Dash gig, and five walk-in shops (donuts, guns, clothes, arcade, motel); three of them can be bought for passive income.

@@ -58,7 +58,10 @@ Things to know before using them:
 - **SMG and shotgun:** `proIdle` (gun down), `proIdleAim` (just fired), and the eight-way `proRun*` / `proSprint*` sets (sprint above 6 m/s). Playback speed is the game speed divided by the clip's natural speed.
 - **Rocket launcher:** `proIdle`, and `rifleAimIdle` while aiming.
 - **Aiming:** a shot keeps the gun raised for 1.6 s. In that time the body turns to face where it is aimed (so the legs strafe and backpedal instead of turning), and on long guns the raised arms of the aim pose are layered over the run clip.
-- **Kick and reload:** a shot leans the body back and lifts the arms (about 0.14 s); reloading lowers the gun and the head. These are code, because the packs have no such clips.
+- **Kick:** a shot leans the body back and lifts the arms (about 0.14 s). This is code, because the packs have no recoil clip.
+- **Reload:** the SMG, shotgun and rocket launcher play the Basic Shooter Pack's `rifleReload` (arms, back and head) over whatever the legs are doing, stretched to each gun's reload time and faded in and out. The pistol and paintball gun keep a short lowering of the gun and head.
+- **Hit reaction:** when you are hurt with a gun in hand the `rifleHit` flinch plays instead of the ordinary one.
+- **Grenades:** a sixth gun (key 9, $1,500, ammo $120 for 3). It plays all of `rifleGrenade` squeezed into 1.5 s; the grenade leaves the hand at the clip's release frame (1.88 s of 3.2), flies a short arc, and explodes where it lands or hits something (7 m radius).
 - **Jump:** `proJumpUp` then `proJumpLoop` while airborne.
 - **Knock-outs:** a bullet or blast that knocks someone down plays `proDieFront`, `proDieBack` or `proDieRight` by the direction of the hit (sped up to 1.5 s, then held), and the person is turned to match the clip.
 - **Gun in hand:** guns point down the hand (the hand bone points along its own -y), so their model is flipped relative to the bat's grip.
