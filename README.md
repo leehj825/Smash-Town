@@ -28,6 +28,23 @@ npm run build    # typecheck + production bundle in dist/
 | Always | `T` / `R` / `Esc` | Time of day / reset car / pause & settings |
 | Touch | left stick / buttons | On foot: analog stick (forward, back, strafe) + KICK / DODGE / JUMP / WPN / F / HIT; driving: steer arrows + gas, nitro, drift; drag the canvas to orbit |
 
+### Gamepad (Xbox / PlayStation / most standard controllers)
+
+Plug in or pair a controller, then press any button; the on-screen hints switch to controller wording (and back when you touch the keyboard or mouse). Controllers vibrate on crashes, hits and smashes where the browser supports it.
+
+| Context | Controller | Action |
+| --- | --- | --- |
+| Driving | RT / LT | Gas / brake and reverse |
+| Driving | Left stick | Steer |
+| Driving | A (hold) / RB (hold) | Handbrake drift / Nitro |
+| On foot | Left stick / Right stick | Move (camera-relative) / Orbit camera |
+| On foot | X / RB | Punch or weapon swing / Kick |
+| On foot | A / B | Jump (or dodge in a fight) / Dodge roll |
+| On foot | LT or L3 (hold) / LB | Sprint / Switch weapon (D-pad left / right also cycle) |
+| Always | Y | Enter / exit vehicle (also advances story conversations, as do A and Start) |
+| Always | Start / Back / D-pad up | Pause / Reset car / Time of day |
+| Menus | D-pad + A, B or Start | Move the highlight and press, go back |
+
 ## What's in the game
 
 - **City:** a ~600 × 580 m procedurally generated road network (alleys, streets, avenues, a coastal highway, pedestrian streets, dead ends) with Sunset Beach, Old Town (lit `24h MOTEL` / `DONUTS` signboards), Downtown with a fountain plaza, suburbs with houses and a lake, a Harbor with a boat basin, parks, a river crossed by bridges, forest corners and mountains. Instanced palms, trees, lamps, hydrants, benches, newsstands and trash cans.
@@ -40,6 +57,7 @@ npm run build    # typecheck + production bundle in dist/
 - **Pay & Spray garages:** repair + clear heat, and a vehicle shop (unlocks and cash persist in `localStorage`).
 - **Story + freedom:** "Save Old Town", five chapters with short bilingual conversations, a limo mission, harbor crates and a fireworks finale - optional, with a gold marker to follow. Gigs, 12 golden stars and free roaming stay available the whole time.
 - **Quick gigs:** Defeat the Police (brawl), Smash Rampage, Hot Delivery, Grand Hijack.
+- **Controls:** keyboard + mouse, touch (analog stick + buttons) and **gamepad** (analog driving, on-foot combat, menu navigation, rumble).
 - **Presentation:** 2-light rig, player-following texel-snapped shadows, ACES + selective bloom, day/sunset/night cycle with glowing windows/lamps/signs/headlights, procedural Web Audio (engine, tire screech, siren, footsteps, whooshes, impacts), rotating minimap with blips, EN/KO i18n, High/Medium/Low quality, mobile touch controls.
 
 ## Android debug APK

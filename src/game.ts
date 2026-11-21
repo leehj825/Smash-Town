@@ -262,6 +262,7 @@ export class Game {
     const c = v.ctrl;
     this.vfx.emitSparks(c.position.x, 0.8, c.position.z, Math.min(10, 2 + s * 0.4));
     if (v === this.driving) {
+      this.input.rumble(Math.min(1, s / 18), 0.5, 140);
       this.cameraRig.shake(Math.min(1, s / 22));
       if (s > 9) this.hitStop = Math.max(this.hitStop, 0.03);
       this.audio.crash(s);
@@ -282,6 +283,7 @@ export class Game {
     const value = this.props.smash(c.smash, c.x, c.z, vx, vz);
     if (!byPlayer) return;
     this.smashTotal++;
+    this.input.rumble(0.3, 0.7, 90);
     this.story.onSmash();
     this.damageTotal += value;
     this.comboCount++;
@@ -559,6 +561,7 @@ export class Game {
     const dt = rawDt;
     this.time += dt;
     const input = this.input;
+    input.mode = this.onFoot ? 'foot' : 'car';
 
     if (input.wasPressed('Escape') && this.state === 'garage') this.closeGarage();
     if (this.state === 'dialog' && (input.wasPressed('KeyF') || input.wasPressed('Enter') || input.wasPressed('Space'))) this.story.advanceDialog();
@@ -754,7 +757,7 @@ export class Game {
         this.damageTotal += atk.dmg * 40;
         void att;
       },
-      onPlayerHurt: () => { this.cameraRig.shake(0.35); this.audio.thump(); },
+      onPlayerHurt: () => { this.cameraRig.shake(0.35); this.audio.thump(); this.input.rumble(0.9, 0.6, 180); },
       onCopDown: (h) => {
         this.addCash(150);
         this.addHeat(15);

@@ -345,6 +345,7 @@ Legend: ✅ done · ◐ partial · ⬜ not done. "Tested" means exercised by a s
 | Post-processing: ACES + selective bloom | ✅ | Toggle via Graphics preset. |
 | HUD (context-switching bottom-right, health bar, WANTED banner, objective pill, minimap blips) | ✅ | |
 | Procedural audio (engine, screech, siren, footsteps, whoosh, impacts, prop smash) | ✅ | No music. |
+| Gamepad (Gamepad API, standard layout) | ✅ | Analog driving on RT/LT + left stick, on-foot combat on face buttons and both sticks, D-pad menu navigation, rumble on impacts. Verified with a simulated controller feeding `navigator.getGamepads()`; not tried on physical hardware. See the README for the full layout. |
 | Mobile touch controls | ◐ | Driving: steer arrows + gas/brake/nitro/drift. On foot: **analog left stick** (forward/back + strafe, with deadzone), KICK / DODGE / JUMP / WPN / F / HIT buttons, drag-to-orbit. Layout verified overlap-free at 667×375, 740×360, 844×390 and 915×412; not tested on a real device. |
 | Performance targets (60 fps, <100 draw calls) | ◐ | Main pass: ≈66 draw calls on a calm street and ≈85–95 at ★★★★★ with 8 police cars in view (≈90 / ≈147 when the shadow pass is counted); ~420k triangles. Frame rate unverified. |
 

@@ -173,3 +173,12 @@ button.big.ghost { background: transparent; border: 2px solid rgba(255,255,255,.
 @media (max-height: 460px) { #story-text { font-size: 11px; } #dialog { bottom: 4%; padding: 10px 14px 8px; } #dlg-text { font-size: 14px; min-height: 2.6em; } }
 
 body.dialog-open #touch { visibility: hidden; }
+
+/* ---- gamepad ---- */
+#pad-hint { display: none; max-width: 260px; text-align: right; font-size: 11px; line-height: 1.45; font-weight: 600; opacity: .92; }
+body.gamepad #pad-hint { display: block; }
+body.gamepad #hints, body.gamepad .hints-foot { display: none; }
+#pad-hint .pad-foot { display: none; }
+body.foot-mode #pad-hint .pad-foot { display: block; }
+body.foot-mode #pad-hint .pad-drive { display: none; }
+.pad-focus { outline: 3px solid #ffd23a; outline-offset: 2px; }

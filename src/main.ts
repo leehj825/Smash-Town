@@ -4,7 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-import { applyDom, getLang, onLangChange, setLang, type Lang } from './i18n';
+import { applyDom, getLang, onLangChange, setLang, t, type Lang } from './i18n';
 import { Input } from './input';
 import { buildWorld } from './world';
 import { buildProps } from './props';
@@ -179,6 +179,10 @@ onLangChange(syncLangButtons);
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Enter' && state === 'title') startGame();
 });
+// a trusted gesture (key / click / tap) is what lets the browser start audio; this also covers a gamepad start
+window.addEventListener('pointerdown', () => { if (state !== 'title') game.audio.init(); });
+window.addEventListener('keydown', () => { if (state !== 'title') game.audio.init(); });
+window.addEventListener('gamepadconnected', () => hud.toast(t('ui.toast.pad'), 2200));
 
 // ---------------------------------------------------------------- main loop
 const timer = new THREE.Timer();
@@ -192,12 +196,42 @@ function frame(): void {
   }
 }
 
+/** Gamepad menu navigation: D-pad moves the highlight between the buttons of the open overlay, A presses, B/Start go back. */
+let navIndex = -1;
+function menuNav(): void {
+  const garageEl = document.getElementById('garage')!;
+  const overlay = !titleEl.hidden ? titleEl : !pauseEl.hidden ? pauseEl : !garageEl.hidden ? garageEl : null;
+  if (!overlay) { navIndex = -1; return; }
+  const btns = Array.from(overlay.querySelectorAll<HTMLButtonElement>('button:not([disabled])'));
+  if (!btns.length) return;
+  const focusAt = (i: number) => {
+    navIndex = (i + btns.length) % btns.length;
+    btns.forEach((b, k) => b.classList.toggle('pad-focus', k === navIndex));
+    btns[navIndex].focus({ preventScroll: true });
+  };
+  if (input.wasPressed('PadDown') || input.wasPressed('PadRight')) focusAt(navIndex + 1);
+  if (input.wasPressed('PadUp') || input.wasPressed('PadLeft')) focusAt(navIndex < 0 ? 0 : navIndex - 1);
+  if (input.wasPressed('PadA')) {
+    const target = navIndex >= 0 && btns[navIndex] ? btns[navIndex] : btns[0];
+    target.click();
+  }
+}
+
 function tick(): void {
   timer.update();
-  let dt = Math.min(timer.getDelta(), 0.05);
+  const rawDt = timer.getDelta();
+  let dt = Math.min(rawDt, 0.05);
+
+  // gamepad: tell it what the buttons mean right now, then read it
+  input.menu = state !== 'playing' || game.state !== 'play';
+  input.mode = game.onFoot ? 'foot' : 'car';
+  input.pollGamepad(Math.min(rawDt, 0.1));
+  if (input.padActive && state !== 'title') game.audio.ensureRunning();
+  menuNav();
+  if (state === 'title' && input.wasPressed('Enter')) startGame();
 
   if (state === 'playing') {
-    if (game.state !== 'garage' && (input.wasPressed('Escape') || input.wasPressed('KeyP'))) setPaused(true);
+    if (game.state !== 'garage' && game.state !== 'dialog' && (input.wasPressed('Escape') || input.wasPressed('KeyP'))) setPaused(true);
     if (input.wasPressed('KeyT')) applyTime(env.cycleTime());
   } else if (state === 'paused') {
     if (input.wasPressed('Escape') || input.wasPressed('KeyP')) setPaused(false);
