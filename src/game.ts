@@ -14,13 +14,14 @@ import { Helicopter } from './heli';
 import { Interiors, type Room } from './interiors';
 import { RoofDash } from './roofdash';
 import { PoliceFire } from './policefire';
+import { RangeGig } from './range';
 import { SideQuests } from './sidequests';
 import { Progress, type ProgressSave } from './tracker';
 import { OWNABLE, type OwnableShop } from './progress';
 import { settings } from './settings';
 import { Mood } from './mood';
 import type { Roof } from './world';
-import { GUN_ORDER, GUNS, Guns, type GunDef, type GunId } from './guns';
+import { GUN_ORDER, GUNS, GUN_UP_PRICE, GUN_UP_TIER, Guns, type GunDef, type GunId } from './guns';
 import { BODY_KEYS, BODY_PRICES, MAX_LEVEL, NEONS, NEON_PRICE, PAINTS, PAINT_PRICE, UP_KEYS, UP_PRICES, emptyBody, emptyCar, fineFor, resprayCost, type BodyProgress, type CarProgress } from './upgrades';
 import type { Blip, GarageModel, Hud } from './hud';
 import type { Input } from './input';
@@ -34,7 +35,7 @@ import type { Vfx } from './vfx';
 import type { CircleCollider, World } from './world';
 
 export const SAVE_KEY = 'smashtown.save.v1';
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; outfit?: number; progress?: ProgressSave }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -87,6 +88,7 @@ export class Game {
   readonly interiors: Interiors;
   readonly roofDash: RoofDash;
   readonly policeFire: PoliceFire;
+  readonly range: RangeGig;
   readonly sideQuests: SideQuests;
   readonly progress: Progress;
   readonly mood: Mood;
@@ -174,12 +176,13 @@ export class Game {
     this.story = new StoryManager(this, this.scene, this.save.story);
     this.pickups = new Pickups(d.world, makeRng(2024));
     this.scene.add(this.pickups.group);
-    this.guns = new Guns(this, this.save.guns ?? [], this.save.ammo ?? {});
+    this.guns = new Guns(this, this.save.guns ?? [], this.save.ammo ?? {}, this.save.gunUp ?? {});
     this.scene.add(this.guns.group);
     this.heli.attach(this.scene);
     this.interiors = new Interiors(d.world, this.scene);
     this.roofDash = new RoofDash(this);
     this.policeFire = new PoliceFire(this);
+    this.range = new RangeGig(this);
     this.sideQuests = new SideQuests(this);
     this.progress = new Progress(this.save.progress, (m) => this.hud.toast(m, 3600), (n) => { this.cash += n; this.hud.setCash(this.cash); this.saveDirty = true; this.audio.cash(); }, () => { this.saveDirty = true; });
     this.mood = new Mood(this);
@@ -230,8 +233,10 @@ export class Game {
       const guns = Array.isArray(s.guns) ? s.guns.filter((g): g is GunId => GUN_ORDER.includes(g as GunId)) : [];
       const ammo: Partial<Record<GunId, number>> = {};
       for (const g of GUN_ORDER) { const n = Number(s.ammo?.[g]); if (Number.isFinite(n) && n > 0) ammo[g] = Math.floor(n); }
+      const gunUp: Partial<Record<GunId, [number, number]>> = {};
+      for (const g of GUN_ORDER) { const u = s.gunUp?.[g]; if (Array.isArray(u)) gunUp[g] = [Number(u[0]) || 0, Number(u[1]) || 0]; }
       const outfit = Number.isInteger(s.outfit) ? Number(s.outfit) : 0;
-      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, outfit, progress: s.progress };
+      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, progress: s.progress };
     } catch {
       return fallback;
     }
@@ -246,6 +251,7 @@ export class Game {
     this.save.outfit = this.save.outfit ?? 0;
     this.save.guns = [...this.guns.owned];
     this.save.ammo = { ...this.guns.reserve };
+    this.save.gunUp = { ...this.guns.up };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch { /* ignore */ }
     this.saveDirty = false;
   }
@@ -876,7 +882,7 @@ export class Game {
       selected: k,
       car: cp,
       body: this.save.body ?? emptyBody(),
-      arms: { owned: [...this.guns.owned], reserve: { ...this.guns.reserve } },
+      arms: { owned: [...this.guns.owned], reserve: { ...this.guns.reserve }, up: { ...this.guns.up } },
     };
   }
 
@@ -900,7 +906,7 @@ export class Game {
         if (this.driving!.ctrl.hp >= 0.999 && !this.driving!.flat) { this.hud.toast(bi('Already in perfect shape', '이미 완벽한 상태예요')); return; }
         if (!this.pay(m.repairCost)) return;
         this.driving!.ctrl.hp = 1;
-        if (this.driving!.flat) { this.driving!.flat = false; this.applyLook(this.driving!); }
+        if (this.driving!.flat) { this.driving!.fixTire(); this.applyLook(this.driving!); }
         this.hud.toast(t('ui.toast.repaired'));
         refresh();
       },
@@ -959,6 +965,14 @@ export class Game {
         this.guns.buyGun(id);
         this.humans.guns = this.guns.flags();
         this.hud.toast(bi('New weapon! Press its number key on foot.', '새 무기! 도보에서 숫자 키로 선택하세요.'));
+        refresh();
+      },
+      onGunUp: (id, which) => {
+        const lv = this.guns.up[id][which];
+        const tier = GUN_UP_TIER[id];
+        if (!this.guns.has(id) || lv >= 3 || tier === 0 || (which === 1 && (id === 'rocket' || id === 'grenade'))) return;
+        if (!this.pay(Math.round(GUN_UP_PRICE[which][lv] * tier))) return;
+        this.guns.up[id][which] = lv + 1;
         refresh();
       },
       onBuyAmmo: (id) => {
@@ -1083,13 +1097,14 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);
     this.collectStars();
     this.updatePickups(dt);
     if (this.state === 'play' && this.onFoot) this.guns.update(dt, this.input.fireHeld, this.input.wasPressed('Attack') || this.input.wasPressed('KeyJ'));
+    else if (this.state === 'play' && this.driving && !this.inside && this.driveBy(dt)) { /* firing from the car window */ }
     else this.guns.tick(dt);
     this.updateStateMachine(dt);
 
@@ -1106,7 +1121,7 @@ export class Game {
     this.hud.setStoryProgress(this.story.progressText());
     this.hud.setTelemetryVisible(!!d);
     this.hud.setFootMode(this.onFoot, pl.weapon, this.humans.ownedFlags());
-    this.hud.setAmmo(this.onFoot ? this.guns.hudText() : null, `${this.aimOn ? 'AIM' : ''}${this.aimOn && this.autoAim ? ' \u00B7 ' : ''}${this.autoAim ? 'AUTO' : ''}`);
+    this.hud.setAmmo(this.onFoot || (this.driving && this.guns.current() && this.guns.current()!.id !== 'rocket' && this.guns.current()!.id !== 'grenade') ? this.guns.hudText() : null, `${this.aimOn ? 'AIM' : ''}${this.aimOn && this.autoAim ? ' \u00B7 ' : ''}${this.autoAim ? 'AUTO' : ''}`);
     this.hud.setReloadButton(this.onFoot && this.guns.needsReload());
     this.hud.setPlayerHp(Math.max(0, pl.hp / pl.maxHp));
     this.hud.setWantedBanner(this.stars > 0);
@@ -1206,6 +1221,25 @@ export class Game {
   /** Aim switches (see update): manual aim starts off each session, auto-aim is remembered. */
   aimOn = false;
   autoAim = (() => { try { return localStorage.getItem('smashtown.autoaim') === '1'; } catch { return false; } })();
+
+  /**
+   * Drive-by: with a pistol, SMG, shotgun or paintball gun out you can fire from the car (left click, or X on a controller). It aims at the
+   * closest hostile within 30 m, otherwise straight ahead. Keys 4-9 pick the gun while driving. Returns true when it handled the guns this frame.
+   */
+  private driveBy(dt: number): boolean {
+    const input = this.input, pl = this.humans.player;
+    for (let k = 4; k <= 9; k++) if (input.wasPressed('Digit' + k) && this.humans.weaponOwned(k - 1)) pl.weapon = k - 1;
+    const g = this.guns.current();
+    if (!g || g.id === 'rocket' || g.id === 'grenade') return false;
+    this.guns.updateAutoAim(30);
+    if (!this.guns.aimPoint) {
+      // nothing to aim at: shoot ahead of the car
+      const d = this.driving!;
+      this.guns.aimPoint = { x: d.x + Math.sin(d.ctrl.heading) * 30, y: 1.3, z: d.z + Math.cos(d.ctrl.heading) * 30, t: 30, hostile: false, heli: false, auto: true };
+    }
+    this.guns.update(dt, input.fireHeld, input.wasPressed('Attack') || input.wasPressed('KeyJ'));
+    return true;
+  }
 
   /** Street pickups: health, armor, cash, burger stands. */
   private updatePickups(dt: number): void {
@@ -1710,6 +1744,7 @@ export class Game {
     for (const g of this.world.garages) this.pushBlip(g.x, g.z, '#3dff8a', false, 5);
     this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
+    for (const m of this.range.markers()) this.pushBlip(m.x, m.z, '#ff9a3d', m.active, m.active ? 5 : 4);
     for (const m of this.roofDash.markers()) this.pushBlip(m.x, m.z, '#4dd2ff', false, m.active ? 5.5 : 4);
     for (const m of this.sideQuests.markers()) this.pushBlip(m.x, m.z, m.color, true, 5);
     this.pickups.forEach((type, x, z) => { if (Math.hypot(x - this.focusX, z - this.focusZ) < 90 && type !== 'cash') this.pushBlip(x, z, Pickups.color(type), false, 3); });

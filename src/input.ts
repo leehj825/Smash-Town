@@ -144,7 +144,7 @@ export class Input implements ControlState {
   }
   /** Fire button held: left mouse, the touch HIT button, RT or X on a gamepad (used by automatic guns). */
   get fireHeld(): boolean {
-    return this.mouseDown || this.virtual.has('fire') || (this.mode === 'foot' && !this.menu && (this.pad.rt > 0.5 || this.pad.x));
+    return this.mouseDown || this.virtual.has('fire') || ((this.mode === 'foot' && !this.menu && this.pad.rt > 0.5) || (!this.menu && this.pad.x));
   }
   /** True once per key press. */
   wasPressed(code: string): boolean {
@@ -218,7 +218,7 @@ export class Input implements ControlState {
     for (let i = 0; i < 16; i++) if (edge(i)) active = true;
     if (edge(0)) { add('Space'); add('PadA'); }
     if (edge(1)) { add('PadB'); if (this.menu) add('Escape'); else if (foot) add('ControlLeft'); }
-    if (edge(2)) { add('PadX'); if (foot) add('Attack'); }
+    if (edge(2)) { add('PadX'); if (foot || (this.mode === 'car' && !this.menu)) add('Attack'); }
     if (edge(3)) { add('PadY'); add('KeyF'); }
     if (edge(4) && foot) add('KeyV');
     if (edge(5) && foot) add('Kick');

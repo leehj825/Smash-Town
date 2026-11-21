@@ -32,7 +32,16 @@ export class GameVehicle {
     if (this.flat) return false;
     this.flat = true;
     this.ctrl.stats = { ...this.ctrl.stats, maxSpeed: this.ctrl.stats.maxSpeed * 0.55, grip: this.ctrl.stats.grip * 0.7 };
+    // the wheel sags: one corner sits lower
+    const w = this.ctrl.model.wheelMeshes[this.id % 4];
+    if (w) w.scale.y *= 0.55;
     return true;
+  }
+  /** A garage fixed the tyre: the wheel is round again. */
+  fixTire(): void {
+    const w = this.ctrl.model.wheelMeshes[this.id % 4];
+    if (w && this.flat) w.scale.y /= 0.55;
+    this.flat = false;
   }
   owned = false;
   ramCooldown = 0;

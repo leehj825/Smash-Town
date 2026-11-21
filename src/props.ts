@@ -342,11 +342,16 @@ export function buildProps(world: World, vfx: Vfx): Props {
   /** Thins out trees and pines for slower devices: `f` is the share kept (1 = all). Spread evenly, not cut off district by district. */
   function setVegetation(f: number): void {
     for (const { m, orig } of veg) {
+      const total = orig.length / 16;
       const arr = m.instanceMatrix.array as Float32Array;
-      for (let i = 0; i < m.count; i++) {
-        const keep = (i * 0.6180339887) % 1 < f;
-        for (let k = 0; k < 16; k++) arr[i * 16 + k] = keep ? orig[i * 16 + k] : 0;
+      let n = 0;
+      // the kept instances are packed to the front and only those are drawn (a zero-size instance would still cost its vertices)
+      for (let i = 0; i < total; i++) {
+        if ((i * 0.6180339887) % 1 >= f) continue;
+        for (let k = 0; k < 16; k++) arr[n * 16 + k] = orig[i * 16 + k];
+        n++;
       }
+      m.count = n;
       m.instanceMatrix.needsUpdate = true;
     }
   }

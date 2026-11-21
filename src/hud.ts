@@ -2,7 +2,7 @@ import { BODY_DESC, BODY_KEYS, BODY_NAMES, BODY_PRICES, MAX_LEVEL, NEONS, NEON_P
 import type { World } from './world';
 import type { Followable } from './cameraRig';
 import { bi, t, tf, type I18nKey } from './i18n';
-import { GUNS, GUN_ORDER, type GunId } from './guns';
+import { GUNS, GUN_ORDER, GUN_UP_PRICE, GUN_UP_TIER, type GunId } from './guns';
 import { PLAYER_ROSTER, STATS, type VehicleKind } from './vehicle';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -17,7 +17,7 @@ export interface GarageModel {
   selected: VehicleKind;
   car: CarProgress;
   body: BodyProgress;
-  arms: { owned: GunId[]; reserve: Record<GunId, number> };
+  arms: { owned: GunId[]; reserve: Record<GunId, number>; up: Record<GunId, [number, number]> };
 }
 export interface GarageHandlers {
   onRepair: () => void;
@@ -30,6 +30,7 @@ export interface GarageHandlers {
   onBody: (i: number) => void;
   onBuyGun: (g: GunId) => void;
   onBuyAmmo: (g: GunId) => void;
+  onGunUp: (g: GunId, which: 0 | 1) => void;
   onClose: () => void;
 }
 type GarageTab = 'cars' | 'tune' | 'look' | 'body' | 'arms';
@@ -433,8 +434,16 @@ export class Hud {
         const has = m.arms.owned.includes(id);
         const res = g.infinite ? '\u221E' : String(m.arms.reserve[id]);
         const buyBtn = has ? `<button class="seg" disabled>${bi('Owned', '보유')}</button>` : `<button class="seg gbuy" data-g="${id}">${money(g.price)}</button>`;
+        const tier = GUN_UP_TIER[id];
+        const upBtn = (which: 0 | 1, label: string) => {
+          const lv = m.arms.up[id][which];
+          const none = !has || tier === 0 || (which === 1 && (id === 'rocket' || id === 'grenade'));
+          if (none) return '';
+          return `<button class="seg gup" data-g="${id}" data-w="${which}" ${lv >= 3 ? 'disabled' : ''}>${label} ${stars(lv)} ${lv >= 3 ? bi('MAX', '최대') : money(Math.round(GUN_UP_PRICE[which][lv] * tier))}</button>`;
+        };
+        const ups = upBtn(0, bi('Damage', '피해')) + upBtn(1, bi('Magazine', '탄창'));
         const ammoBtn = has && !g.infinite ? `<button class="seg gammo" data-g="${id}">+${g.pack} ${bi('ammo', '탄약')} ${money(g.packPrice)}</button>` : '';
-        return `<div class="urow"><div><b>${g.icon} ${bi(g.en, g.ko)}</b> <span class="lv">${has ? `${bi('ammo', '탄약')} ${res}` : ''}</span><small>${bi('Magazine', '탄창')} ${g.mag} \u00B7 ${g.dmg ? bi('damage', '피해') + ' ' + g.dmg + (g.pellets > 1 ? 'x' + g.pellets : '') : bi('harmless fun', '무해한 장난감')}</small></div><div class="gbtns">${buyBtn}${ammoBtn}</div></div>`;
+        return `<div class="urow"><div><b>${g.icon} ${bi(g.en, g.ko)}</b> <span class="lv">${has ? `${bi('ammo', '탄약')} ${res}` : ''}</span><small>${bi('Magazine', '탄창')} ${g.mag} \u00B7 ${g.dmg ? bi('damage', '피해') + ' ' + g.dmg + (g.pellets > 1 ? 'x' + g.pellets : '') : bi('harmless fun', '무해한 장난감')}</small></div><div class="gbtns">${buyBtn}${ammoBtn}${ups}</div></div>`;
       }).join('') + '</div>';
     } else {
       body = '<div class="ulist">' + BODY_KEYS.map((k, i) => {
@@ -469,6 +478,7 @@ export class Hud {
     }));
     q('button.up').forEach((b) => b.addEventListener('click', () => h.onUpgrade(Number(b.dataset.i))));
     q('button.gbuy').forEach((b) => b.addEventListener('click', () => h.onBuyGun(b.dataset.g as GunId)));
+    q('button.gup').forEach((b) => b.addEventListener('click', () => h.onGunUp(b.dataset.g as GunId, Number(b.dataset.w) as 0 | 1)));
     q('button.gammo').forEach((b) => b.addEventListener('click', () => h.onBuyAmmo(b.dataset.g as GunId)));
     q('button.bup').forEach((b) => b.addEventListener('click', () => h.onBody(Number(b.dataset.i))));
     q('.swatch.paint').forEach((b) => b.addEventListener('click', () => h.onPaint(Number(b.dataset.c))));

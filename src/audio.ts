@@ -151,12 +151,15 @@ export class AudioEngine {
   }
   /** Gunshots: a noise crack plus a body thump, tuned per gun. */
   gun(kind: 'pistol' | 'smg' | 'shotgun' | 'rocket' | 'paint'): void {
-    if (kind === 'pistol') { this.burst(0.09, 2600, 0.5); this.thud(180, 0.12, 0.5); }
-    else if (kind === 'smg') { this.burst(0.06, 3200, 0.38); this.thud(210, 0.08, 0.35); }
-    else if (kind === 'shotgun') { this.burst(0.2, 1500, 0.8); this.thud(110, 0.22, 0.75); }
-    else if (kind === 'rocket') { this.burst(0.35, 700, 0.6); this.thud(80, 0.3, 0.6); }
-    else { this.burst(0.04, 4200, 0.2); }
+    // each shot is a sharp crack, a rounder bang and a body thump (and for the big guns a long tail)
+    if (kind === 'pistol') { this.burst(0.05, 4200, 0.35); this.burst(0.16, 1300, 0.4); this.thud(200, 0.11, 0.55); }
+    else if (kind === 'smg') { this.burst(0.04, 4600, 0.26); this.burst(0.09, 1600, 0.22); this.thud(240, 0.07, 0.4); }
+    else if (kind === 'shotgun') { this.burst(0.08, 3400, 0.5); this.burst(0.4, 800, 0.6); this.thud(95, 0.26, 0.8); }
+    else if (kind === 'rocket') { this.burst(0.3, 700, 0.55); this.burst(0.7, 320, 0.5); this.thud(65, 0.5, 0.7); }
+    else { this.burst(0.04, 4800, 0.18); this.thud(420, 0.04, 0.2); }
   }
+  /** A spent case hitting the ground. */
+  tink(): void { this.burst(0.03, 6800, 0.1); }
   click(): void { this.burst(0.03, 5200, 0.25); }
   reload(): void { this.burst(0.05, 4000, 0.25); window.setTimeout(() => this.burst(0.05, 3000, 0.3), 280); }
   /** Rain loudness 0..1. */
