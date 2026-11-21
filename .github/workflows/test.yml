@@ -1,0 +1,38 @@
+name: Tests
+
+# Type-checks and runs the whole headless-browser regression suite (npm test) on every push and pull request.
+
+on:
+  push:
+    paths: ['index.html', 'src/**', 'tests/**', 'scripts/**', 'package.json', 'package-lock.json', 'vite.config.ts', 'tsconfig.json', '.github/workflows/test.yml']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      # The tests drive headless Chromium through Playwright; it is not a project dependency, so install it here without touching the lockfile.
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Regression suite
+        run: npm test
