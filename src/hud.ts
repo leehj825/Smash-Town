@@ -60,6 +60,7 @@ export class Hud {
   private flash = 0;
   private telemetry = $('telemetry');
   private pHealth = $('phealth-fill');
+  private pArmor = $('parmor-fill');
   private wantedBanner = $('wanted-banner');
   private slots = Array.from(document.querySelectorAll<HTMLElement>('#weapon-slots .slot'));
   private lastFoot: boolean | null = null;
@@ -191,6 +192,8 @@ export class Hud {
       el.classList.toggle('locked', i === 2 && !batonUnlocked);
     });
   }
+
+  setPlayerArmor(frac: number): void { this.pArmor.style.width = `${Math.round(frac * 100)}%`; }
 
   setPlayerHp(frac: number): void {
     this.pHealth.style.width = `${Math.round(frac * 100)}%`;

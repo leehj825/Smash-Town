@@ -189,6 +189,8 @@ export class Humans {
 
   /** Garage training: melee damage and run speed multipliers for the player (health sets maxHp). */
   bodyPower = 1;
+  /** Armor absorbs damage before health (0..50). */
+  armor = 0;
   bodySpeed = 1;
   setBody(health: number, power: number, speed: number): void {
     this.player.maxHp = 100 + 20 * health;
@@ -423,7 +425,9 @@ export class Humans {
   private applyHit(att: Human, t: Human, a: Attack, nx: number, nz: number): boolean {
     if (t.invuln > 0) { if (t.role === Role.Player) this.hooks.onWhiff(att); return false; }
     const dmg = att.role === Role.Cop ? 8 : a.dmg * (att.role === Role.Player ? this.bodyPower : 1);
-    t.hp -= dmg;
+    let take = dmg;
+    if (t.role === Role.Player && this.armor > 0) { const a2 = Math.min(this.armor, take); this.armor -= a2; take -= a2; }
+    t.hp -= take;
     t.flash = 0.14;
     let killed = t.hp <= 0;
     if (t.role === Role.Civ && killed) { t.hp = 1; killed = false; }

@@ -25,6 +25,9 @@ export class AudioEngine {
   enabled = true;
   volume = 0.8;
 
+  get context(): AudioContext | null { return this.ctx; }
+  get output(): GainNode | null { return this.ctx ? this.master : null; }
+
   /** Must be called from a user gesture (the PLAY button). */
   init(): void {
     if (this.ctx) {

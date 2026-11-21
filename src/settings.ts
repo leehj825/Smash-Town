@@ -16,6 +16,7 @@ export const ACTIONS: ActionDef[] = [
   { id: 'weapon', def: 'KeyV', en: 'Next weapon', ko: '다음 무기' },
   { id: 'jump', def: 'KeyC', en: 'Jump', ko: '점프' },
   { id: 'time', def: 'KeyT', en: 'Time of day', ko: '시간대 변경' },
+  { id: 'radio', def: 'KeyN', en: 'Radio on / off', ko: '라디오 켜기/끄기' },
   { id: 'map', def: 'KeyM', en: 'Big map', ko: '큰 지도' },
 ];
 

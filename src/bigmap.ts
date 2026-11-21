@@ -1,5 +1,6 @@
 import type { Game } from './game';
 import { bi, t } from './i18n';
+import { Pickups } from './pickups';
 
 const DOT = (c: string, label: string) => `<i style="background:${c}"></i><span>${label}</span>`;
 
@@ -48,6 +49,7 @@ export class BigMap {
         ${DOT('#3dff8a', bi('Garage', '차고'))}
         ${DOT('#ff9a3d', bi('Side jobs', '부업'))}
         ${DOT('#ffe27a', bi('Golden star', '황금 별'))}
+        ${DOT('#ffb23d', bi('Burger stand / health / armor', '버거 가게 / 체력 / 방탄'))}
       </div>`;
     this.side.querySelector('#bigmap-close')!.addEventListener('click', () => this.close());
   }
@@ -69,6 +71,7 @@ export class BigMap {
     const R = 9;
     for (const s of w.garages) dot(s.x, s.z, R, '#3dff8a');
     for (const m of g.gigs.markers) if (m.cooldown <= 0) dot(m.x, m.z, R - 1, '#ff9a3d');
+    g.pickups.forEach((type, x, z) => { if (type !== 'cash') dot(x, z, R - 4, Pickups.color(type)); });
     for (let i = 0; i < g.collectibles.total; i++) if (!g.collectibles.isCollected(i)) { const s = g.collectibles.spot(i); dot(s.x, s.z, R - 3, '#ffe27a'); }
 
     if (g.route && g.goal) {

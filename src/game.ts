@@ -9,6 +9,7 @@ import type { Environment } from './environment';
 import { MeshBuilder, makeRng, paletteMaterial } from './geo';
 import { GigManager } from './gigs';
 import { Navigator, type Route } from './nav';
+import { Pickups } from './pickups';
 import { BODY_KEYS, BODY_PRICES, MAX_LEVEL, NEONS, NEON_PRICE, PAINTS, PAINT_PRICE, UP_KEYS, UP_PRICES, emptyBody, emptyCar, fineFor, resprayCost, type BodyProgress, type CarProgress } from './upgrades';
 import type { Blip, GarageModel, Hud } from './hud';
 import type { Input } from './input';
@@ -66,6 +67,7 @@ export class Game {
   readonly slash = new SlashTrail();
   readonly gigs: GigManager;
   readonly story: StoryManager;
+  readonly pickups: Pickups;
   /** Road route to the story goal (refreshed a few times a second) and the goal itself. */
   route: Route | null = null;
   goal: { x: number; z: number; label: string; prop?: boolean } | null = null;
@@ -141,6 +143,8 @@ export class Game {
     this.scene.add(this.collectibles.group);
     this.hud.setCollectibles(this.collectibles.count, this.collectibles.total);
     this.story = new StoryManager(this, this.scene, this.save.story);
+    this.pickups = new Pickups(d.world, makeRng(2024));
+    this.scene.add(this.pickups.group);
 
     for (const g of this.world.garages) {
       const b = new Beacon(0x3dff8a, 6);
@@ -729,6 +733,7 @@ export class Game {
     this.story.update(dt);
     this.collectibles.update(dt);
     this.collectStars();
+    this.updatePickups(dt);
     this.updateStateMachine(dt);
 
     // ---- presentation
@@ -778,6 +783,34 @@ export class Game {
     const m = Math.max(this.route!.len, straight);
     this.hud.setNav(Math.atan2(side, along), `${Math.round(m / 5) * 5} m`);
     this.hud.setRoute(pts);
+  }
+
+  /** Street pickups: health, armor, cash, burger stands. */
+  private updatePickups(dt: number): void {
+    const pl = this.humans.player;
+    const d = this.driving;
+    this.pickups.update(dt, this.focusX, this.focusZ, this.onFoot ? 1.7 : 3.2, (type) => {
+      if (this.state !== 'play') return false;
+      if (type === 'health') return this.onFoot ? pl.hp < pl.maxHp : !!d && d.ctrl.hp < 0.999;
+      if (type === 'burger') return this.onFoot && pl.hp < pl.maxHp && this.cash >= 15;
+      if (type === 'armor') return this.humans.armor < 50;
+      return true;
+    }, (type, value) => {
+      const x = this.focusX, z = this.focusZ;
+      if (type === 'health') {
+        if (this.onFoot) { pl.hp = Math.min(pl.maxHp, pl.hp + 40); this.popups.spawn(x, 3, z, '+40 HP', '#ff5f7a'); }
+        else if (d) { d.ctrl.hp = Math.min(1, d.ctrl.hp + 0.35); this.popups.spawn(x, 3, z, bi('REPAIR', '수리'), '#ff5f7a'); }
+      } else if (type === 'burger') {
+        this.cash -= 15; this.hud.setCash(this.cash); this.saveDirty = true;
+        pl.hp = pl.maxHp; this.popups.spawn(x, 3, z, bi('Burger! -$15, full HP', '버거! -$15, 체력 회복'), '#ffb23d');
+      } else if (type === 'armor') {
+        this.humans.armor = Math.min(50, this.humans.armor + 25); this.popups.spawn(x, 3, z, '+25 ARMOR', '#4da3ff');
+      } else {
+        this.addCash(value, 'other'); this.popups.spawn(x, 3, z, `+$${value}`, '#3dff8a');
+      }
+      this.audio.cash();
+    });
+    this.hud.setPlayerArmor(this.humans.armor / 50);
   }
 
   /** Pick up golden stars by touching them (in a car or on foot). */
@@ -898,6 +931,7 @@ export class Game {
       onPlayerHurt: () => { this.cameraRig.shake(0.35); this.audio.thump(); this.input.rumble(0.9, 0.6, 180); },
       onCopDown: (h) => {
         this.addCash(150, 'police');
+        if (Math.random() < 0.55) this.pickups.drop(h.x, h.z, Math.random() < 0.5 ? 'cash' : 'health', 120);
         this.addHeat(15);
         if (this.humans.kids) this.popups.spawn(h.x, h.y + 2.2, h.z, t('pop.ko'), '#8a5cd6'); // knocked out, not killed
         else this.vfx.emitFire(h.x, 1, h.z, 4, 0.3);
@@ -1161,6 +1195,7 @@ export class Game {
         this.clearWanted();
         if (!wasWreck) for (const v of this.policeVehicles()) this.removeVehicle(v);
         this.humans.healPlayer();
+    this.humans.armor = 0;
         this.humans.setPlayerActive(false, 0, 0, 0);
         this.respawnAtGarage();
       }
@@ -1197,6 +1232,9 @@ export class Game {
     else this.hud.setPrompt(null);
   }
 
+  /** Set by main: lowers the radio under sirens. */
+  radioDuck: ((v: number) => void) | null = null;
+
   private updateAudio(dt: number): void {
     const d = this.driving;
     let siren: number | null = null;
@@ -1206,6 +1244,7 @@ export class Game {
         if (siren === null || dist < siren) siren = dist;
       }
     }
+    this.radioDuck?.(this.stars > 0 || this.roadblocks.length ? (siren !== null && siren < 60 ? 0.25 : 0.6) : 1);
     this.audio.update(dt, {
       inCar: !!d && !this.onFoot,
       speedRatio: d ? Math.abs(d.ctrl.forwardSpeed) / d.ctrl.stats.maxSpeed : 0,
@@ -1227,6 +1266,7 @@ export class Game {
     this.blipCount = 0;
     for (const g of this.world.garages) this.pushBlip(g.x, g.z, '#3dff8a', false, 5);
     this.gigs.blips(this.pushBlip);
+    this.pickups.forEach((type, x, z) => { if (Math.hypot(x - this.focusX, z - this.focusZ) < 90 && type !== 'cash') this.pushBlip(x, z, Pickups.color(type), false, 3); });
     this.story.blips(this.pushBlip);
     for (let i = 0; i < this.collectibles.total; i++) {
       if (this.collectibles.isCollected(i)) continue;

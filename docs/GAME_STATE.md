@@ -55,6 +55,11 @@ A browser 3D arcade open-world sandbox: drive, smash street props, brawl on foot
 ## 9. Architecture map (`src/`)
 `main.ts` loop and UI wiring; `game.ts` core orchestration (1,100 lines); `world.ts` city generator and minimap image; `ai.ts` traffic and police brains; `humans.ts` + `characters.ts` + `mocap.ts` + `combat.ts` people, rig and melee; `carController.ts`, `vehicle.ts`, `vehicles.ts` cars; `story.ts`, `nav.ts`, `bigmap.ts`, `collectibles.ts`, `gigs.ts`; `hud.ts`, `input.ts`, `touch.ts`, `i18n.ts`; `props.ts`, `effects.ts`, `vfx.ts`, `particles.ts`, `environment.ts`, `cameraRig.ts`, `audio.ts`. Data: `src/data/anims.json`. Docs: `docs/GDD.md` (living design doc), `README.md`. Debug handle: `window.__smash` (game, hud, bigmap, applyQuality, ...).
 
+## 9b. Added since this document was written
+- Phase 0: settings (look sensitivity, FOV, shake), key rebinding, tutorial, New Game, tests in `tests/`.
+- Phase 1: income popups and earnings tally, bail/wreck fees ($0 under $500), Quick Respray, per-car tuning, paint, neon, on-foot training, limo and monster truck, starting cash $2,000.
+- Phase 2: street pickups (health, armor, cash, burger stands, police drops) and a one-station procedural radio (`N`).
+
 ## 10. Known gaps and risks
 - **Performance is unmeasured on real hardware.** About 76 draw calls main pass, ~101 with shadows at normal traffic; ~147 at 5 stars with 8 police cars in view. Never run on a physical phone, low-end laptop or real controller.
 - No automated test suite in the repo. Testing was ad-hoc Playwright scripts (not committed).

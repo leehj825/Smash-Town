@@ -255,3 +255,6 @@ button.big:disabled { filter: grayscale(.8); opacity: .55; cursor: default; }
 .swatch { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(255,255,255,.35); cursor: pointer; color: #fff; font-size: 14px; padding: 0; }
 .swatch.sel { border-color: #ffd23a; box-shadow: 0 0 0 2px #000, 0 0 10px #ffd23a; }
 @media (max-height: 460px) { .garage-panel { padding: 12px 18px; } .urow { padding: 4px 8px; } .gbody { min-height: 60px; } .gtabs { margin: 6px 0 4px; } }
+
+#phealth .track { position: relative; }
+#parmor-fill { position: absolute; left: 0; top: 0; height: 45%; width: 0; background: linear-gradient(90deg, #4da3ff, #bfe0ff); transition: width .12s; }
