@@ -69,11 +69,11 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       G.inside = r; G.ret = { x: r.door.x, z: r.door.z, h: 0 };
       G.humans.setPlayerActive(true, r.desk.x, r.desk.z, 0);
       const c0 = G.cashAmount;
-      G.deskAction(r);
+      G.shops.deskAction(r);
       const bought = G.progress.owned.includes('arcade'); const paid = c0 - G.cashAmount;
       for (let i = 0; i < 120; i++) G.progress.tick(1);
       const waiting = Math.floor(G.progress.pending.arcade);
-      const c1 = G.cashAmount; G.deskAction(r);
+      const c1 = G.cashAmount; G.shops.deskAction(r);
       return { bought, paid, waiting, got: G.cashAmount - c1 };
     });
     ok(own.bought && own.paid === 12000 && own.waiting === 180 && own.got === 180, 'buying a shop earns income you collect at the desk', JSON.stringify(own));

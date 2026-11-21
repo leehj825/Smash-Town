@@ -17,7 +17,7 @@ import { PoliceFire } from './policefire';
 import { RangeGig } from './range';
 import { SideQuests } from './sidequests';
 import { Progress, type ProgressSave } from './tracker';
-import { OWNABLE, type OwnableShop } from './progress';
+import { Shops } from './shops';
 import { settings } from './settings';
 import { Mood } from './mood';
 import type { Roof } from './world';
@@ -89,6 +89,7 @@ export class Game {
   readonly roofDash: RoofDash;
   readonly policeFire: PoliceFire;
   readonly range: RangeGig;
+  readonly shops: Shops;
   readonly sideQuests: SideQuests;
   readonly progress: Progress;
   readonly mood: Mood;
@@ -117,10 +118,10 @@ export class Game {
   useBlob = false;
 
   private rng = makeRng(99);
-  private save: SaveData;
+  save: SaveData;
   private saveDirty = false;
   private saveTimer = 0;
-  private cash = 0;
+  cash = 0;
 
   // wanted
   private heat = 0;
@@ -183,6 +184,7 @@ export class Game {
     this.roofDash = new RoofDash(this);
     this.policeFire = new PoliceFire(this);
     this.range = new RangeGig(this);
+    this.shops = new Shops(this);
     this.sideQuests = new SideQuests(this);
     this.progress = new Progress(this.save.progress, (m) => this.hud.toast(m, 3600), (n) => { this.cash += n; this.hud.setCash(this.cash); this.saveDirty = true; this.audio.cash(); }, () => { this.saveDirty = true; });
     this.mood = new Mood(this);
@@ -243,7 +245,7 @@ export class Game {
   }
   /** Set while the save is being erased so nothing rewrites it before the reload. */
   noSave = false;
-  private flushSave(): void {
+  flushSave(): void {
     if (this.noSave) return;
     this.save.cash = Math.round(this.cash);
     this.save.collected = this.collectibles.indices();
@@ -523,8 +525,8 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ shops (hidden-pocket interiors)
-  private static OUTFITS: [number, number][] = [[0xd93636, 0x2a4a8a], [0x2fb87a, 0x23262f], [0xf2a73b, 0x3b3b52], [0x8a5cd6, 0x1a1a24], [0x3b82f6, 0xe8e8ee], [0xf4a7b9, 0x445566], [0x111111, 0x111111], [0xffffff, 0x33415c]];
-  private applyOutfit(i: number): void {
+  static OUTFITS: [number, number][] = [[0xd93636, 0x2a4a8a], [0x2fb87a, 0x23262f], [0xf2a73b, 0x3b3b52], [0x8a5cd6, 0x1a1a24], [0x3b82f6, 0xe8e8ee], [0xf4a7b9, 0x445566], [0x111111, 0x111111], [0xffffff, 0x33415c]];
+  applyOutfit(i: number): void {
     const o = Game.OUTFITS[((i % Game.OUTFITS.length) + Game.OUTFITS.length) % Game.OUTFITS.length];
     const pl = this.humans.player;
     pl.look = { ...pl.look, shirt: o[0], pants: o[1] };
@@ -561,107 +563,6 @@ export class Game {
     });
   }
 
-  private shopAction(room: Room): void {
-    const pl = this.humans.player;
-    switch (room.id) {
-      case 'donut':
-        if (pl.hp >= pl.maxHp) { this.hud.toast(bi('You are not hungry!', '배고프지 않아요!')); return; }
-        if (!this.pay(this.mood.saved ? 5 : 10)) return;
-        pl.hp = pl.maxHp; this.popups.spawn(pl.x, 3, pl.z, bi('Yum! Full HP', '냠! 체력 회복'), '#ff8fb8');
-        break;
-      case 'motel':
-        if (!this.pay(40)) return;
-        pl.hp = pl.maxHp; this.humans.armor = Math.max(this.humans.armor, 0);
-        this.flushSave();
-        this.hud.toast(bi('Rested and saved', '쉬었고 저장했어요'), 2000);
-        break;
-      case 'arcade': {
-        if (!this.pay(50)) return;
-        const roll = Math.random();
-        const prize = roll < 0.45 ? 0 : roll < 0.75 ? 25 : roll < 0.92 ? 100 : roll < 0.985 ? 250 : 1000;
-        if (prize > 0) { this.addCash(prize, 'other'); this.popups.spawn(pl.x, 3, pl.z, `+$${prize}`, '#35e0ff'); }
-        else this.popups.spawn(pl.x, 3, pl.z, bi('Try again!', '다시 도전!'), '#9aa0ad');
-        break;
-      }
-      case 'clothes': {
-        if (!this.pay(100)) return;
-        this.save.outfit = ((this.save.outfit ?? 0) + 1) % Game.OUTFITS.length;
-        this.applyOutfit(this.save.outfit);
-        this.popups.spawn(pl.x, 3, pl.z, bi('New look!', '새 옷!'), '#b084ff');
-        break;
-      }
-      case 'bank': {
-        const n = Math.floor(this.cash);
-        if (n < 100) { this.hud.toast(bi('Bring at least $100 to deposit', '입금은 최소 $100부터예요')); return; }
-        this.cash -= n; this.save.bank = (this.save.bank ?? 0) + n;
-        this.popups.spawn(pl.x, 3, pl.z, bi(`Deposited $${n.toLocaleString('en-US')}`, `$${n.toLocaleString('en-US')} 입금`), '#ffd23a');
-        this.flushSave();
-        break;
-      }
-      case 'gun': this.openGarage('arms'); break;
-    }
-  }
-
-  /** Savings earn 1% a minute of play, up to $300 a minute, and cannot be lost to a bust. */
-  private bankTimer = 0;
-  private tickBank(dt: number): void {
-    const b = this.save.bank ?? 0;
-    if (b <= 0) return;
-    this.bankTimer += dt;
-    if (this.bankTimer >= 60) { this.bankTimer -= 60; this.save.bank = b + Math.min(300, Math.floor(b * 0.01)); }
-  }
-
-  private deskNear(room: Room): boolean {
-    const pl = this.humans.player;
-    return !!room.desk && Math.hypot(pl.x - room.desk.x, pl.z - room.desk.z) < 2.4;
-  }
-
-  /** Buy the shop, or collect the income it has earned while you were away. */
-  private deskAction(room: Room): void {
-    if (room.id === 'bank') {
-      const b = this.save.bank ?? 0;
-      if (b <= 0) { this.hud.toast(bi('Your account is empty', '계좌가 비어 있어요')); return; }
-      this.save.bank = 0; this.addCash(b, 'other');
-      this.popups.spawn(this.humans.player.x, 3, this.humans.player.z, `+$${b.toLocaleString('en-US')}`, '#ffd23a');
-      this.flushSave();
-      return;
-    }
-    const id = room.id as OwnableShop;
-    const pl = this.humans.player;
-    if (!this.progress.owned.includes(id)) {
-      if (!this.pay(OWNABLE[id].price)) return;
-      this.progress.buy(id);
-      this.hud.toast(`${bi('You own', '소유')} ${bi(room.en, room.ko)}! +$${OWNABLE[id].perMin}/min`, 3200);
-    } else {
-      const n = this.progress.collect(id);
-      if (n <= 0) { this.hud.toast(bi('Nothing to collect yet', '아직 받을 돈이 없어요')); return; }
-      this.addCash(n, 'other');
-      this.popups.spawn(pl.x, 3, pl.z, `+$${n.toLocaleString('en-US')}`, '#ffd23a');
-    }
-  }
-
-  private insidePrompt(room: Room): string | null {
-    const pl = this.humans.player;
-    if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) return bi('[F] Leave', '[F] 나가기');
-    if (this.deskNear(room)) {
-      if (room.id === 'bank') return `${bi('[F] Withdraw all', '[F] 전액 출금')} - $${Math.floor(this.save.bank ?? 0).toLocaleString('en-US')}`;
-      const id = room.id as OwnableShop;
-      if (!this.progress.owned.includes(id)) return `${bi('[F] Buy this shop', '[F] 이 가게 사기')} - $${OWNABLE[id].price.toLocaleString('en-US')} (${bi('earns', '수입')} $${OWNABLE[id].perMin}/${bi('min', '분')})`;
-      return `${bi('[F] Collect shop income', '[F] 가게 수입 받기')} - $${Math.floor(this.progress.pending[id]).toLocaleString('en-US')}`;
-    }
-    if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) {
-      switch (room.id) {
-        case 'donut': return this.mood.saved ? bi('[F] Buy a donut - $5 (hero discount!)', '[F] 도넛 구매 - $5 (영웅 할인!)') : bi('[F] Buy a donut - $10 (full HP)', '[F] 도넛 구매 - $10 (체력 회복)');
-        case 'motel': return bi('[F] Rest and save - $40', '[F] 휴식 및 저장 - $40');
-        case 'arcade': return bi('[F] Play a game - $50', '[F] 게임하기 - $50');
-        case 'clothes': return bi('[F] Try a new outfit - $100', '[F] 새 옷 입어보기 - $100');
-        case 'bank': return bi('[F] Deposit all cash (safe from busts, +1%/min)', '[F] 전액 입금 (체포 안전, 분당 +1%)');
-        case 'gun': return bi('[F] Browse weapons', '[F] 무기 보기');
-      }
-    }
-    return null;
-  }
-
   /** Inside a shop only you move: the street is frozen far away. */
   private updateInside(dt: number): void {
     const room = this.inside!;
@@ -680,11 +581,11 @@ export class Game {
     this.interiors.update(dt);
     if (playing && (input.wasPressed('KeyF') || input.wasPressed('KeyE'))) {
       if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) this.leaveBuilding();
-      else if (this.deskNear(room)) this.deskAction(room);
-      else if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shopAction(room);
+      else if (this.shops.deskNear(room)) this.shops.deskAction(room);
+      else if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shops.action(room);
     }
     this.input.gunOut = false; this.cameraRig.aimMode = 0; this.guns.aimPoint = null; this.hud.setCrosshair(false); this.hud.setLockOn(false); this.hud.setGunOut(false);
-    this.hud.setPrompt(this.state === 'play' ? this.insidePrompt(room) : null);
+    this.hud.setPrompt(this.state === 'play' ? this.shops.prompt(room) : null);
     this.progress.tick(dt);
     this.updateLights();
     this.hud.update(this.followable, 1, 1, false, [], dt);
@@ -913,7 +814,7 @@ export class Game {
     };
   }
 
-  private pay(price: number): boolean {
+  pay(price: number): boolean {
     if (this.cash < price) { this.hud.toast(t('ui.toast.notenough')); return false; }
     this.cash -= price;
     this.saveDirty = true;
@@ -922,7 +823,7 @@ export class Game {
     return true;
   }
 
-  private openGarage(mode: 'garage' | 'arms' = 'garage'): void {
+  openGarage(mode: 'garage' | 'arms' = 'garage'): void {
     this.state = 'garage';
     const d = this.driving;
     if (d && mode === 'garage') d.ctrl.vx = d.ctrl.vz = 0;
@@ -1124,7 +1025,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.tickBank(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);

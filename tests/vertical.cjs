@@ -107,7 +107,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     for (let i = 0; i < 40; i++) await S(() => g().update(0.05));
     const vehAfter = await S(() => g().vehicles.slice(0, 6).map((v) => [Math.round(v.x), Math.round(v.z)]));
     ok(JSON.stringify(vehBefore) === JSON.stringify(vehAfter), 'the street is frozen while you are inside');
-    const buy = await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.counter.x; pl.z = r.counter.z + 2; pl.hp = 40; const c0 = G.cashAmount; G.shopAction(r); return { hp: pl.hp, paid: c0 - G.cashAmount }; });
+    const buy = await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.counter.x; pl.z = r.counter.z + 2; pl.hp = 40; const c0 = G.cashAmount; G.shops.action(r); return { hp: pl.hp, paid: c0 - G.cashAmount }; });
     ok(buy.hp === pl100() && buy.paid === 10, 'donut: $10 restores full health', JSON.stringify(buy));
     function pl100() { return 100; }
     const wall = await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.ox + 5; pl.z = r.oz; for (let i = 0; i < 90; i++) { pl.vx = 9; G.update(1 / 60); } return { x: pl.x - r.ox }; });
@@ -119,7 +119,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     // gun shop uses the arms panel only
     await S(() => { const G = g(); const r = G.interiors.rooms.find((q) => q.id === 'gun'); G.humans.setPlayerActive(true, r.door.x, r.door.z, 0); G.enterBuilding(r); });
     await p.waitForTimeout(900);
-    await S(() => { const G = g(); G.shopAction(G.inside); });
+    await S(() => { const G = g(); G.shops.action(G.inside); });
     const gun = await S(() => ({ state: g().state, tabs: document.querySelectorAll('.gtab').length, repair: !!document.getElementById('g-repair') }));
     ok(gun.state === 'garage' && gun.tabs === 1 && !gun.repair, 'gun shop opens the arms panel only', JSON.stringify(gun));
   } finally {

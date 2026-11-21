@@ -67,9 +67,9 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     const bank = await S(() => {
       const G = g(); const r = G.interiors.rooms.find((q) => q.id === 'bank');
       G.stars = 0; G.cash = 5000; G.save.bank = 0;
-      G.shopAction(r);
+      G.shops.action(r);
       const dep = { cash: G.cash, bank: G.save.bank };
-      G.cash = 0; G.deskAction(r);
+      G.cash = 0; G.shops.deskAction(r);
       return { dep, after: G.cash, bank: G.save.bank };
     });
     ok(bank.dep.cash === 0 && bank.dep.bank === 5000 && bank.after === 5000 && bank.bank === 0, 'the bank takes deposits and pays them back', JSON.stringify(bank));
