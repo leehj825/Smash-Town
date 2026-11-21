@@ -12,6 +12,7 @@ import { Navigator, type Route } from './nav';
 import { Pickups } from './pickups';
 import { Helicopter } from './heli';
 import { Interiors, type Room } from './interiors';
+import { RoofDash } from './roofdash';
 import type { Roof } from './world';
 import { GUN_ORDER, GUNS, Guns, type GunId } from './guns';
 import { BODY_KEYS, BODY_PRICES, MAX_LEVEL, NEONS, NEON_PRICE, PAINTS, PAINT_PRICE, UP_KEYS, UP_PRICES, emptyBody, emptyCar, fineFor, resprayCost, type BodyProgress, type CarProgress } from './upgrades';
@@ -78,6 +79,7 @@ export class Game {
   readonly pickups: Pickups;
   readonly guns: Guns;
   readonly interiors: Interiors;
+  readonly roofDash: RoofDash;
   /** The shop the player is inside (null on the street). While inside, the city is frozen and unseen. */
   inside: Room | null = null;
   private ret = { x: 0, z: 0, h: 0 };
@@ -166,6 +168,7 @@ export class Game {
     this.scene.add(this.guns.group);
     this.heli.attach(this.scene);
     this.interiors = new Interiors(d.world, this.scene);
+    this.roofDash = new RoofDash(this);
     this.applyOutfit(this.save.outfit ?? 0);
     this.humans.guns = this.guns.flags();
 
@@ -1017,6 +1020,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
+    if (this.state === 'play') this.roofDash.update(dt);
     this.story.update(dt);
     this.collectibles.update(dt);
     this.collectStars();
@@ -1575,6 +1579,7 @@ export class Game {
     for (const g of this.world.garages) this.pushBlip(g.x, g.z, '#3dff8a', false, 5);
     this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
+    for (const m of this.roofDash.markers()) this.pushBlip(m.x, m.z, '#4dd2ff', false, m.active ? 5.5 : 4);
     this.pickups.forEach((type, x, z) => { if (Math.hypot(x - this.focusX, z - this.focusZ) < 90 && type !== 'cash') this.pushBlip(x, z, Pickups.color(type), false, 3); });
     this.story.blips(this.pushBlip);
     for (let i = 0; i < this.collectibles.total; i++) {

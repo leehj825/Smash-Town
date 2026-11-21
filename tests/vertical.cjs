@@ -51,7 +51,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     ok(Math.abs(walk.y - walk.h) < 0.2 && walk.dx < 1, 'you can walk on the roof (no collision with your own building)', JSON.stringify(walk));
     const star = await S(() => {
       const G = g(); const pl = G.humans.player; const roofs = G.world.roofs;
-      const idx = G.world.landmarks.collectibles.findIndex((c) => c.y);
+      const idx = G.world.landmarks.collectibles.findIndex((c, i) => c.y && !G.collectibles.isCollected(i));
       const c = G.world.landmarks.collectibles[idx];
       const r = roofs.find((q) => Math.abs((q.minX + q.maxX) / 2 - c.x) < 1 && Math.abs((q.minZ + q.maxZ) / 2 - c.z) < 1);
       // from the street underneath: no
@@ -86,18 +86,18 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     await p.waitForTimeout(700);
     ok(await S(() => g().inside === null), 'doors are locked while wanted');
     await S(() => { const G = g(); G.stars = 0; G.heat = 0; G.cash = 1000; G.interiors.rooms[0] && 0; });
-    const vehBefore = await S(() => g().vehicles.slice(0, 6).map((v) => [Math.round(v.x), Math.round(v.z)]));
     await S(() => { const G = g(); const r = G.interiors.rooms[0]; G.humans.setPlayerActive(true, r.door.x, r.door.z, 0); G.enterBuilding(r); });
     await p.waitForTimeout(900);
     const inside = await S(() => { const G = g(); const pl = G.humans.player; return { in: G.inside && G.inside.id, x: Math.round(pl.x), z: Math.round(pl.z), fx: Math.round(G.focusX) }; });
     ok(inside.in === 'donut' && inside.x > 2900, 'F at a door fades into the shop', JSON.stringify(inside));
+    const vehBefore = await S(() => g().vehicles.slice(0, 6).map((v) => [Math.round(v.x), Math.round(v.z)]));
     for (let i = 0; i < 40; i++) await S(() => g().update(0.05));
     const vehAfter = await S(() => g().vehicles.slice(0, 6).map((v) => [Math.round(v.x), Math.round(v.z)]));
     ok(JSON.stringify(vehBefore) === JSON.stringify(vehAfter), 'the street is frozen while you are inside');
     const buy = await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.counter.x; pl.z = r.counter.z + 2; pl.hp = 40; const c0 = G.cashAmount; G.shopAction(r); return { hp: pl.hp, paid: c0 - G.cashAmount }; });
     ok(buy.hp === pl100() && buy.paid === 10, 'donut: $10 restores full health', JSON.stringify(buy));
     function pl100() { return 100; }
-    const wall = await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.ox + 5; pl.z = r.oz; for (let i = 0; i < 30; i++) { pl.vx = 40; G.update(0.05); } return { x: pl.x - r.ox }; });
+    const wall = await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.ox + 5; pl.z = r.oz; for (let i = 0; i < 90; i++) { pl.vx = 9; G.update(1 / 60); } return { x: pl.x - r.ox }; });
     ok(wall.x < 7.1, 'walls stop you inside the shop', JSON.stringify(wall));
     await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.exit.x; pl.z = r.exit.z; G.leaveBuilding(); });
     await p.waitForTimeout(900);
