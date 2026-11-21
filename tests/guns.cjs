@@ -101,7 +101,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     // rocket explosion
     const rk = await S(async () => {
       const G = g(); const pl = G.humans.player; const gs = G.guns;
-      G.humans.equip(6); gs.mag.rocket = 1;
+      G.humans.equip(6); gs.mag.rocket = 1; gs.cool = 0; gs.reloading = null;
       const sh0 = G.cameraRig.camera.position.clone();
       gs.update(0.016, false, true);
       const launched = gs.rockets.length;

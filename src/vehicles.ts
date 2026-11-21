@@ -26,8 +26,14 @@ export class GameVehicle {
   wreckTimer = 0;
   smokeAcc = 0;
   isGigTarget = false;
-  /** A tyre was shot out: slower and loose. */
+  /** A tyre was shot out or shredded: slower and loose. Garage repair fixes it. */
   flat = false;
+  popTire(): boolean {
+    if (this.flat) return false;
+    this.flat = true;
+    this.ctrl.stats = { ...this.ctrl.stats, maxSpeed: this.ctrl.stats.maxSpeed * 0.55, grip: this.ctrl.stats.grip * 0.7 };
+    return true;
+  }
   owned = false;
   ramCooldown = 0;
   /** Seconds until this car is removed once out of sight (cops that stood down after a chase). 0 = never. */

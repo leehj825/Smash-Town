@@ -36,7 +36,7 @@ export const GUNS: Record<GunId, GunDef> = {
 export const SLOT_OF = (id: GunId): number => 3 + GUN_ORDER.indexOf(id);
 
 interface Tracer { mesh: THREE.Mesh; life: number }
-interface Rocket { mesh: THREE.Mesh; x: number; z: number; dx: number; dz: number; life: number }
+interface Rocket { mesh: THREE.Mesh; x: number; z: number; dx: number; dz: number; life: number; homing: boolean; d0: number }
 interface Hit { t: number; kind: 'human' | 'vehicle' | 'box' | 'circle'; human?: Human; vehicle?: GameVehicle; circle?: { x: number; z: number; r: number; smash?: unknown } }
 
 const WRAP = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -139,6 +139,21 @@ export class Guns {
     for (let i = this.rockets.length - 1; i >= 0; i--) {
       const r = this.rockets[i];
       const step = 46 * dt;
+      if (r.homing) {
+        const hc = this.game.heli;
+        if (!hc.active) { r.homing = false; }
+        else {
+          const hd = hc.distTo(r.x, r.z);
+          if (hd < 5) { this.game.heliDown(); r.mesh.removeFromParent(); this.rockets.splice(i, 1); continue; }
+          r.dx = (hc.x - r.x) / hd; r.dz = (hc.z - r.z) / hd;
+          r.mesh.rotation.y = Math.atan2(r.dx, r.dz);
+          r.x += r.dx * step; r.z += r.dz * step; r.life -= dt;
+          r.mesh.position.set(r.x, 1.3 + (hc.y - 1.3) * Math.max(0, Math.min(1, 1 - hd / r.d0)), r.z);
+          this.game.vfx.emitSmoke(r.x, r.mesh.position.y, r.z, false, 1);
+          if (r.life <= 0) { this.explode(r.x, r.z); r.mesh.removeFromParent(); this.rockets.splice(i, 1); }
+          continue;
+        }
+      }
       const hit = this.trace(r.x, r.z, r.dx, r.dz, step + 0.6, this.game.driving);
       r.life -= dt;
       if (hit || r.life <= 0) {
@@ -204,7 +219,15 @@ export class Guns {
       mesh.rotation.y = Math.atan2(aim.dx, aim.dz);
       mesh.position.set(ox, 1.3, oz);
       this.group.add(mesh);
-      this.rockets.push({ mesh, x: ox, z: oz, dx: aim.dx, dz: aim.dz, life: g.range / 46 });
+      // a rocket aimed near the police helicopter locks on to it
+      const hc = G.heli;
+      let homing = false, d0 = 1;
+      if (hc.active) {
+        const hd = hc.distTo(ox, oz);
+        const da = Math.abs(WRAP(Math.atan2(hc.x - ox, hc.z - oz) - Math.atan2(aim.dx, aim.dz)));
+        if (hd < 85 && da < 0.5) { homing = true; d0 = Math.max(10, hd); }
+      }
+      this.rockets.push({ mesh, x: ox, z: oz, dx: aim.dx, dz: aim.dz, life: g.range / 46 + 0.5, homing, d0 });
       return;
     }
     const base = Math.atan2(aim.dx, aim.dz);
@@ -294,7 +317,7 @@ export class Guns {
         v.ctrl.damage(g.dmg * 0.004);
         if (v.isPolice) G.addHeat(2);
         // a lucky hit can burst a tyre: slower and less grip
-        if (!v.flat && Math.random() < 0.07 && v !== G.driving) { v.flat = true; v.ctrl.stats = { ...v.ctrl.stats, maxSpeed: v.ctrl.stats.maxSpeed * 0.55, grip: v.ctrl.stats.grip * 0.7 }; G.popups.spawn(v.x, 2, v.z, bi('FLAT TIRE', '타이어 펑크'), '#ffd23a'); }
+        if (Math.random() < 0.07 && v !== G.driving && v.popTire()) { G.popups.spawn(v.x, 2, v.z, bi('FLAT TIRE', '타이어 펑크'), '#ffd23a'); }
         G.vfx.emitSparks(px, 1, pz, 5);
       } else G.vfx.emitDebris(px, 1, pz, dx, dz, 0xff4dd2, 5);
     } else if (hit.kind === 'circle' && hit.circle) {
@@ -333,7 +356,9 @@ export class Guns {
       const d = Math.hypot(h.x - x, h.z - z);
       if (d > R) continue;
       const k = 1 - d / R;
+      G.humans.ignoreShield = true;
       G.humans.gunHit(G.humans.player, h, 110 * k + 10, (h.x - x) / (d || 1), (h.z - z) / (d || 1), true);
+      G.humans.ignoreShield = false;
     }
     for (const c of G.world.circles) {
       if (!c.smash || c.dead) continue;

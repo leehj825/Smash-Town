@@ -49,6 +49,8 @@ export class Human {
   prevWeapon = 0; equipT = 0;
   /** Knocked out (Kids Play): can't be hit again, gets up and walks away. */
   ko = false;
+  /** Riot officer: carries a shield that blocks most hits from the front. */
+  riot = false;
   /** Seconds left of free-running (a driver who just got out of a hijacked car), instead of following a sidewalk loop. */
   freeT = 0;
   lastStepSign = 1;
@@ -76,6 +78,8 @@ export interface HumanCtx {
   camYaw: number;
   vehicles: GameVehicle[];
   wantCops: number;
+  /** How many of the foot cops should be riot officers. */
+  wantRiot: number;
   playerActive: boolean;
   playerCarX: number; playerCarZ: number; playerCarSpeed: number;
   policeCars: { x: number; z: number }[];
@@ -212,6 +216,8 @@ export class Humans {
   }
 
   /** A bullet or blast hit: reuses the melee hit pipeline (knock-back, Kids Play knock-outs, popups) with a synthetic attack. */
+  /** Explosions set this so blasts ignore riot shields. */
+  ignoreShield = false;
   gunHit(att: Human, t: Human, dmg: number, nx: number, nz: number, heavy: boolean): boolean {
     if (!t.active || t.state === St.Dead) return false;
     const a: Attack = { ...ATTACKS.cross, dmg, push: heavy ? 7 : 3, up: heavy ? 2 : 0, heavy, popup: heavy ? 'wham' : 'pow' };
@@ -447,7 +453,9 @@ export class Humans {
 
   private applyHit(att: Human, t: Human, a: Attack, nx: number, nz: number): boolean {
     if (t.invuln > 0) { if (t.role === Role.Player) this.hooks.onWhiff(att); return false; }
-    const dmg = att.role === Role.Cop ? 8 : a.dmg * (att.role === Role.Player ? this.bodyPower : 1);
+    // a riot shield soaks most hits that come from the front
+    const blocked = t.riot && !this.ignoreShield && Math.sin(t.heading) * -nx + Math.cos(t.heading) * -nz > 0.25;
+    const dmg = (att.role === Role.Cop ? 8 : a.dmg * (att.role === Role.Player ? this.bodyPower : 1)) * (blocked ? 0.2 : 1);
     let take = dmg;
     if (t.role === Role.Player && this.armor > 0) { const a2 = Math.min(this.armor, take); this.armor -= a2; take -= a2; }
     t.hp -= take;
@@ -456,7 +464,7 @@ export class Humans {
     if (t.role === Role.Civ && killed) { t.hp = 1; killed = false; }
     // Kids Play: a defeated cop is knocked out (hp stays above 0 so they get up and leave); nobody ever enters the Dead state
     if (this.kids && killed && t.role === Role.Cop) t.hp = 1, t.ko = true;
-    const heavy = a.heavy || killed;
+    const heavy = (a.heavy && !blocked) || killed;
     t.attack = null; t.buffered = 0;
     t.heading = Math.atan2(-nx, -nz);
     if (heavy) {
@@ -535,11 +543,12 @@ export class Humans {
     const h = slot;
     h.active = true; h.role = Role.Cop; h.ko = false;
     h.x = x; h.z = z; h.y = GROUND; h.vy = 0; h.vx = h.vz = h.mvx = h.mvz = 0; h.grounded = true;
-    h.state = St.Idle; h.hp = h.maxHp = 60; h.weapon = 2; h.leaving = false; h.cd = 0.6 + this.rng();
-    h.atkScale = 0.55; h.scale = 1.03; h.attack = null; h.invuln = 0;
+    h.riot = count < this.ctx.wantRiot;
+    h.state = St.Idle; h.hp = h.maxHp = h.riot ? 110 : 60; h.weapon = 2; h.leaving = false; h.cd = 0.6 + this.rng();
+    h.atkScale = 0.55; h.scale = h.riot ? 1.12 : 1.03; h.attack = null; h.invuln = 0;
     h.heading = Math.atan2(px - x, pz - z);
     h.slotAngle = (count * TWO_PI) / Math.max(3, this.ctx.wantCops) + this.rng() * 0.4;
-    h.look = { shirt: 0x1e3a8a, pants: 0x1a1a24, skin: this.pick(SKINS), shoe: 0x111111, hair: 0x222222, cap: true };
+    h.look = { shirt: h.riot ? 0x23262f : 0x1e3a8a, pants: 0x1a1a24, skin: this.pick(SKINS), shoe: 0x111111, hair: 0x222222, cap: true };
     this.renderer.setLook(h.slot, h.look);
   }
 
@@ -554,7 +563,7 @@ export class Humans {
     if (isCop) {
       for (let i = COP_FIRST; i <= COP_LAST; i++) if (!this.list[i].active) { h = this.list[i]; break; }
       if (!h) return;
-      h.active = true; h.role = Role.Cop; h.ko = false; h.freeT = 0;
+      h.active = true; h.role = Role.Cop; h.ko = false; h.freeT = 0; h.riot = false;
       h.hp = h.maxHp = 60; h.weapon = 2; h.atkScale = 0.55; h.scale = 1.03; h.cd = 1.2 + this.rng();
       h.slotAngle = this.rng() * TWO_PI;
       h.look = { shirt: 0x1e3a8a, pants: 0x1a1a24, skin: this.pick(SKINS), shoe: 0x111111, hair: 0x222222, cap: true };
@@ -909,7 +918,7 @@ export class Humans {
     if (h.weapon !== h.prevWeapon) { h.prevWeapon = h.weapon; h.equipT = 0.15; }
     h.equipT = Math.max(0, h.equipT - dt);
     const pop = 1 + (h.equipT / 0.15) * 0.7;
-    this.renderer.draw(h.slot, h.x, h.y, h.z, h.heading, h.scale, 0, h.anim.out, h.look.cap, h.weapon, pop);
+    this.renderer.draw(h.slot, h.x, h.y, h.z, h.heading, h.scale, 0, h.anim.out, h.look.cap, h.weapon, pop, h.riot && h.role === Role.Cop);
     h.rendered = true;
   }
 

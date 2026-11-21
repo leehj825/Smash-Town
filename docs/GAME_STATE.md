@@ -60,6 +60,9 @@ A browser 3D arcade open-world sandbox: drive, smash street props, brawl on foot
 - Phase 1: income popups and earnings tally, bail/wreck fees ($0 under $500), Quick Respray, per-car tuning, paint, neon, on-foot training, limo and monster truck, starting cash $2,000.
 - Phase 2: street pickups (health, armor, cash, burger stands, police drops) and a one-station procedural radio (`N`).
 
+- Phase 3: guns (pistol, SMG, shotgun, rocket launcher, paintball), ammo, Arms garage tab, ammo pickups.
+- Phase 4: riot cops with shields (4+ stars), a police helicopter at 5 stars (brought down by a rocket), spike strips with roadblocks at 4+ stars.
+
 ## 10. Known gaps and risks
 - **Performance is unmeasured on real hardware.** About 76 draw calls main pass, ~101 with shadows at normal traffic; ~147 at 5 stars with 8 police cars in view. Never run on a physical phone, low-end laptop or real controller.
 - No automated test suite in the repo. Testing was ad-hoc Playwright scripts (not committed).

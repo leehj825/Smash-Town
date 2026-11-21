@@ -101,6 +101,7 @@ export class CharacterRenderer {
   private meshes: THREE.InstancedMesh[] = [];
   private weapons: Record<'bat' | 'baton', THREE.InstancedMesh>;
   private gunMeshes: THREE.InstancedMesh[] = [];
+  private shields!: THREE.InstancedMesh;
   private partLocal: THREE.Matrix4[][] = [];
   private world: THREE.Matrix4[] = BONES.map(() => new THREE.Matrix4());
   private localM = new THREE.Matrix4();
@@ -116,6 +117,7 @@ export class CharacterRenderer {
   private col = new THREE.Color();
   private white = new THREE.Color(0xffffff);
   // model_check holds right-hand items tilted "blade up and a little forward from the forearm"
+  private shieldOff = new THREE.Matrix4().compose(new THREE.Vector3(-0.1, -0.16, 0.2), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0)), new THREE.Vector3(1, 1, 1));
   private grip = new THREE.Matrix4().compose(
     new THREE.Vector3(-0.003, -0.09, -0.002),
     new THREE.Quaternion(0.7931, -0.1585, 0.1425, 0.5706),
@@ -139,6 +141,16 @@ export class CharacterRenderer {
       bat: new THREE.InstancedMesh(weaponGeometry('bat'), wmat, count),
       baton: new THREE.InstancedMesh(weaponGeometry('baton'), wmat, count),
     };
+    {
+      const sb = new MeshBuilder();
+      sb.box(0.06, 0.85, 0.55, 0, 0, 0, 0x2f4d73);
+      sb.box(0.07, 0.22, 0.4, 0, 0.22, 0, 0x9fd6ff);
+      this.shields = new THREE.InstancedMesh(sb.build(), wmat, count);
+      this.shields.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      this.shields.frustumCulled = false;
+      for (let i = 0; i < count; i++) this.shields.setMatrixAt(i, this.zero);
+      this.group.add(this.shields);
+    }
     for (let k = 0; k < 5; k++) this.gunMeshes.push(new THREE.InstancedMesh(gunGeometry(k), wmat, count));
     for (const w of [...Object.values(this.weapons), ...this.gunMeshes]) {
       w.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -180,13 +192,14 @@ export class CharacterRenderer {
     this.weapons.bat.setMatrixAt(slot, this.zero);
     this.weapons.baton.setMatrixAt(slot, this.zero);
     for (const g of this.gunMeshes) g.setMatrixAt(slot, this.zero);
+    this.shields.setMatrixAt(slot, this.zero);
   }
 
   /**
    * FK for one character and write all part instances.
    * `lie` rotates the whole body about the hips (knockdown), `weapon` 0 none / 1 bat / 2 baton.
    */
-  draw(slot: number, x: number, y: number, z: number, heading: number, scale: number, lie: number, pose: Pose, hasCap: boolean, weapon: number, weaponScale = 1): void {
+  draw(slot: number, x: number, y: number, z: number, heading: number, scale: number, lie: number, pose: Pose, hasCap: boolean, weapon: number, weaponScale = 1, shield = false): void {
     // base transform: root position, facing, and a hips-pivoted lie rotation
     this.q.setFromEuler(this.e.set(0, heading, 0));
     this.base.compose(this.p.set(x, y - Math.abs(Math.sin(lie)) * 0.62 * scale, z), this.q, this.s.setScalar(scale));
@@ -216,6 +229,8 @@ export class CharacterRenderer {
       if (spec.name === 'hair' && hasCap) { mesh.setMatrixAt(slot, this.zero); continue; }
       for (let k = 0; k < per; k++) mesh.setMatrixAt(slot * per + k, this.world[spec.joints[k]]);
     }
+    if (shield) { this.tmp.copy(this.world[J.wrL]).multiply(this.shieldOff); this.shields.setMatrixAt(slot, this.tmp); }
+    else this.shields.setMatrixAt(slot, this.zero);
     const wb = this.weapons.bat, wt = this.weapons.baton;
     for (let k = 0; k < 5; k++) this.gunMeshes[k].setMatrixAt(slot, this.zero);
     if (weapon >= 3) {
@@ -244,6 +259,7 @@ export class CharacterRenderer {
     this.weapons.bat.instanceMatrix.needsUpdate = true;
     this.weapons.baton.instanceMatrix.needsUpdate = true;
     for (const g of this.gunMeshes) g.instanceMatrix.needsUpdate = true;
+    this.shields.instanceMatrix.needsUpdate = true;
     this.colorsDirty = false;
   }
 }

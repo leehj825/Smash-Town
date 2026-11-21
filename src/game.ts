@@ -10,6 +10,7 @@ import { MeshBuilder, makeRng, paletteMaterial } from './geo';
 import { GigManager } from './gigs';
 import { Navigator, type Route } from './nav';
 import { Pickups } from './pickups';
+import { Helicopter } from './heli';
 import { GUN_ORDER, GUNS, Guns, type GunId } from './guns';
 import { BODY_KEYS, BODY_PRICES, MAX_LEVEL, NEONS, NEON_PRICE, PAINTS, PAINT_PRICE, UP_KEYS, UP_PRICES, emptyBody, emptyCar, fineFor, resprayCost, type BodyProgress, type CarProgress } from './upgrades';
 import type { Blip, GarageModel, Hud } from './hud';
@@ -39,7 +40,11 @@ const COMPOSITION: Record<number, [PoliceRole, number][]> = {
 };
 const ROLE_KIND: Record<PoliceRole, VehicleKind> = { cruiser: 'police', interceptor: 'interceptor', swat: 'swat', armored: 'armored' };
 
-interface Roadblock { x: number; z: number; mesh: THREE.Mesh; box: { minX: number; maxX: number; minZ: number; maxZ: number }; cars: GameVehicle[] }
+interface Roadblock {
+  x: number; z: number; mesh: THREE.Mesh; box: { minX: number; maxX: number; minZ: number; maxZ: number }; cars: GameVehicle[];
+  /** Spike strip laid ahead of the barricade (4+ stars). */
+  strip?: { mesh: THREE.Mesh; x: number; z: number; dx: number; dz: number; half: number; used: boolean };
+}
 
 export interface GameDeps {
   scene: THREE.Scene;
@@ -70,6 +75,8 @@ export class Game {
   readonly story: StoryManager;
   readonly pickups: Pickups;
   readonly guns: Guns;
+  readonly heli = new Helicopter();
+  private heliTimer = 0;
   /** Road route to the story goal (refreshed a few times a second) and the goal itself. */
   route: Route | null = null;
   goal: { x: number; z: number; label: string; prop?: boolean } | null = null;
@@ -149,6 +156,7 @@ export class Game {
     this.scene.add(this.pickups.group);
     this.guns = new Guns(this, this.save.guns ?? [], this.save.ammo ?? {});
     this.scene.add(this.guns.group);
+    this.heli.attach(this.scene);
     this.humans.guns = this.guns.flags();
 
     for (const g of this.world.garages) {
@@ -407,9 +415,62 @@ export class Game {
       this.roadblockTimer -= dt;
       if (this.roadblockTimer <= 0 && this.roadblocks.length < 1) { this.spawnRoadblock(); this.roadblockTimer = 25; }
     }
+    this.checkSpikes();
     for (const rb of [...this.roadblocks]) {
       if (Math.hypot(rb.x - this.focusX, rb.z - this.focusZ) > 210) this.removeRoadblock(rb);
     }
+  }
+
+  /** The player's car shredding its tyres on a spike strip. */
+  private checkSpikes(): void {
+    const d = this.driving;
+    if (!d || this.onFoot) return;
+    for (const rb of this.roadblocks) {
+      const s = rb.strip;
+      if (!s || s.used) continue;
+      const rx = d.x - s.x, rz = d.z - s.z;
+      const along = rx * s.dx + rz * s.dz;
+      const cross = -rx * s.dz + rz * s.dx;
+      if (Math.abs(along) < 1.8 && Math.abs(cross) < s.half) {
+        s.used = true;
+        s.mesh.visible = false;
+        if (d.popTire()) {
+          this.hud.toast(bi('Spike strip! Tires shredded - repair at a garage', '스파이크! 타이어 파손 - 차고에서 수리하세요'), 3200);
+          this.vfx.emitSparks(d.x, 0.3, d.z, 16);
+          this.audio.crash(14);
+          this.input.rumble(0.8, 0.5, 200);
+        }
+      }
+    }
+  }
+
+  /** The police helicopter was hit by a rocket. */
+  heliDown(): void {
+    const h = this.heli;
+    if (!h.active) return;
+    this.vfx.emitFire(h.x, h.y, h.z, 30, 2);
+    this.vfx.emitSparks(h.x, h.y, h.z, 24);
+    this.vfx.emitDebris(h.x, h.y, h.z, 0, 0, 0x1d2a44, 14);
+    this.audio.explosion();
+    this.cameraRig.shake(0.7);
+    this.addCash(1500, 'police');
+    this.popups.spawn(h.x, h.y, h.z, bi('HELICOPTER DOWN +$1,500', '헬기 격추 +$1,500'), '#ffd23a');
+    this.addHeat(10);
+    h.remove();
+    h.cooldown = 45;
+  }
+
+  private updateHeli(dt: number): void {
+    const h = this.heli;
+    if (this.stars >= 5 && this.state === 'play') {
+      if (!h.active && h.cooldown <= 0) { this.heliTimer += dt; if (this.heliTimer > 5) { this.heliTimer = 0; h.spawn(this.focusX, this.focusZ); this.hud.toast(bi('Police helicopter inbound!', '경찰 헬기 접근 중!'), 2400); } }
+    } else {
+      this.heliTimer = 0;
+      if (h.active) h.remove();
+    }
+    h.update(dt, this.focusX, this.focusZ, this.time);
+    // the searchlight keeps you "seen": you cannot lose the cops while it is on you
+    if (h.active && h.distTo(this.focusX, this.focusZ) < 80) this.unseen = 0;
   }
 
   /** A barricade across a road segment roughly 115 m ahead of where the player is heading, with two cruisers on the approach side. */
@@ -447,10 +508,28 @@ export class Game {
       const heading = Math.atan2(approach * dx, approach * dz) + side * 0.5;
       cars.push(this.spawnVehicle('police', STATS.police.color, cx, cz, heading, 'parked'));
     }
-    this.roadblocks.push({ x, z, mesh, box, cars });
+    const rb: Roadblock = { x, z, mesh, box, cars };
+    if (this.stars >= 4) {
+      // a spike strip across the road on the approach side
+      const sd = approach * Math.min(32, seg.len * 0.42);
+      const sx = x + dx * sd, sz = z + dz * sd;
+      const half = hw - 0.6;
+      const sb = new MeshBuilder();
+      const alongX = dx !== 0;
+      sb.box(alongX ? 0.6 : half * 2, 0.07, alongX ? half * 2 : 0.6, sx, 0.04, sz, 0x2a2a30);
+      for (let k = 0; k < 14; k++) {
+        const o = -half + (k + 0.5) * (half * 2 / 14);
+        sb.box(alongX ? 0.12 : 0.12, 0.16, 0.12, alongX ? sx : sx + o, 0.12, alongX ? sz + o : sz, 0xdadde6);
+      }
+      const smesh = new THREE.Mesh(sb.build(), paletteMaterial());
+      this.scene.add(smesh);
+      rb.strip = { mesh: smesh, x: sx, z: sz, dx, dz, half, used: false };
+    }
+    this.roadblocks.push(rb);
   }
 
   private removeRoadblock(rb: Roadblock): void {
+    if (rb.strip) { rb.strip.mesh.removeFromParent(); rb.strip.mesh.geometry.dispose(); }
     rb.mesh.removeFromParent();
     rb.mesh.geometry.dispose();
     const i = this.world.boxes.indexOf(rb.box);
@@ -597,9 +676,10 @@ export class Game {
     this.hud.openGarage(this.garageModel(), {
       onRepair: () => {
         const m = this.garageModel();
-        if (this.driving!.ctrl.hp >= 0.999) { this.hud.toast(bi('Already in perfect shape', '이미 완벽한 상태예요')); return; }
+        if (this.driving!.ctrl.hp >= 0.999 && !this.driving!.flat) { this.hud.toast(bi('Already in perfect shape', '이미 완벽한 상태예요')); return; }
         if (!this.pay(m.repairCost)) return;
         this.driving!.ctrl.hp = 1;
+        if (this.driving!.flat) { this.driving!.flat = false; this.applyLook(this.driving!); }
         this.hud.toast(t('ui.toast.repaired'));
         refresh();
       },
@@ -753,6 +833,7 @@ export class Game {
     this.vehicleLifecycle(dt);
     this.maintainTraffic();
     this.updateWanted(dt);
+    this.updateHeli(dt);
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
@@ -887,6 +968,7 @@ export class Game {
       camYaw: this.cameraRig.moveYaw,
       vehicles: this.vehicles,
       wantCops: want,
+      wantRiot: want > 0 ? (this.stars >= 5 ? 3 : this.stars >= 4 ? 2 : 0) : 0,
       playerActive: this.onFoot,
       playerCarX: d ? d.x : pl.x, playerCarZ: d ? d.z : pl.z, playerCarSpeed: d ? d.ctrl.speed : 0,
       policeCars: this.copCars,
