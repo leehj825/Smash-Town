@@ -27,14 +27,16 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     // plays a weapon with the given movement for a few frames and reports the clip
     const clip = (a) => S((a) => {
       const G = g(); const pl = G.humans.player;
-      G.humans.equip(a.w); pl.heading = 0; pl.aimYaw = 0; pl.aimT = a.aim ? 99 : 0;
+      // with a gun out the body always faces where the camera points: point the camera along +z
+      G.humans.equip(a.w); pl.heading = 0; pl.aimYaw = 0; pl.aimT = a.aim ? 99 : 0; G.cameraRig.footYaw = 0;
       pl.vx = pl.vz = 0; G.state = 'play';
       for (let i = 0; i < 12; i++) { pl.mvx = a.mx || 0; pl.mvz = a.mz || 0; G.update(1 / 60); }
       return pl.anim.clipName;
     }, a);
 
     const idle = [await clip({ w: 3 }), await clip({ w: 4 }), await clip({ w: 4, aim: true }), await clip({ w: 6, aim: true }), await clip({ w: 6 }), await clip({ w: 7 })];
-    ok(idle.join(',') === 'pistolIdle,proIdle,proIdleAim,rifleAimIdle,proIdle,pistolIdle', 'idle clip by gun and by aiming', idle.join(','));
+    // a gun that is out is always raised (the crosshair is up), so long guns idle in their aim pose
+    ok(idle.join(',') === 'pistolIdle,proIdleAim,proIdleAim,rifleAimIdle,rifleAimIdle,pistolIdle', 'idle clip by gun: handgun grip, shouldered long gun, launcher on the shoulder', idle.join(','));
     const dirs = [];
     for (const [mx, mz] of [[0, 4.8], [0, -4.8], [4.8, 0], [-4.8, 0], [3.4, 3.4], [-3.4, -3.4]]) dirs.push(await clip({ w: 4, aim: true, mx, mz }));
     ok(dirs.join(',') === 'proRunF,proRunB,proRunL,proRunR,proRunFL,proRunBR', 'long guns: eight-way run relative to the aim', dirs.join(','));
@@ -45,11 +47,11 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
 
     // facing: a raised gun turns the body to the aim while you move sideways
     const face = await S(() => {
-      const G = g(); const pl = G.humans.player; G.humans.equip(4); pl.heading = 0; pl.aimYaw = 1; pl.aimT = 5;
+      const G = g(); const pl = G.humans.player; G.humans.equip(4); pl.heading = 0; G.cameraRig.footYaw = 1;
       for (let i = 0; i < 40; i++) { pl.mvx = 0; pl.mvz = 4.8; G.update(1 / 60); }
       return { heading: Math.round(pl.heading * 10) / 10, blend: Math.round(pl.aimBlend * 10) / 10 };
     });
-    ok(face.heading === 1 && face.blend === 1, 'the body faces the aim and the raised-arm layer is on while moving', JSON.stringify(face));
+    ok(face.heading === 1 && face.blend === 1, 'the body faces the camera and the raised-arm layer is on while moving', JSON.stringify(face));
 
     // jump
     const jump = await S(() => {
