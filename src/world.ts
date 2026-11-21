@@ -9,7 +9,9 @@ export interface SmashRef { type: 'hydrant' | 'lamp' | 'palm' | 'bench' | 'newss
 export interface CircleCollider { x: number; z: number; r: number; smash?: SmashRef; dead?: boolean }
 /** Climbable wedge (no longer placed in the city; kept so the physics code stays generic). */
 export interface Ramp { x: number; z: number; dx: number; dz: number; len: number; width: number; h: number }
-export interface Spot { x: number; z: number }
+export interface Spot { x: number; z: number; y?: number }
+/** A building the player can climb: ladder on one face, flat roof at height `h`. */
+export interface Roof { box: BoxCollider; minX: number; maxX: number; minZ: number; maxZ: number; h: number; ladder: { x: number; z: number; nx: number; nz: number } }
 
 export interface Lot {
   i: number; j: number;
@@ -57,6 +59,7 @@ export interface World {
   ramps: Ramp[];
   garages: Spot[];
   landmarks: Landmarks;
+  roofs: Roof[];
   segments: RoadSegment[];
   bounds: Bounds;
   width: number;
@@ -622,6 +625,7 @@ export function buildWorld(): World {
     addBoxCollider(x, z, w, d);
   };
 
+  const roofCands: { box: BoxCollider; h: number; x: number; z: number; w: number; d: number; nx: number; nz: number; off: number }[] = [];
   const downtownCx = W * 0.5, downtownCz = D * 0.4;
   for (const lot of lots) {
     const lx = (lot.x0 + lot.x1) / 2, lz = (lot.z0 + lot.z1) / 2;
@@ -670,13 +674,16 @@ export function buildWorld(): World {
           const h = rand(7, 11);
           building(w, h, d, x, 0, z, pick(PASTELS));
           addBoxCollider(x, z, w, d);
+          const colBox = boxes[boxes.length - 1];
           roofExtras(x, z, w, d, h);
           if (alongX) {
             const dirZ = rng() < 0.5 ? -1 : 1;
+            roofCands.push({ box: colBox, h, x, z, w, d, nx: 0, nz: dirZ, off: w * 0.36 });
             awning(x, z + dirZ * d / 2, 0, dirZ, w * 0.82);
             addSign(x, z + dirZ * d / 2, 0, dirZ, w);
           } else {
             const dirX = rng() < 0.5 ? -1 : 1;
+            roofCands.push({ box: colBox, h, x, z, w, d, nx: dirX, nz: 0, off: d * 0.36 });
             awning(x + dirX * w / 2, z, dirX, 0, d * 0.82);
             addSign(x + dirX * w / 2, z, dirX, 0, d);
           }
@@ -759,6 +766,25 @@ export function buildWorld(): World {
       }
       default:
         break; // parks: only trees, benches and paths
+    }
+  }
+  // ================================================================ climbable roofs: up to 10 old-town buildings get a ladder
+  const roofs: Roof[] = [];
+  {
+    const order = roofCands.map((c, i) => ({ c, k: rng(), i })).sort((a, b) => a.k - b.k).map((q) => q.c);
+    for (const c of order) {
+      if (roofs.length >= 10) break;
+      const fx = c.x + c.nx * c.w / 2, fz = c.z + c.nz * c.d / 2;
+      const lx = c.nz !== 0 ? c.x + c.off : fx, lz = c.nz !== 0 ? fz : c.z + c.off;
+      if (roofs.some((r) => Math.hypot(r.ladder.x - lx, r.ladder.z - lz) < 70)) continue;
+      const bx = lx + c.nx * 0.55, bz = lz + c.nz * 0.55;
+      // the ladder foot must be on open ground (not inside another building)
+      if (boxes.some((b) => b !== c.box && bx > b.minX - 0.4 && bx < b.maxX + 0.4 && bz > b.minZ - 0.4 && bz < b.maxZ + 0.4)) continue;
+      const lb = chunkOf(bldChunks, lx, lz);
+      const across = c.nz !== 0 ? 1 : 0; // rails spread along x when the face runs along x
+      for (const s of [-0.3, 0.3]) lb.box(across ? 0.07 : 0.07, c.h + 0.9, across ? 0.07 : 0.07, lx + (across ? s : 0) + c.nx * 0.12, (c.h + 0.9) / 2, lz + (across ? 0 : s) + c.nz * 0.12, 0xd8b44a);
+      for (let y = 0.4; y < c.h + 0.6; y += 0.5) lb.box(across ? 0.62 : 0.06, 0.06, across ? 0.06 : 0.62, lx + c.nx * 0.12, y, lz + c.nz * 0.12, 0xc9a23c);
+      roofs.push({ box: c.box, minX: c.box.minX, maxX: c.box.maxX, minZ: c.box.minZ, maxZ: c.box.maxZ, h: c.h, ladder: { x: bx, z: bz, nx: c.nx, nz: c.nz } });
     }
   }
   for (const bb of bldChunks.values()) {
@@ -849,6 +875,8 @@ export function buildWorld(): World {
     if (used.some((u) => Math.hypot(u.x - p.x, u.z - p.z) < 30) || collectibles.some((c) => Math.hypot(c.x - p.x, c.z - p.z) < 60)) continue;
     collectibles.push(p);
   }
+  // rooftop stars: four of the golden stars sit on climbable roofs
+  for (const r of roofs.slice(0, 4)) collectibles.push({ x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2, y: r.h });
   const landmarks: Landmarks = { garages, gigs, checkpoints, hijackSpots, story, collectibles };
 
   const sp = pickSeg(W * 0.5, D * 0.58, [], 0, 60);
@@ -897,7 +925,7 @@ export function buildWorld(): World {
   }
 
   return {
-    group, lots, boxes, circles, ramps, garages, landmarks, segments, bounds, width: W, depth: D,
+    group, lots, boxes, circles, ramps, garages, landmarks, roofs, segments, bounds, width: W, depth: D,
     windowMaterial, signMaterial, spawn, minimap: { canvas: mm, scale: MM, pad: PAD },
   };
 }

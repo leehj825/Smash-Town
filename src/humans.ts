@@ -1,6 +1,7 @@
+import type { Roof } from './world';
 import * as THREE from 'three';
-import { CharacterRenderer, type Look } from './characters';
-import { AnimPlayer, CLIPS } from './mocap';
+import { CharacterRenderer, J, type Look } from './characters';
+import { AnimPlayer, CLIPS, sampleClip } from './mocap';
 import {
   ATTACKS, DODGE, GRAVITY, JUMP_VY, PUNCH_COMBO, SPRINT_SPEED, SWING_COMBO, St, WALK_SPEED, type Attack,
 } from './combat';
@@ -18,6 +19,7 @@ const PANTS = [0x2c3e50, 0x4a4e59, 0x6b4f3a, 0x1f2d3d, 0x7f8c8d, 0x3b5a8c];
 const SKINS = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac];
 const HAIRS = [0x2a1a10, 0x5a3a1a, 0xc9a24a, 0x1a1a1a, 0x8a3a1a];
 
+const AXIS_X = new THREE.Vector3(1, 0, 0);
 const wrap = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
 const TWO_PI = Math.PI * 2;
 
@@ -49,6 +51,17 @@ export class Human {
   prevWeapon = 0; equipT = 0;
   /** Knocked out (Kids Play): can't be hit again, gets up and walks away. */
   ko = false;
+  /** The roof this human stands on (null at street level) and the highest point of the current fall. */
+  roof: Roof | null = null;
+  peak = 0;
+  /** Riot officer: carries a shield that blocks most hits from the front. */
+  riot = false;
+  /** Gun handling (player): seconds the weapon stays raised after a shot, where it points, how raised it is now, and shot / reload kicks. */
+  aimT = 0; aimYaw = 0; aimBlend = 0; recoil = 0; reloadK = 0;
+  /** Reload progress 0..1 while the rifle reload clip is driving the arms (-1 = not reloading) and the grenade throw timer. */
+  reloadU = -1; throwT = 0; throwDur = 1;
+  /** Which knock-out clip a bullet hit picked (empty = the ordinary fall). */
+  fallClip = '';
   /** Seconds left of free-running (a driver who just got out of a hijacked car), instead of following a sidewalk loop. */
   freeT = 0;
   lastStepSign = 1;
@@ -76,6 +89,8 @@ export interface HumanCtx {
   camYaw: number;
   vehicles: GameVehicle[];
   wantCops: number;
+  /** How many of the foot cops should be riot officers. */
+  wantRiot: number;
   playerActive: boolean;
   playerCarX: number; playerCarZ: number; playerCarSpeed: number;
   policeCars: { x: number; z: number }[];
@@ -91,6 +106,8 @@ export class Humans {
   readonly list: Human[] = [];
   readonly player: Human;
   unlockedBaton = false;
+  /** Which guns the player owns (pistol, SMG, shotgun, rocket, paintball). */
+  guns: boolean[] = [true, false, false, false, false, false];
   /** Kids Play: nobody dies. Defeated cops and the player are only knocked out. */
   kids = true;
   copsDefeated = 0;
@@ -182,15 +199,49 @@ export class Humans {
     const p = this.player;
     p.active = active;
     if (!active) { this.hide(p); return; }
+    p.roof = null; p.peak = GROUND;
     p.x = x; p.z = z; p.heading = heading; p.y = GROUND; p.vy = 0; p.vx = p.vz = p.mvx = p.mvz = 0;
     p.state = St.Idle; p.attack = null; p.grounded = true; p.invuln = 0.4;
     if (p.hp <= 0) p.hp = p.maxHp * 0.5;
   }
 
+  /** Garage training: melee damage and run speed multipliers for the player (health sets maxHp). */
+  bodyPower = 1;
+  /** Armor absorbs damage before health (0..50). */
+  armor = 0;
+  bodySpeed = 1;
+  setBody(health: number, power: number, speed: number): void {
+    this.player.maxHp = 100 + 20 * health;
+    this.player.hp = Math.min(this.player.hp, this.player.maxHp);
+    this.bodyPower = 1 + 0.15 * power;
+    this.bodySpeed = 1 + 0.05 * speed;
+  }
+
   healPlayer(): void { this.player.hp = this.player.maxHp; }
 
+  ownedFlags(): boolean[] { return [0, 1, 2, 3, 4, 5, 6, 7, 8].map((s) => this.weaponOwned(s)); }
+
+  weaponOwned(slot: number): boolean {
+    if (slot === 2) return this.unlockedBaton;
+    if (slot >= 3) return !!this.guns[slot - 3];
+    return true;
+  }
+
+  /** A bullet or blast hit: reuses the melee hit pipeline (knock-back, Kids Play knock-outs, popups) with a synthetic attack. */
+  /** Explosions set this so blasts ignore riot shields. */
+  ignoreShield = false;
+  gunHit(att: Human, t: Human, dmg: number, nx: number, nz: number, heavy: boolean): boolean {
+    if (!t.active || t.state === St.Dead) return false;
+    const a: Attack = { ...ATTACKS.cross, dmg, push: heavy ? 7 : 3, up: heavy ? 2 : 0, heavy, popup: heavy ? 'wham' : 'pow', gun: true };
+    const bp = this.bodyPower;
+    this.bodyPower = 1;
+    const r = this.applyHit(att, t, a, nx, nz);
+    this.bodyPower = bp;
+    return r;
+  }
+
   equip(slot: number): void {
-    if (slot === 2 && !this.unlockedBaton) return;
+    if (!this.weaponOwned(slot)) return;
     this.player.weapon = slot;
   }
 
@@ -203,20 +254,25 @@ export class Humans {
     h.invuln = Math.max(0, h.invuln - dt);
     h.dodgeCd = Math.max(0, h.dodgeCd - dt);
     h.flash = Math.max(0, h.flash - dt);
+    h.aimT = Math.max(0, h.aimT - dt);
+    h.throwT = Math.max(0, h.throwT - dt);
+    h.recoil = Math.max(0, h.recoil - dt * 7);
     this.combatTimer = Math.max(0, this.combatTimer - dt);
 
     // weapon switching: 1 fists, 2 bat, 3 baton; wheel / V cycle
     if (inp.wasPressed('Digit1')) this.equip(0);
     if (inp.wasPressed('Digit2')) this.equip(1);
     if (inp.wasPressed('Digit3')) this.equip(2);
+    for (let k = 4; k <= 9; k++) if (inp.wasPressed('Digit' + k)) this.equip(k - 1);
     const cycle = (d: number) => {
-      const slots = this.unlockedBaton ? [0, 1, 2] : [0, 1];
+      const slots = [0, 1, 2, 3, 4, 5, 6, 7, 8].filter((s) => this.weaponOwned(s));
       this.player.weapon = slots[(slots.indexOf(this.player.weapon) + d + slots.length) % slots.length];
     };
     if (inp.wasPressed('WheelUp')) cycle(1);
     if (inp.wasPressed('WheelDown') || inp.wasPressed('KeyV')) cycle(-1 + (inp.wasPressed('KeyV') ? 2 : 0));
 
-    const wantAttack = inp.wasPressed('Attack') || inp.wasPressed('KeyJ');
+    // with a gun in hand the attack button fires (handled by the gun system) instead of starting a melee combo
+    const wantAttack = h.weapon < 3 && (inp.wasPressed('Attack') || inp.wasPressed('KeyJ'));
     const wantKick = inp.wasPressed('Kick') || inp.wasPressed('KeyK') || inp.wasPressed('KeyQ');
     const space = inp.wasPressed('Space');
     const wantJump = inp.wasPressed('KeyC') || (space && !this.combatContext());
@@ -249,7 +305,7 @@ export class Humans {
     // locomotion
     if (free || !h.grounded) {
       const sprint = inp.nitro && h.grounded;
-      const max = (sprint ? SPRINT_SPEED : WALK_SPEED) * Math.min(1, mag);
+      const max = (sprint ? SPRINT_SPEED : WALK_SPEED) * Math.min(1, mag) * (h.role === Role.Player ? this.bodySpeed : 1);
       const dvx = (mag > 0.05 ? (mx / Math.max(mag, 1e-4)) * max : 0) - h.mvx;
       const dvz = (mag > 0.05 ? (mz / Math.max(mag, 1e-4)) * max : 0) - h.mvz;
       const dl = Math.hypot(dvx, dvz);
@@ -258,7 +314,11 @@ export class Humans {
       // In a fight (a cop within 12 m) the character stays facing the enemy and strafes / backpedals with the
       // stick; otherwise it turns toward the direction of travel (camera-relative run).
       const foe = this.nearestCop(h, 12);
-      if (foe && (this.combatTimer > 0 || Math.hypot(foe.x - h.x, foe.z - h.z) < 9)) {
+      if (h.weapon >= 3 && h.aimT > 0) {
+        // a raised gun points where it is aimed, so the body strafes and backpedals instead of turning to run
+        const d = wrap(h.aimYaw - h.heading);
+        h.heading += Math.max(-16 * dt, Math.min(16 * dt, d));
+      } else if (foe && (this.combatTimer > 0 || Math.hypot(foe.x - h.x, foe.z - h.z) < 9)) {
         const d = wrap(Math.atan2(foe.x - h.x, foe.z - h.z) - h.heading);
         h.heading += Math.max(-11 * dt, Math.min(11 * dt, d));
       } else if (mag > 0.1) {
@@ -412,16 +472,28 @@ export class Humans {
 
   private applyHit(att: Human, t: Human, a: Attack, nx: number, nz: number): boolean {
     if (t.invuln > 0) { if (t.role === Role.Player) this.hooks.onWhiff(att); return false; }
-    const dmg = att.role === Role.Cop ? 8 : a.dmg;
-    t.hp -= dmg;
+    // a riot shield soaks most hits that come from the front
+    const blocked = t.riot && !this.ignoreShield && Math.sin(t.heading) * -nx + Math.cos(t.heading) * -nz > 0.25;
+    const dmg = (att.role === Role.Cop ? 8 : a.dmg * (att.role === Role.Player ? this.bodyPower : 1)) * (blocked ? 0.2 : 1);
+    let take = dmg;
+    if (t.role === Role.Player && this.armor > 0) { const a2 = Math.min(this.armor, take); this.armor -= a2; take -= a2; }
+    t.hp -= take;
     t.flash = 0.14;
     let killed = t.hp <= 0;
     if (t.role === Role.Civ && killed) { t.hp = 1; killed = false; }
     // Kids Play: a defeated cop is knocked out (hp stays above 0 so they get up and leave); nobody ever enters the Dead state
     if (this.kids && killed && t.role === Role.Cop) t.hp = 1, t.ko = true;
-    const heavy = a.heavy || killed;
+    const heavy = (a.heavy && !blocked) || killed;
     t.attack = null; t.buffered = 0;
+    // a bullet knocks you out the way it hit: facing the shooter, back turned, or from the side
+    const faced = Math.sin(t.heading) * -nx + Math.cos(t.heading) * -nz;
+    t.fallClip = '';
     t.heading = Math.atan2(-nx, -nz);
+    if (a.gun && heavy) {
+      if (faced < -0.35) { t.fallClip = 'proDieBack'; t.heading = Math.atan2(nx, nz); }
+      else if (faced < 0.35) { t.fallClip = 'proDieRight'; t.heading = Math.atan2(-nx, -nz) + Math.PI / 2; }
+      else t.fallClip = 'proDieFront';
+    }
     if (heavy) {
       t.state = killed && t.role !== Role.Civ && !this.kids ? St.Dead : St.Down;
       t.stateDur = t.stateT = killed ? 2.4 : 1.4;
@@ -498,11 +570,12 @@ export class Humans {
     const h = slot;
     h.active = true; h.role = Role.Cop; h.ko = false;
     h.x = x; h.z = z; h.y = GROUND; h.vy = 0; h.vx = h.vz = h.mvx = h.mvz = 0; h.grounded = true;
-    h.state = St.Idle; h.hp = h.maxHp = 60; h.weapon = 2; h.leaving = false; h.cd = 0.6 + this.rng();
-    h.atkScale = 0.55; h.scale = 1.03; h.attack = null; h.invuln = 0;
+    h.riot = count < this.ctx.wantRiot;
+    h.state = St.Idle; h.hp = h.maxHp = h.riot ? 110 : 60; h.weapon = 2; h.leaving = false; h.cd = 0.6 + this.rng();
+    h.atkScale = 0.55; h.scale = h.riot ? 1.12 : 1.03; h.attack = null; h.invuln = 0;
     h.heading = Math.atan2(px - x, pz - z);
     h.slotAngle = (count * TWO_PI) / Math.max(3, this.ctx.wantCops) + this.rng() * 0.4;
-    h.look = { shirt: 0x1e3a8a, pants: 0x1a1a24, skin: this.pick(SKINS), shoe: 0x111111, hair: 0x222222, cap: true };
+    h.look = { shirt: h.riot ? 0x23262f : 0x1e3a8a, pants: 0x1a1a24, skin: this.pick(SKINS), shoe: 0x111111, hair: 0x222222, cap: true };
     this.renderer.setLook(h.slot, h.look);
   }
 
@@ -517,7 +590,7 @@ export class Humans {
     if (isCop) {
       for (let i = COP_FIRST; i <= COP_LAST; i++) if (!this.list[i].active) { h = this.list[i]; break; }
       if (!h) return;
-      h.active = true; h.role = Role.Cop; h.ko = false; h.freeT = 0;
+      h.active = true; h.role = Role.Cop; h.ko = false; h.freeT = 0; h.riot = false;
       h.hp = h.maxHp = 60; h.weapon = 2; h.atkScale = 0.55; h.scale = 1.03; h.cd = 1.2 + this.rng();
       h.slotAngle = this.rng() * TWO_PI;
       h.look = { shirt: 0x1e3a8a, pants: 0x1a1a24, skin: this.pick(SKINS), shoe: 0x111111, hair: 0x222222, cap: true };
@@ -601,6 +674,7 @@ export class Humans {
   // ------------------------------------------------------------------ shared update
   private resolveStatics(h: Human, r: number): void {
     for (const box of this.world.boxes) {
+      if (h.roof && box === h.roof.box && h.y >= h.roof.h - 0.35) continue; // on the roof you walk over your own building
       if (h.x < box.minX - r || h.x > box.maxX + r || h.z < box.minZ - r || h.z > box.maxZ + r) continue;
       const nx = Math.max(box.minX, Math.min(h.x, box.maxX));
       const nz = Math.max(box.minZ, Math.min(h.z, box.maxZ));
@@ -637,14 +711,34 @@ export class Humans {
     }
   }
 
+  /** Height of the floor under a human: a roof when standing over one, otherwise the street. */
+  private groundY(h: Human): number {
+    const r = h.roof;
+    if (r && h.x > r.minX && h.x < r.maxX && h.z > r.minZ && h.z < r.maxZ && h.y >= r.h - 0.35) return r.h;
+    return GROUND;
+  }
+
   private integrate(h: Human, dt: number, collide: boolean): void {
     h.x += (h.mvx + h.vx) * dt;
     h.z += (h.mvz + h.vz) * dt;
-    if (!h.grounded || h.y > GROUND + 0.001) {
+    const gy = this.groundY(h);
+    if (h.y > gy + 0.05) h.grounded = false;
+    if (!h.grounded || h.y > gy + 0.001) {
+      h.peak = Math.max(h.peak, h.y);
       h.vy -= GRAVITY * dt;
       h.y += h.vy * dt;
-      if (h.y <= GROUND) { h.y = GROUND; h.vy = 0; h.grounded = true; }
-    }
+      if (h.y <= gy) {
+        h.y = gy; h.vy = 0; h.grounded = true;
+        if (gy === GROUND) h.roof = null;
+        const fall = h.peak - gy;
+        h.peak = gy;
+        if (h.role === Role.Player && fall > 5) {
+          const dmg = (fall - 5) * 6;
+          if (!this.kids) h.hp = Math.max(10, h.hp - dmg);
+          this.hooks.onPlayerHurt(dmg);
+        }
+      }
+    } else h.peak = h.y;
     if (h.state !== St.Dodge && !(h.state === St.Attack && h.atkPhase === 1)) h.vx *= Math.exp(-(h.grounded ? 7 : 1.2) * dt), h.vz *= Math.exp(-(h.grounded ? 7 : 1.2) * dt);
     if (collide) {
       this.resolveStatics(h, 0.4);
@@ -812,16 +906,20 @@ export class Humans {
         return;
       }
       case St.Hit:
-        this.selName = h.slot % 2 ? 'impact2' : 'impact'; this.selU = 1 - h.stateT / h.stateDur; this.selFade = 0.03;
+        // hurt with a gun in hand: the rifle flinch
+        this.selName = h.role === Role.Player && h.weapon >= 3 ? 'rifleHit' : h.slot % 2 ? 'impact2' : 'impact'; this.selU = 1 - h.stateT / h.stateDur; this.selFade = 0.03;
         return;
       case St.Down:
       case St.Dead:
+        if (h.fallClip) { this.selName = h.fallClip; this.selU = Math.min(1, h.downT / 1.5); this.selFade = 0.05; return; } // a shot: the long fall, sped up
         this.selName = 'die'; this.selU = Math.min(1, h.downT / 0.9); this.selFade = 0.04;
         return;
       case St.GetUp:
+        if (h.fallClip) { this.selName = h.fallClip; this.selU = Math.max(0, h.stateT / h.stateDur); this.selFade = 0.04; return; }
         this.selName = 'die'; this.selU = Math.max(0, h.stateT / h.stateDur); this.selFade = 0.04; // rise = the fall played backwards
         return;
     }
+    if (h.role === Role.Player && h.weapon >= 3 && this.chooseGunClip(h, dt)) return;
     // airborne (jump): the Sword-and-Shield jump clip, apex at 0.5 s mapped to the physics apex
     if (!h.grounded) {
       this.selName = 'gsJump'; this.selU = Math.min(1, (h.airT * (0.5 / (JUMP_VY / GRAVITY))) / CLIPS.gsJump.d); this.selFade = 0.06;
@@ -851,6 +949,103 @@ export class Humans {
     this.selName = name; this.selU = h.clipU;
   }
 
+  /** The player with a gun in hand: pistol-grip clips for handguns, the rifle set (eight directions) for long guns. */
+  private chooseGunClip(h: Human, dt: number): boolean {
+    const pistol = h.weapon === 3 || h.weapon === 7;
+    const rocket = h.weapon === 6;
+    if (h.throwT > 0) {
+      // the grenade throw: the whole clip (pull the pin, wind up, throw), sped up to fit
+      this.selName = 'rifleGrenade'; this.selU = 1 - h.throwT / h.throwDur; this.selFade = 0.06;
+      return true;
+    }
+    if (!h.grounded) {
+      // the three-part jump: take-off, a held loop in the air, then the landing pose as the fall ends
+      const t = h.airT;
+      if (t < 0.22) { this.selName = 'proJumpUp'; this.selU = t / 0.22; }
+      else { this.selName = 'proJumpLoop'; this.selU = (t - 0.22) * 1.5; }
+      this.selFade = 0.06;
+      return true;
+    }
+    const aim = h.aimT > 0;
+    if (h.speed < 0.4) {
+      this.selName = pistol ? 'pistolIdle' : rocket ? (aim ? 'rifleAimIdle' : 'proIdle') : aim ? 'proIdleAim' : 'proIdle';
+      h.clipU += dt / CLIPS[this.selName].d;
+      this.selU = h.clipU;
+      return true;
+    }
+    // direction of travel relative to where the body faces
+    const fwd = h.mvx * Math.sin(h.heading) + h.mvz * Math.cos(h.heading);
+    const left = h.mvx * Math.cos(h.heading) - h.mvz * Math.sin(h.heading);
+    const run = h.speed > 3.0;
+    let name: string;
+    if (pistol) {
+      if (Math.abs(left) > Math.abs(fwd) * 1.1) name = left > 0 ? 'pistolStrafeL' : 'pistolStrafeR';
+      else if (fwd >= 0) name = run ? 'pistolRun' : 'pistolWalk';
+      else name = run ? 'pistolRunB' : 'pistolWalkB';
+    } else {
+      // eight sectors around the body: F, FL, L, BL, B, BR, R, FR
+      const a = Math.atan2(left, fwd); // 0 = straight ahead, + = to the left
+      const sector = Math.round(a / (Math.PI / 4));
+      const dir = ['F', 'FL', 'L', 'BL', 'B', 'BR', 'R', 'FR'][((sector % 8) + 8) % 8];
+      name = (h.speed > 6.0 ? 'proSprint' : 'proRun') + dir;
+    }
+    const nat = CLIPS[name].speed || Humans.NATURAL[name] || 3;
+    const rate = Math.max(0.5, Math.min(2.4, h.speed / nat));
+    h.clipU += (dt * rate) / CLIPS[name].d;
+    this.selName = name; this.selU = h.clipU; this.selFade = 0.12;
+    return true;
+  }
+
+  private qa = new THREE.Quaternion();
+  private qb = new THREE.Quaternion();
+  private aimPose = new Float32Array(15 * 4 + 2);
+  private static readonly UPPER = [J.torso, J.head, J.shL, J.elL, J.wrL, J.shR, J.elR, J.wrR];
+
+  /** Layers the raised-gun arms over a moving clip, and adds the shot kick and the reload dip (the packs have neither). */
+  private gunPose(h: Human, dt: number): void {
+    const out = h.anim.out;
+    const pistol = h.weapon === 3 || h.weapon === 7;
+    const moving = h.speed >= 0.4 && h.grounded;
+    const grenade = h.weapon === 8;
+    const target = !pistol && !grenade && h.aimT > 0 && moving ? 1 : 0;
+    h.aimBlend += (target - h.aimBlend) * Math.min(1, dt * 14);
+    if (h.aimBlend > 0.02) {
+      sampleClip(CLIPS[h.weapon === 6 ? 'rifleAimIdle' : 'proIdleAim'], 0, this.aimPose);
+      for (const j of Humans.UPPER) {
+        this.qa.fromArray(out, j * 4);
+        this.qb.fromArray(this.aimPose, j * 4);
+        this.qa.slerp(this.qb, h.aimBlend).toArray(out, j * 4);
+      }
+    }
+    if (h.reloadU >= 0 && !pistol && !grenade && h.throwT <= 0) {
+      // the rifle reload: its arms (and back and head) over whatever the legs are doing, faded in and out at the ends
+      sampleClip(CLIPS.rifleReload, h.reloadU, this.aimPose);
+      const w = Math.min(1, h.reloadU * 8, (1 - h.reloadU) * 8);
+      for (const j of Humans.UPPER) {
+        this.qa.fromArray(out, j * 4);
+        this.qb.fromArray(this.aimPose, j * 4);
+        this.qa.slerp(this.qb, Math.max(0, w)).toArray(out, j * 4);
+      }
+    }
+    if (h.recoil > 0.01) {
+      // the body kicks back and the arms rise a little
+      this.rot(out, J.torso, -0.16 * h.recoil);
+      this.rot(out, J.shR, -0.28 * h.recoil);
+      this.rot(out, J.shL, -0.28 * h.recoil);
+    }
+    if (h.reloadK > 0.01) {
+      // the gun comes down and the head looks at it
+      this.rot(out, J.shR, 0.55 * h.reloadK);
+      this.rot(out, J.shL, 0.4 * h.reloadK);
+      this.rot(out, J.head, 0.25 * h.reloadK);
+    }
+  }
+  private rot(pose: Float32Array, joint: number, angle: number): void {
+    this.qa.fromArray(pose, joint * 4);
+    this.qb.setFromAxisAngle(AXIS_X, angle);
+    this.qa.multiply(this.qb).toArray(pose, joint * 4);
+  }
+
   private animate(h: Human, dt: number): void {
     if (h.state !== h.prevState) { h.prevState = h.state; h.downT = 0; }
     if (h.state === St.Down || h.state === St.Dead) h.downT += dt;
@@ -864,6 +1059,7 @@ export class Humans {
 
     this.chooseClip(h, dt);
     h.anim.play(this.selName, this.selU, dt, this.selFade);
+    if (h.role === Role.Player && h.weapon >= 3) this.gunPose(h, dt);
 
     if (h.flash > 0) { this.renderer.setLook(h.slot, h.look, h.flash); h.flashed = true; }
     else if (h.flashed) { this.renderer.setLook(h.slot, h.look); h.flashed = false; }
@@ -872,7 +1068,7 @@ export class Humans {
     if (h.weapon !== h.prevWeapon) { h.prevWeapon = h.weapon; h.equipT = 0.15; }
     h.equipT = Math.max(0, h.equipT - dt);
     const pop = 1 + (h.equipT / 0.15) * 0.7;
-    this.renderer.draw(h.slot, h.x, h.y, h.z, h.heading, h.scale, 0, h.anim.out, h.look.cap, h.weapon, pop);
+    this.renderer.draw(h.slot, h.x, h.y, h.z, h.heading, h.scale, 0, h.anim.out, h.look.cap, h.weapon, pop, h.riot && h.role === Role.Cop);
     h.rendered = true;
   }
 

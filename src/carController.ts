@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { ControlState } from './input';
+import { tunedStats, nitroEfficiency } from './upgrades';
 import { STATS, dimsOf, type VehicleKind, type VehicleModel, type VehicleStats } from './vehicle';
 import type { CircleCollider, World } from './world';
 
@@ -30,6 +31,8 @@ export class CarController {
   nitro = 1;
   hp = 1;
   nitroActive = false;
+  /** Nitro tuning: multiplies duration and recharge. */
+  nitroEff = 1;
   drifting = false;
   airborne = false;
   wrecked = false;
@@ -39,6 +42,8 @@ export class CarController {
   lastJump = 0;
 
   stats: VehicleStats;
+  /** Road grip multiplier set by the weather (1 = dry). */
+  static gripMul = 1;
   private radius: number;
   private offsets: number[];
   private steerVis = 0;
@@ -81,6 +86,12 @@ export class CarController {
     this.syncModel(0);
   }
 
+  /** Apply garage upgrades (engine, nitro, armor, tires) on top of the base stats. */
+  setUpgrades(up: number[]): void {
+    this.stats = tunedStats(STATS[this.kind], up);
+    this.nitroEff = nitroEfficiency(up);
+  }
+
   /** Apply damage scaled by this vehicle's toughness. */
   damage(amount: number): void {
     if (this.wrecked) return;
@@ -102,8 +113,8 @@ export class CarController {
     // --- nitro ---
     const wantsNitro = !wrecked && ctl.nitro && throttle > 0 && this.nitro > 0.02 && !this.airborne;
     this.nitroActive = wantsNitro;
-    if (wantsNitro) this.nitro = Math.max(0, this.nitro - dt * 0.35);
-    else this.nitro = Math.min(1, this.nitro + dt * 0.12);
+    if (wantsNitro) this.nitro = Math.max(0, this.nitro - (dt * 0.35) / this.nitroEff);
+    else this.nitro = Math.min(1, this.nitro + dt * 0.12 * this.nitroEff);
     const maxSpeed = wantsNitro ? st.maxSpeed * 1.47 : st.maxSpeed;
 
     const grounded = !this.airborne;
@@ -133,7 +144,7 @@ export class CarController {
       if (hb) vf *= Math.exp(-0.9 * dt);
 
       const hardTurn = Math.abs(steerIn) > 0.5 && speedAbs > st.maxSpeed * 0.63;
-      const grip = hb ? 1.1 : hardTurn ? st.grip * 0.47 : st.grip;
+      const grip = (hb ? 1.1 : hardTurn ? st.grip * 0.47 : st.grip) * CarController.gripMul;
       vl *= Math.exp(-grip * dt);
     }
 

@@ -1,3 +1,4 @@
+import { settings } from './settings';
 import * as THREE from 'three';
 
 /** Anything the chase camera can follow (a car or the on-foot avatar). */
@@ -26,6 +27,8 @@ export class CameraRig {
   private initialised = false;
   /** Building footprints the camera must not enter. */
   obstacles: { minX: number; maxX: number; minZ: number; maxZ: number }[] = [];
+  /** A building the camera may enter (the roof the player stands on). */
+  ignore: { minX: number; maxX: number; minZ: number; maxZ: number } | null = null;
   private target = new THREE.Vector3();
   /** On-foot orbit angles (mouse / touch drag). */
   footYaw = Math.PI;
@@ -78,7 +81,7 @@ export class CameraRig {
     const sh = this.shakeAmp * Math.sin(this.shakeTime * 60);
     this.camera.position.set(this.pos.x + sh * 0.12, this.pos.y + sh * 0.1, this.pos.z + sh * 0.12);
     this.camera.lookAt(this.look);
-    this.camera.fov += (58 - this.camera.fov) * (1 - Math.exp(-dt * 4));
+    this.camera.fov += (58 + settings.fov - this.camera.fov) * (1 - Math.exp(-dt * 4));
     this.camera.updateProjectionMatrix();
   }
 
@@ -87,13 +90,14 @@ export class CameraRig {
 
   private blocked(x: number, z: number): boolean {
     for (const b of this.obstacles) {
+      if (b === this.ignore) continue;
       if (x > b.minX - 0.8 && x < b.maxX + 0.8 && z > b.minZ - 0.8 && z < b.maxZ + 0.8) return true;
     }
     return false;
   }
 
   shake(amount: number): void {
-    this.shakeAmp = Math.min(1.2, this.shakeAmp + amount);
+    this.shakeAmp = Math.min(1.2, this.shakeAmp + amount * settings.shake);
     this.shakeTime = 0;
   }
 
@@ -145,7 +149,7 @@ export class CameraRig {
     this.camera.lookAt(this.look);
 
     const targetFov = 60 + 14 * speedT + (car.nitroActive ? 4 : 0);
-    this.camera.fov += (Math.min(78, targetFov) - this.camera.fov) * (1 - Math.exp(-dt * 4));
+    this.camera.fov += (Math.min(78, targetFov) + settings.fov - this.camera.fov) * (1 - Math.exp(-dt * 4));
     this.camera.updateProjectionMatrix();
   }
 }

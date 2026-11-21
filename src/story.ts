@@ -8,7 +8,7 @@ import type { GameVehicle } from './vehicles';
 // the gold marker is a suggestion, and gigs, golden stars and free roaming stay available at all times.
 
 type Pair = [string, string]; // [English, Korean]
-type SpotKey = 'donna' | 'motel' | 'hall' | 'gate' | 'crate0' | 'crate1' | 'crate2';
+type SpotKey = 'donna' | 'motel' | 'hall' | 'gate' | 'crate0' | 'crate1' | 'crate2' | 'door:arcade' | 'door:gun' | 'door:clothes';
 interface Line { who: Pair; text: Pair }
 type Step =
   | { k: 'goto'; spot: SpotKey; text: Pair }
@@ -23,6 +23,8 @@ const PARK: Pair = ['Mr. Park', '박 사장님'];
 const ALLY: Pair = ['Ally', '앨리'];
 const LEE: Pair = ['Captain Lee', '이 선장'];
 const MAYOR: Pair = ['Mayor Bigsby', '빅스비 시장'];
+const KIKI: Pair = ['Kiki', '키키'];
+const GUNNY: Pair = ['Gunny', '거니'];
 
 export const CHAPTERS: Chapter[] = [
   {
@@ -97,6 +99,55 @@ export const CHAPTERS: Chapter[] = [
       ] },
     ],
   },
+  // ---------------------------------------------------------------- arc two: the Mayor's comeback
+  {
+    title: ['Arcade Rumors', '오락실 소문'], reward: 4000,
+    steps: [
+      { k: 'goto', spot: 'door:arcade', text: ['Visit Kiki at the Arcade (walk to the door)', '오락실의 키키를 만나기 (문 앞으로 걸어가기)'] },
+      { k: 'dialog', lines: [
+        { who: KIKI, text: ["Psst! The Mayor is back. He's hiring thugs to put the junk right back on our streets.", '쉿! 시장이 돌아왔어. 깡패들을 고용해서 거리에 쓰레기를 다시 버리게 하고 있어.'] },
+        { who: KIKI, text: ["Smash 15 of the new junk and I'll tell you where his crew is hiding.", '새 쓰레기를 15개 부수면 그들이 어디 숨었는지 알려줄게.'] },
+      ] },
+      { k: 'smash', count: 15, text: ["Smash the Mayor's new junk", '시장의 새 쓰레기 부수기'] },
+      { k: 'goto', spot: 'door:arcade', text: ['Report back to Kiki', '키키에게 돌아가기'] },
+      { k: 'dialog', lines: [
+        { who: KIKI, text: ['Nice work! His crew keeps a stash of crates at the harbor.', '잘했어! 그들은 항구에 상자를 쌓아두고 있어.'] },
+        { who: KIKI, text: ['Talk to Gunny at the Gun Shop - he knows what is inside them.', '총기 상점의 거니에게 가봐 - 안에 뭐가 있는지 알고 있어.'] },
+      ] },
+    ],
+  },
+  {
+    title: ['The Harbor Stash', '항구의 비밀 창고'], reward: 5000,
+    steps: [
+      { k: 'goto', spot: 'door:gun', text: ['Meet Gunny at the Gun Shop', '총기 상점에서 거니 만나기'] },
+      { k: 'dialog', lines: [
+        { who: GUNNY, text: ['Kiki sent you? Good. The crates hold fireworks - the Mayor wants to ruin the festival.', '키키가 보냈구나? 좋아. 상자 안엔 불꽃놀이 장비가 있어 - 시장은 축제를 망치려 해.'] },
+        { who: GUNNY, text: ["Find them at the harbor, then bring the news to Donna. I'd suggest not showing up empty-handed.", '항구에서 찾아서 도나에게 알려줘. 빈손으로 가지는 마.'] },
+      ] },
+      { k: 'goto', spot: 'crate1', text: ['Find the stash at the harbor (crate 1)', '항구의 창고 찾기 (상자 1)'] },
+      { k: 'goto', spot: 'crate2', text: ['Check the second stash (crate 2)', '두 번째 창고 확인하기 (상자 2)'] },
+      { k: 'steal', text: ["Borrow the Mayor's limo once more (marked on the map)", '시장의 리무진을 다시 빌리기 (지도에 표시됨)'] },
+      { k: 'drive', spot: 'donna', text: ["Drive the limo to Donna's shop - in one piece!", '리무진을 도나의 가게로 몰고 가기 - 망가뜨리지 마세요!'] },
+      { k: 'dialog', lines: [
+        { who: DONNA, text: ['You saved the fireworks! Tonight we celebrate for real.', '불꽃놀이를 지켜냈구나! 오늘 밤은 진짜 축제야.'] },
+      ] },
+    ],
+  },
+  {
+    title: ['Festival Night', '축제의 밤'], reward: 20000, finale: true,
+    steps: [
+      { k: 'goto', spot: 'hall', text: ['Join the festival at the town plaza', '마을 광장의 축제에 참가하기'] },
+      { k: 'dialog', lines: [
+        { who: MAYOR, text: ["I... may have been wrong. Old Town has more heart than any mall.", '내가... 틀렸을지도 모르겠군. 올드타운에는 어떤 몰보다 따뜻한 마음이 있어.'] },
+        { who: DONNA, text: ['Help us clean up the last of the junk and the party can start!', '남은 쓰레기를 치우면 파티를 시작할 수 있어!'] },
+      ] },
+      { k: 'smash', count: 20, text: ['Clear the last junk for the festival', '축제를 위해 마지막 쓰레기 치우기'] },
+      { k: 'dialog', lines: [
+        { who: ALLY, text: ['The whole city is here. Old Town will never be the same!', '온 도시가 모였어. 올드타운은 이제 예전 같지 않을 거야!'] },
+        { who: DONNA, text: ["Thank you, hero. The Monster Truck in the garage is yours - it's the town's gift.", '고마워, 영웅. 차고의 몬스터 트럭은 네 거야 - 마을의 선물이야.'] },
+      ] },
+    ],
+  },
 ];
 
 export interface StorySave { ch: number; step: number; prog: number }
@@ -137,6 +188,7 @@ export class StoryManager {
     if (key === 'motel') return s.motel;
     if (key === 'hall') return s.hall;
     if (key === 'gate') return s.gate;
+    if (key.startsWith('door:')) { const r = this.game.interiors.rooms.find((q) => q.id === key.slice(5)); if (r) return r.door; }
     return s.crates[Number(key.slice(5))];
   }
 
@@ -154,13 +206,13 @@ export class StoryManager {
 
   private completeChapter(c: Chapter): void {
     const g = this.game;
-    g.addCash(c.reward);
+    g.addCash(c.reward, 'story');
     g.hud.toast(`${bi('Chapter complete!', '챕터 완료!')} +$${c.reward.toLocaleString('en-US')}`, 3600);
     if (c.finale) {
-      g.unlockVehicle('supercar');
+      const last = this.ch === CHAPTERS.length - 1;
+      g.unlockVehicle(last ? 'monster' : 'supercar');
       this.celebrateT = 9;
-      this.done = true;
-      g.hud.toast(bi('Old Town is saved! You unlocked the Supercar!', '올드타운을 지켰어요! 슈퍼카가 해금됐어요!'), 5200);
+      g.hud.toast(last ? bi('Festival night! You unlocked the Monster Truck!', '축제의 밤! 몬스터 트럭이 해금됐어요!') : bi('Old Town is saved! You unlocked the Supercar!', '올드타운을 지켰어요! 슈퍼카가 해금됐어요!'), 5200);
     }
     this.ch++;
     this.step = 0;
@@ -370,6 +422,10 @@ export class StoryManager {
       case 'dialog': return { title, text: bi('Talk to them', '대화하기') };
     }
   }
+
+  /** Kind of the current step ('goto', 'dialog', 'smash', 'steal', 'drive') or null when the story is finished. */
+  stepKind(): string | null { return this.current ? this.current.k : null; }
+  get limoCar(): GameVehicle | null { return this.limo; }
 
   progressText(): string {
     if (this.done) return bi('Story complete', '스토리 완료');

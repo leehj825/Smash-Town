@@ -55,6 +55,18 @@ A browser 3D arcade open-world sandbox: drive, smash street props, brawl on foot
 ## 9. Architecture map (`src/`)
 `main.ts` loop and UI wiring; `game.ts` core orchestration (1,100 lines); `world.ts` city generator and minimap image; `ai.ts` traffic and police brains; `humans.ts` + `characters.ts` + `mocap.ts` + `combat.ts` people, rig and melee; `carController.ts`, `vehicle.ts`, `vehicles.ts` cars; `story.ts`, `nav.ts`, `bigmap.ts`, `collectibles.ts`, `gigs.ts`; `hud.ts`, `input.ts`, `touch.ts`, `i18n.ts`; `props.ts`, `effects.ts`, `vfx.ts`, `particles.ts`, `environment.ts`, `cameraRig.ts`, `audio.ts`. Data: `src/data/anims.json`. Docs: `docs/GDD.md` (living design doc), `README.md`. Debug handle: `window.__smash` (game, hud, bigmap, applyQuality, ...).
 
+## 9b. Added since this document was written
+- Phase 0: settings (look sensitivity, FOV, shake), key rebinding, tutorial, New Game, tests in `tests/`.
+- Phase 1: income popups and earnings tally, bail/wreck fees ($0 under $500), Quick Respray, per-car tuning, paint, neon, on-foot training, limo and monster truck, starting cash $2,000.
+- Phase 2: street pickups (health, armor, cash, burger stands, police drops) and a one-station procedural radio (`N`).
+
+- Phase 3: guns (pistol, SMG, shotgun, rocket launcher, paintball), ammo, Arms garage tab, ammo pickups.
+- Phase 4: riot cops with shields (4+ stars), a police helicopter at 5 stars (brought down by a rocket), spike strips with roadblocks at 4+ stars.
+- Phase 7: three radio stations (`N`) and weather (auto/clear/rain/fog/storm) with thunder, fog, dimmer skies and lower grip.
+- Phase 8: district names on the big map, draw-call budget test (`tests/perf.cjs`), docs refreshed.
+- Phase 5: climbable old-town roofs (ladders, rooftop golden stars, Rooftop Dash gig, fall damage off in Kids Play) and five enterable shops built as hidden pockets (donuts, guns, clothes, arcade, motel).
+- Phase 6: arc two (3 more chapters, monster truck reward), festival decorations and a donut discount after the first arc, ownable shops with income, 12 achievements, 3 daily challenges, a stats panel, and two street quests (taxi fares, thief chase). Golden stars: 16 (4 on roofs).
+
 ## 10. Known gaps and risks
 - **Performance is unmeasured on real hardware.** About 76 draw calls main pass, ~101 with shadows at normal traffic; ~147 at 5 stars with 8 police cars in view. Never run on a physical phone, low-end laptop or real controller.
 - No automated test suite in the repo. Testing was ad-hoc Playwright scripts (not committed).

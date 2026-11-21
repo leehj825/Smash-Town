@@ -4,7 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-import { applyDom, getLang, onLangChange, setLang, t, type Lang } from './i18n';
+import { applyDom, bi, getLang, onLangChange, setLang, t, type Lang } from './i18n';
 import { Input } from './input';
 import { buildWorld } from './world';
 import { buildProps } from './props';
@@ -14,6 +14,11 @@ import { CameraRig } from './cameraRig';
 import { Hud } from './hud';
 import { Game } from './game';
 import { BigMap } from './bigmap';
+import { Radio, STATIONS } from './radio';
+import { Weather, type WeatherKind } from './weather';
+import { ControlsPanel, HowToPlay, StatsPanel, type Modal } from './overlays';
+import { settings, saveSettings } from './settings';
+import { SAVE_KEY } from './game';
 import { setupTouch } from './touch';
 
 type Quality = 'high' | 'medium' | 'low';
@@ -71,6 +76,15 @@ cameraRig.obstacles = world.boxes;
 const hud = new Hud(world);
 const game = new Game({ scene, world, props, vfx, hud, input, env, cameraRig });
 const bigmap = new BigMap(game);
+const radio = new Radio(game.audio);
+const weather = new Weather(env, game.audio);
+scene.add(weather.group);
+game.radioDuck = (v) => radio.setDuck(v);
+const controlsPanel = new ControlsPanel();
+const howto = new HowToPlay();
+const statsPanel = new StatsPanel(game);
+const modals: Modal[] = [controlsPanel, howto, statsPanel, bigmap];
+const openModal = (): Modal | undefined => modals.find((m) => m.isOpen);
 
 // ---------------------------------------------------------------- post-processing / quality
 const composer = new EffectComposer(renderer);
@@ -123,12 +137,36 @@ function applyTime(t: TimeOfDay, instant = false): void {
 const savedT = storedGet(TIME_KEY);
 applyTime(savedT === 'noon' || savedT === 'sunset' || savedT === 'night' ? savedT : 'noon', true);
 
+const RADIO_KEY = 'smashtown.radio2';
+type RadioChoice = 'off' | '0' | '1' | '2';
+const radioChoice = (): RadioChoice => { const v = storedGet(RADIO_KEY); return v === '0' || v === '1' || v === '2' ? v : v === 'off' ? 'off' : '0'; };
+function applyRadio(v: RadioChoice, announce = false): void {
+  storedSet(RADIO_KEY, v);
+  if (v !== 'off') radio.setStation(Number(v));
+  radio.setEnabled(v !== 'off' && game.audio.enabled);
+  document.querySelectorAll<HTMLElement>('.radio').forEach((b) => b.classList.toggle('sel', b.dataset.r === v));
+  if (announce) hud.toast(v === 'off' ? bi('Radio off', '라디오 끔') : `\u266A ${bi(STATIONS[Number(v)].en, STATIONS[Number(v)].ko)}`, 1800);
+}
+
+const WEATHER_KEY = 'smashtown.weather';
+function applyWeather(m: 'auto' | WeatherKind): void {
+  storedSet(WEATHER_KEY, m);
+  weather.setMode(m);
+  document.querySelectorAll<HTMLElement>('.weather').forEach((b) => b.classList.toggle('sel', b.dataset.w === m));
+}
+
 function applyAudio(on: boolean): void {
   game.audio.setEnabled(on);
+  radio.setEnabled(on && radioChoice() !== 'off');
   storedSet(AUDIO_KEY, on ? '1' : '0');
-  document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.classList.toggle('sel', (b.dataset.a === '1') === on));
+  document.querySelectorAll<HTMLElement>('.radio').forEach((b) => b.addEventListener('click', () => applyRadio(b.dataset.r as RadioChoice)));
+document.querySelectorAll<HTMLElement>('.weather').forEach((b) => b.addEventListener('click', () => applyWeather(b.dataset.w as 'auto' | WeatherKind)));
+document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.classList.toggle('sel', (b.dataset.a === '1') === on));
 }
 applyAudio(storedGet(AUDIO_KEY) !== '0');
+document.querySelectorAll<HTMLElement>('.radio').forEach((b) => b.classList.toggle('sel', b.dataset.r === radioChoice()));
+const savedW = storedGet(WEATHER_KEY);
+applyWeather(savedW === 'clear' || savedW === 'rain' || savedW === 'fog' || savedW === 'storm' ? savedW : 'auto');
 
 /** Kids Play (default ON): nobody dies - defeated cops and the player are only knocked out. */
 function applyKids(on: boolean): void {
@@ -151,8 +189,10 @@ function startGame(): void {
   state = 'playing';
   titleEl.hidden = true;
   hudEl.hidden = false;
+  if (!settings.tutorialDone) howto.open();
   try {
     game.audio.init(); // needs a user gesture
+    applyRadio(radioChoice());
   } catch (err) {
     console.warn('Audio unavailable:', err);
   }
@@ -161,7 +201,11 @@ function setPaused(p: boolean): void {
   if (state === 'title') return;
   state = p ? 'paused' : 'playing';
   pauseEl.hidden = !p;
-  if (p) input.releaseMouse();
+  if (p) {
+    input.releaseMouse();
+    const e = game.earned;
+    hud.setEarnings([[bi('Smashed props', '부순 물건'), e.props], [bi('Golden stars', '황금 별'), e.stars], [bi('Side jobs', '부업'), e.gigs], [bi('Story', '스토리'), e.story], [bi('Police & survival', '경찰·생존'), e.police], [bi('Other', '기타'), e.other]]);
+  }
 }
 document.getElementById('btn-play')!.addEventListener('click', startGame);
 document.getElementById('btn-pause')!.addEventListener('click', () => setPaused(true));
@@ -177,6 +221,32 @@ document.querySelectorAll<HTMLElement>('.quality').forEach((b) => b.addEventList
 document.querySelectorAll<HTMLElement>('.tod').forEach((b) => b.addEventListener('click', () => applyTime(b.dataset.t as TimeOfDay)));
 document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.addEventListener('click', () => applyAudio(b.dataset.a === '1')));
 document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.addEventListener('click', () => applyKids(b.dataset.k === '1')));
+const segSync = (cls: string, cur: number) =>
+  document.querySelectorAll<HTMLElement>('.seg.' + cls).forEach((b) => b.classList.toggle('sel', Math.abs(Number(b.dataset.v) - cur) < 0.01));
+function wireSeg(cls: 'sens' | 'fov' | 'shake'): void {
+  segSync(cls, settings[cls]);
+  document.querySelectorAll<HTMLElement>('.seg.' + cls).forEach((b) => b.addEventListener('click', () => {
+    settings[cls] = Number(b.dataset.v); saveSettings(); segSync(cls, settings[cls]);
+  }));
+}
+wireSeg('sens'); wireSeg('fov'); wireSeg('shake');
+document.getElementById('btn-controls')!.addEventListener('click', () => controlsPanel.open());
+document.getElementById('btn-stats')!.addEventListener('click', () => statsPanel.open());
+document.getElementById('btn-howto')!.addEventListener('click', () => howto.open());
+const newGameBtn = document.getElementById('btn-newgame')!;
+let armedTimer = 0;
+newGameBtn.addEventListener('click', () => {
+  if (!newGameBtn.classList.contains('armed')) {
+    newGameBtn.classList.add('armed');
+    newGameBtn.textContent = t('ui.settings.newgame_confirm');
+    armedTimer = window.setTimeout(() => { newGameBtn.classList.remove('armed'); newGameBtn.textContent = t('ui.settings.newgame'); }, 4000);
+    return;
+  }
+  window.clearTimeout(armedTimer);
+  game.noSave = true;
+  try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ }
+  location.reload();
+});
 applyDom();
 document.documentElement.lang = getLang();
 const syncLangButtons = () =>
@@ -208,7 +278,7 @@ function frame(): void {
 let navIndex = -1;
 function menuNav(): void {
   const garageEl = document.getElementById('garage')!;
-  const overlay = !titleEl.hidden ? titleEl : !pauseEl.hidden ? pauseEl : !garageEl.hidden ? garageEl : bigmap.isOpen ? bigmap.el : null;
+  const overlay = openModal()?.el ?? (!titleEl.hidden ? titleEl : !pauseEl.hidden ? pauseEl : !garageEl.hidden ? garageEl : null);
   if (!overlay) { navIndex = -1; return; }
   const btns = Array.from(overlay.querySelectorAll<HTMLButtonElement>('button:not([disabled])'));
   if (!btns.length) return;
@@ -231,21 +301,25 @@ function tick(): void {
   let dt = Math.min(rawDt, 0.05);
 
   // gamepad: tell it what the buttons mean right now, then read it
-  input.menu = state !== 'playing' || game.state !== 'play' || bigmap.isOpen;
+  input.menu = state !== 'playing' || game.state !== 'play' || !!openModal();
   input.mode = game.onFoot ? 'foot' : 'car';
   input.pollGamepad(Math.min(rawDt, 0.1));
   if (input.padActive && state !== 'title') game.audio.ensureRunning();
   menuNav();
   if (state === 'title' && input.wasPressed('Enter')) startGame();
 
-  if (state === 'playing' && bigmap.isOpen) {
-    if (input.wasPressed('Escape') || input.wasPressed('KeyP') || input.wasPressed('KeyM')) bigmap.close();
+  const modal = openModal();
+  if (modal) {
+    if (!controlsPanel.isCapturing) {
+      if (input.wasPressed('Escape') || (modal === bigmap && (input.wasPressed('KeyP') || input.wasPressed('KeyM'))) || (modal === howto && (input.wasPressed('Enter') || input.wasPressed('Space')))) modal.close();
+    }
     dt = 0;
-    bigmap.draw(rawDt);
+    if (modal === bigmap) bigmap.draw(rawDt);
   } else if (state === 'playing') {
     if (input.wasPressed('KeyM')) toggleMap();
     else if (game.state !== 'garage' && game.state !== 'dialog' && (input.wasPressed('Escape') || input.wasPressed('KeyP'))) setPaused(true);
     if (input.wasPressed('KeyT')) applyTime(env.cycleTime());
+    if (input.wasPressed('KeyN')) { const order: RadioChoice[] = ['off', '0', '1', '2']; applyRadio(order[(order.indexOf(radioChoice()) + 1) % order.length], true); }
   } else if (state === 'paused') {
     if (input.wasPressed('Escape') || input.wasPressed('KeyP')) setPaused(false);
     dt = 0;
@@ -266,6 +340,8 @@ function tick(): void {
   }
 
   cameraRig.update(state === 'title' ? 0.016 : dt || 0.0001, game.followable);
+  weather.indoors = !!game.inside;
+  weather.update(Math.max(dt, 0.001), camera);
   env.update(Math.max(dt, 0.016), game.followable.position, camera);
   composer.render();
   input.endFrame();
@@ -274,5 +350,5 @@ frame();
 
 // Debug handle for tests and tinkering from the console.
 (window as unknown as { __smash: unknown }).__smash = {
-  game, env, hud, renderer, scene, camera, applyQuality, applyTime, startGame, bigmap, get quality() { return quality; },
+  game, env, hud, renderer, scene, camera, applyQuality, applyTime, startGame, bigmap, radio, statsPanel, weather, composer, get quality() { return quality; },
 };

@@ -6,7 +6,7 @@ import { J, POSE_HIPS_Y, POSE_HIPS_Z, resetPose, type Pose } from './characters'
 // 15-joint rig; see scripts/extract-anims.mjs). A clip stores, per bone, Euler XYZ rotations per frame plus the pelvis height
 // (`hipsY`, 0.9 m standing) and forward shift (`hipsZ`). Frames are converted to quaternions once; sampling slerps between them.
 
-interface RawClip { d: number; n: number; loop: boolean; hit: number; t: Record<string, number[][] | number[]> }
+interface RawClip { d: number; n: number; loop: boolean; hit: number; root?: number[]; t: Record<string, number[][] | number[]> }
 
 /** Mocap bone -> rig joint index (same mapping as model_check's mocap.js). */
 const BONE_TO_JOINT: Record<string, number> = {
@@ -21,6 +21,8 @@ export interface Clip {
   /** Seconds into the clip at which the strike/impact lands. */
   hit: number;
   tracks: { joint: number; q: Float32Array }[];
+  /** Natural ground speed in m/s of a locomotion clip (from the hips travel recorded in the clip), 0 when unknown. */
+  speed: number;
   y: Float32Array;
   z: Float32Array;
 }
@@ -44,6 +46,7 @@ function compile(anims: Record<string, RawClip>): Record<string, Clip> {
     }
     clips[name] = {
       d: c.d, n: c.n, loop: c.loop, hit: c.hit, tracks,
+      speed: c.root && c.loop ? Math.hypot(c.root[0], c.root[1]) / c.d : 0,
       y: Float32Array.from(c.t.hipsY as number[]), z: Float32Array.from(c.t.hipsZ as number[]),
     };
   }

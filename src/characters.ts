@@ -69,6 +69,19 @@ function partGeometry(spec: MeshSpec): THREE.BufferGeometry {
 }
 
 /** Weapons have the grip at the origin and their length along +y, like model_check's hand items. */
+function gunGeometry(kind: number): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  const dark = 0x23252b, metal = 0x6b7080;
+  // barrel points along +y from the grip, so the socket's tilt aims it forward
+  if (kind === 0) { b.box(0.05, 0.2, 0.06, 0, 0.08, 0, dark); b.box(0.04, 0.2, 0.05, 0, 0.26, 0.01, metal); }
+  else if (kind === 1) { b.box(0.06, 0.26, 0.08, 0, 0.1, 0, dark); b.box(0.035, 0.3, 0.04, 0, 0.36, 0.01, metal); b.box(0.04, 0.12, 0.05, 0.05, 0.02, 0, dark); }
+  else if (kind === 2) { b.box(0.06, 0.3, 0.07, 0, 0.14, 0, 0x6b3d1d); b.box(0.045, 0.5, 0.045, 0, 0.55, 0.01, metal); }
+  else if (kind === 3) { b.cylinder(0.075, 0.075, 0.7, 8, 0, 0.35, 0.02, 0x4b5a3a); b.cylinder(0.1, 0.1, 0.12, 8, 0, 0.72, 0.02, 0x2b3320); b.box(0.04, 0.14, 0.05, 0, 0.0, -0.06, dark); }
+  else if (kind === 5) { b.cylinder(0.055, 0.055, 0.12, 8, 0, 0.06, 0, 0x3f5a2a); b.cylinder(0.03, 0.03, 0.04, 8, 0, 0.14, 0, 0x7c8590); b.box(0.02, 0.03, 0.1, 0, 0.17, 0.02, 0xc9ccd6); }
+  else { b.box(0.07, 0.24, 0.07, 0, 0.1, 0, 0xff4dd2); b.box(0.04, 0.22, 0.045, 0, 0.3, 0.01, 0x4dd2ff); b.cylinder(0.05, 0.05, 0.1, 8, 0, 0.18, 0.08, 0xffd23a); }
+  return b.build();
+}
+
 function weaponGeometry(kind: 'bat' | 'baton'): THREE.BufferGeometry {
   const b = new MeshBuilder();
   if (kind === 'bat') {
@@ -88,6 +101,8 @@ export class CharacterRenderer {
   readonly group = new THREE.Group();
   private meshes: THREE.InstancedMesh[] = [];
   private weapons: Record<'bat' | 'baton', THREE.InstancedMesh>;
+  private gunMeshes: THREE.InstancedMesh[] = [];
+  private shields!: THREE.InstancedMesh;
   private partLocal: THREE.Matrix4[][] = [];
   private world: THREE.Matrix4[] = BONES.map(() => new THREE.Matrix4());
   private localM = new THREE.Matrix4();
@@ -103,6 +118,9 @@ export class CharacterRenderer {
   private col = new THREE.Color();
   private white = new THREE.Color(0xffffff);
   // model_check holds right-hand items tilted "blade up and a little forward from the forearm"
+  private shieldOff = new THREE.Matrix4().compose(new THREE.Vector3(-0.1, -0.16, 0.2), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0)), new THREE.Vector3(1, 1, 1));
+  // gun clips point the hand along its own -y (the fingers), so a gun's barrel (+y in its geometry) is turned to point down the hand
+  private gunGrip = new THREE.Matrix4().compose(new THREE.Vector3(0, -0.02, 0.01), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI, 0, 0)), new THREE.Vector3(1, 1, 1));
   private grip = new THREE.Matrix4().compose(
     new THREE.Vector3(-0.003, -0.09, -0.002),
     new THREE.Quaternion(0.7931, -0.1585, 0.1425, 0.5706),
@@ -126,7 +144,18 @@ export class CharacterRenderer {
       bat: new THREE.InstancedMesh(weaponGeometry('bat'), wmat, count),
       baton: new THREE.InstancedMesh(weaponGeometry('baton'), wmat, count),
     };
-    for (const w of Object.values(this.weapons)) {
+    {
+      const sb = new MeshBuilder();
+      sb.box(0.06, 0.85, 0.55, 0, 0, 0, 0x2f4d73);
+      sb.box(0.07, 0.22, 0.4, 0, 0.22, 0, 0x9fd6ff);
+      this.shields = new THREE.InstancedMesh(sb.build(), wmat, count);
+      this.shields.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      this.shields.frustumCulled = false;
+      for (let i = 0; i < count; i++) this.shields.setMatrixAt(i, this.zero);
+      this.group.add(this.shields);
+    }
+    for (let k = 0; k < 6; k++) this.gunMeshes.push(new THREE.InstancedMesh(gunGeometry(k), wmat, count));
+    for (const w of [...Object.values(this.weapons), ...this.gunMeshes]) {
       w.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       w.frustumCulled = false;
       w.castShadow = true;
@@ -165,13 +194,15 @@ export class CharacterRenderer {
     }
     this.weapons.bat.setMatrixAt(slot, this.zero);
     this.weapons.baton.setMatrixAt(slot, this.zero);
+    for (const g of this.gunMeshes) g.setMatrixAt(slot, this.zero);
+    this.shields.setMatrixAt(slot, this.zero);
   }
 
   /**
    * FK for one character and write all part instances.
    * `lie` rotates the whole body about the hips (knockdown), `weapon` 0 none / 1 bat / 2 baton.
    */
-  draw(slot: number, x: number, y: number, z: number, heading: number, scale: number, lie: number, pose: Pose, hasCap: boolean, weapon: number, weaponScale = 1): void {
+  draw(slot: number, x: number, y: number, z: number, heading: number, scale: number, lie: number, pose: Pose, hasCap: boolean, weapon: number, weaponScale = 1, shield = false): void {
     // base transform: root position, facing, and a hips-pivoted lie rotation
     this.q.setFromEuler(this.e.set(0, heading, 0));
     this.base.compose(this.p.set(x, y - Math.abs(Math.sin(lie)) * 0.62 * scale, z), this.q, this.s.setScalar(scale));
@@ -201,8 +232,15 @@ export class CharacterRenderer {
       if (spec.name === 'hair' && hasCap) { mesh.setMatrixAt(slot, this.zero); continue; }
       for (let k = 0; k < per; k++) mesh.setMatrixAt(slot * per + k, this.world[spec.joints[k]]);
     }
+    if (shield) { this.tmp.copy(this.world[J.wrL]).multiply(this.shieldOff); this.shields.setMatrixAt(slot, this.tmp); }
+    else this.shields.setMatrixAt(slot, this.zero);
     const wb = this.weapons.bat, wt = this.weapons.baton;
-    if (weapon > 0) {
+    for (let k = 0; k < 6; k++) this.gunMeshes[k].setMatrixAt(slot, this.zero);
+    if (weapon >= 3) {
+      this.tmp.copy(this.world[J.wrR]).multiply(this.gunGrip);
+      this.gunMeshes[weapon - 3].setMatrixAt(slot, this.tmp);
+      wb.setMatrixAt(slot, this.zero); wt.setMatrixAt(slot, this.zero);
+    } else if (weapon > 0) {
       this.tmp.copy(this.world[J.wrR]).multiply(this.grip);
       if (weaponScale !== 1) this.tmp.scale(this.s.setScalar(weaponScale));
       (weapon === 1 ? wb : wt).setMatrixAt(slot, this.tmp);
@@ -223,6 +261,8 @@ export class CharacterRenderer {
     }
     this.weapons.bat.instanceMatrix.needsUpdate = true;
     this.weapons.baton.instanceMatrix.needsUpdate = true;
+    for (const g of this.gunMeshes) g.instanceMatrix.needsUpdate = true;
+    this.shields.instanceMatrix.needsUpdate = true;
     this.colorsDirty = false;
   }
 }

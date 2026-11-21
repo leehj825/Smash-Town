@@ -25,6 +25,8 @@ export interface Attack {
   /** Which arm / swing direction: -1 = left, +1 = right (swing: +1 forehand, -1 backhand). */
   side: -1 | 1;
   popup: 'pow' | 'wham' | 'smash';
+  /** A bullet or blast (picks the knock-out fall by the direction of the hit). */
+  gun?: boolean;
 }
 
 export const ATTACKS: Record<Attack['id'], Attack> = {
