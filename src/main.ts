@@ -13,6 +13,7 @@ import { Vfx } from './vfx';
 import { CameraRig } from './cameraRig';
 import { Hud } from './hud';
 import { Game } from './game';
+import { BigMap } from './bigmap';
 import { setupTouch } from './touch';
 
 type Quality = 'high' | 'medium' | 'low';
@@ -69,6 +70,7 @@ const cameraRig = new CameraRig(camera);
 cameraRig.obstacles = world.boxes;
 const hud = new Hud(world);
 const game = new Game({ scene, world, props, vfx, hud, input, env, cameraRig });
+const bigmap = new BigMap(game);
 
 // ---------------------------------------------------------------- post-processing / quality
 const composer = new EffectComposer(renderer);
@@ -163,6 +165,12 @@ function setPaused(p: boolean): void {
 }
 document.getElementById('btn-play')!.addEventListener('click', startGame);
 document.getElementById('btn-pause')!.addEventListener('click', () => setPaused(true));
+function toggleMap(): void {
+  if (state !== 'playing') return;
+  if (bigmap.isOpen) bigmap.close();
+  else if (game.state === 'play') { input.releaseMouse(); bigmap.open(); }
+}
+document.getElementById('btn-map')!.addEventListener('click', toggleMap);
 document.getElementById('btn-resume')!.addEventListener('click', () => setPaused(false));
 document.querySelectorAll<HTMLElement>('.lang').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang as Lang)));
 document.querySelectorAll<HTMLElement>('.quality').forEach((b) => b.addEventListener('click', () => applyQuality(b.dataset.q as Quality)));
@@ -200,7 +208,7 @@ function frame(): void {
 let navIndex = -1;
 function menuNav(): void {
   const garageEl = document.getElementById('garage')!;
-  const overlay = !titleEl.hidden ? titleEl : !pauseEl.hidden ? pauseEl : !garageEl.hidden ? garageEl : null;
+  const overlay = !titleEl.hidden ? titleEl : !pauseEl.hidden ? pauseEl : !garageEl.hidden ? garageEl : bigmap.isOpen ? bigmap.el : null;
   if (!overlay) { navIndex = -1; return; }
   const btns = Array.from(overlay.querySelectorAll<HTMLButtonElement>('button:not([disabled])'));
   if (!btns.length) return;
@@ -223,15 +231,20 @@ function tick(): void {
   let dt = Math.min(rawDt, 0.05);
 
   // gamepad: tell it what the buttons mean right now, then read it
-  input.menu = state !== 'playing' || game.state !== 'play';
+  input.menu = state !== 'playing' || game.state !== 'play' || bigmap.isOpen;
   input.mode = game.onFoot ? 'foot' : 'car';
   input.pollGamepad(Math.min(rawDt, 0.1));
   if (input.padActive && state !== 'title') game.audio.ensureRunning();
   menuNav();
   if (state === 'title' && input.wasPressed('Enter')) startGame();
 
-  if (state === 'playing') {
-    if (game.state !== 'garage' && game.state !== 'dialog' && (input.wasPressed('Escape') || input.wasPressed('KeyP'))) setPaused(true);
+  if (state === 'playing' && bigmap.isOpen) {
+    if (input.wasPressed('Escape') || input.wasPressed('KeyP') || input.wasPressed('KeyM')) bigmap.close();
+    dt = 0;
+    bigmap.draw(rawDt);
+  } else if (state === 'playing') {
+    if (input.wasPressed('KeyM')) toggleMap();
+    else if (game.state !== 'garage' && game.state !== 'dialog' && (input.wasPressed('Escape') || input.wasPressed('KeyP'))) setPaused(true);
     if (input.wasPressed('KeyT')) applyTime(env.cycleTime());
   } else if (state === 'paused') {
     if (input.wasPressed('Escape') || input.wasPressed('KeyP')) setPaused(false);
@@ -261,5 +274,5 @@ frame();
 
 // Debug handle for tests and tinkering from the console.
 (window as unknown as { __smash: unknown }).__smash = {
-  game, env, hud, renderer, scene, camera, applyQuality, applyTime, startGame, get quality() { return quality; },
+  game, env, hud, renderer, scene, camera, applyQuality, applyTime, startGame, bigmap, get quality() { return quality; },
 };

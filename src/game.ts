@@ -8,6 +8,7 @@ import type { CameraRig, Followable } from './cameraRig';
 import type { Environment } from './environment';
 import { MeshBuilder, makeRng, paletteMaterial } from './geo';
 import { GigManager } from './gigs';
+import { Navigator, type Route } from './nav';
 import type { Blip, Hud } from './hud';
 import type { Input } from './input';
 import { t, tf } from './i18n';
@@ -63,6 +64,11 @@ export class Game {
   readonly slash = new SlashTrail();
   readonly gigs: GigManager;
   readonly story: StoryManager;
+  /** Road route to the story goal (refreshed a few times a second) and the goal itself. */
+  route: Route | null = null;
+  goal: { x: number; z: number; label: string; prop?: boolean } | null = null;
+  private nav = new Navigator();
+  private routeT = 0;
   readonly collectibles: Collectibles;
   smashTotal = 0;
 
@@ -627,6 +633,7 @@ export class Game {
     this.updatePrompt();
     this.updateAudio(dt);
     this.buildBlips();
+    this.updateGuide(dt);
     const d = this.driving;
     this.hud.update(this.followable, d ? d.ctrl.hp : 1, d ? d.ctrl.nitro : 1, d ? d.ctrl.nitroActive : false, this.blips.slice(0, this.blipCount), dt);
     const pl = this.humans.player;
@@ -641,6 +648,33 @@ export class Game {
       this.saveTimer -= dt;
       if (this.saveTimer <= 0) { this.flushSave(); this.saveTimer = 3; }
     }
+  }
+
+  /** Story guidance: road route to the goal, the guide arrow and its distance. */
+  private updateGuide(dt: number): void {
+    const o = this.story.objective();
+    this.goal = o;
+    if (!o) { this.route = null; this.hud.setNav(null, ''); this.hud.setRoute(null); return; }
+    const fx = this.focusX, fz = this.focusZ;
+    const straight = Math.hypot(o.x - fx, o.z - fz);
+    this.routeT -= dt;
+    const moved = this.route ? Math.hypot(this.route.pts[this.route.pts.length - 1].x - o.x, this.route.pts[this.route.pts.length - 1].z - o.z) > 4 : true;
+    if (this.routeT <= 0 || moved) { this.routeT = 0.6; this.route = this.nav.route(fx, fz, o.x, o.z); }
+    else this.route!.pts[0] = { x: fx, z: fz };
+    if (straight < 14 && !o.prop) { this.hud.setNav(null, t('ui.nav.here')); this.hud.setRoute(null); return; }
+    const pts = this.route!.pts;
+    // aim along the road: the first waypoint that is far enough ahead (or straight at the goal when it is close)
+    let tx = o.x, tz = o.z;
+    if (straight > 35) {
+      for (let k = 1; k < pts.length; k++) if (Math.hypot(pts[k].x - fx, pts[k].z - fz) > 22) { tx = pts[k].x; tz = pts[k].z; break; }
+    }
+    const f = this.camDir;
+    this.cameraRig.camera.getWorldDirection(f);
+    const dx = tx - fx, dz = tz - fz;
+    const along = dx * f.x + dz * f.z, side = dx * -f.z + dz * f.x;
+    const m = Math.max(this.route!.len, straight);
+    this.hud.setNav(Math.atan2(side, along), `${Math.round(m / 5) * 5} m`);
+    this.hud.setRoute(pts);
   }
 
   /** Pick up golden stars by touching them (in a car or on foot). */

@@ -114,6 +114,8 @@ export class StoryManager {
   private dialog: { lines: Line[]; i: number } | null = null;
   private celebrateT = 0;
   private introShown = false;
+  private idleT = 0;
+  private announced = '';
 
   constructor(game: Game, scene: THREE.Scene, saved?: StorySave) {
     this.game = game;
@@ -145,6 +147,7 @@ export class StoryManager {
     if (!c) return;
     this.step++;
     this.prog = 0;
+    this.idleT = 0;
     if (this.step >= c.steps.length) this.completeChapter(c);
     this.persist();
   }
@@ -168,7 +171,7 @@ export class StoryManager {
 
   onSmash(): void {
     const s = this.current;
-    if (s && s.k === 'smash' && !this.dialog) this.prog++;
+    if (s && s.k === 'smash' && !this.dialog) { this.prog++; this.idleT = 0; }
   }
 
   // ------------------------------------------------------------------ dialogue
@@ -222,8 +225,9 @@ export class StoryManager {
       if (this.ch === 0 && this.step === 0) g.hud.toast(bi('New story: Save Old Town! Follow the gold marker - or just explore.', '새 이야기: 올드타운을 지켜라! 금색 표시를 따라가거나 자유롭게 돌아다녀요.'), 6000);
     }
     const s = this.current;
-    if (!s || this.dialog) { if (!s) this.beacon.visible = false; return; }
+    if (!s || this.dialog) { if (!s) this.beacon.visible = false; this.idleT = 0; return; }
     this.waiting = false;
+    if (g.state === 'play') this.guide(dt, s);
     switch (s.k) {
       case 'goto': {
         const p = this.spot(s.spot);
@@ -282,6 +286,71 @@ export class StoryManager {
       g.vfx.emitDebris(x, y, z, 0, 0, color, 12);
       g.vfx.emitSparks(x, y, z, 6);
     }
+  }
+
+
+  // ------------------------------------------------------------------ guidance
+  private stepText(s: Step): string {
+    if (s.k === 'dialog') return bi('Talk with ', '대화: ') + bi(s.lines[0].who[0], s.lines[0].who[1]);
+    return bi(s.text[0], s.text[1]);
+  }
+
+  /** Announce each new goal, and nudge the player if they have wandered off for a while. */
+  private guide(dt: number, s: Step): void {
+    const g = this.game;
+    const key = `${this.ch}:${this.step}`;
+    if (key !== this.announced) {
+      const first = this.announced === '' ;
+      this.announced = key;
+      if (!first && s.k !== 'dialog') g.hud.toast(`${bi('New goal', '새 목표')}: ${this.stepText(s)}`, 3800);
+      return;
+    }
+    if (g.gigs.active) { this.idleT = 0; return; }
+    this.idleT += dt;
+    if (this.idleT > 100) {
+      this.idleT = 0;
+      g.hud.toast(`${bi('Story', '스토리')}: ${this.stepText(s)} - ${t('ui.hint.map')}`, 5000);
+      g.hud.pulseStory();
+    }
+  }
+
+  /** Where the player should go next (null while a conversation is the next step). Smash steps point at the nearest unbroken prop. */
+  objective(): { x: number; z: number; label: string; prop?: boolean } | null {
+    const s = this.current;
+    if (!s || this.dialog) return null;
+    const g = this.game;
+    const label = this.stepText(s);
+    switch (s.k) {
+      case 'goto': { const p = this.spot(s.spot); return { x: p.x, z: p.z, label }; }
+      case 'steal': return this.limo ? { x: this.limo.x, z: this.limo.z, label } : (() => { const p = g.world.landmarks.story.limo; return { x: p.x, z: p.z, label }; })();
+      case 'drive': {
+        if (g.driving === this.limo && this.limo) { const p = this.spot(s.spot); return { x: p.x, z: p.z, label }; }
+        if (this.limo) return { x: this.limo.x, z: this.limo.z, label: bi('Get back into the limo!', '리무진에 다시 타세요!') };
+        return null;
+      }
+      case 'smash': {
+        let best: { x: number; z: number } | null = null, bd = Infinity;
+        for (const c of g.world.circles) {
+          if (!c.smash || c.dead) continue;
+          const d = Math.hypot(c.x - g.focusX, c.z - g.focusZ);
+          if (d < bd) { bd = d; best = c; }
+        }
+        return best ? { x: best.x, z: best.z, label, prop: true } : null;
+      }
+      default: return null;
+    }
+  }
+
+  /** The chapter checklist for the map: every chapter, and the steps of the current one. */
+  checklist(): { chapters: { title: string; state: 'done' | 'now' | 'todo' }[]; steps: { text: string; state: 'done' | 'now' | 'todo' }[] } {
+    const chapters = CHAPTERS.map((c, i) => ({ title: bi(c.title[0], c.title[1]), state: (i < this.ch || this.done ? 'done' : i === this.ch ? 'now' : 'todo') as 'done' | 'now' | 'todo' }));
+    const c = this.chapter;
+    const steps = c ? c.steps.map((st, i) => {
+      let text = this.stepText(st);
+      if (st.k === 'smash') text += ` (${i === this.step ? Math.min(this.prog, st.count) : i < this.step ? st.count : 0}/${st.count})`;
+      return { text, state: (i < this.step ? 'done' : i === this.step ? 'now' : 'todo') as 'done' | 'now' | 'todo' };
+    }) : [];
+    return { chapters, steps };
   }
 
   // ------------------------------------------------------------------ HUD helpers

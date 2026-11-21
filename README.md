@@ -26,6 +26,7 @@ npm run build    # typecheck + production bundle in dist/
 | On foot | `1` `2` `3` / wheel / `V` | Fists / Baseball bat / Police baton (dropped by defeated cops) |
 | On foot | Mouse (click to capture) / drag | Orbit camera; auto-aligns behind you while sprinting |
 | Always | `T` / `R` / `Esc` | Time of day / reset car / pause & settings |
+| Always | `M` (or the map button on touch) | Big map: your position, the story goal with its road route, garages, jobs, golden stars and the chapter checklist |
 | Touch | left stick / buttons | On foot: analog stick (forward, back, strafe) + KICK / DODGE / JUMP / WPN / F / HIT; driving: steer arrows + gas, nitro, drift; drag the canvas to orbit |
 
 ### Gamepad (Xbox / PlayStation / most standard controllers)
@@ -43,6 +44,7 @@ Plug in or pair a controller, then press any button; the on-screen hints switch 
 | On foot | LT or L3 (hold) / LB | Sprint / Switch weapon (D-pad left / right also cycle) |
 | Always | Y | Enter / exit vehicle (also advances story conversations, as do A and Start) |
 | Always | Start / Back / D-pad up | Pause / Reset car / Time of day |
+| Always | Right-stick click (R3) | Big map |
 | Menus | D-pad + A, B or Start | Move the highlight and press, go back |
 
 ## What's in the game

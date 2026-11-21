@@ -59,6 +59,10 @@ export class Hud {
   private storyPill = $('story-pill');
   private storyTitle = $('story-title');
   private storyText = $('story-text');
+  private storyNav = $('story-nav');
+  private navArrow = $('nav-arrow');
+  private navDist = $('nav-dist');
+  private route: { x: number; z: number }[] | null = null;
   private starCount = $('stars-count');
   private storyProgress = $('story-progress');
   private lastStory = '';
@@ -109,6 +113,23 @@ export class Hud {
     this.lastStory = key;
     this.storyPill.hidden = !info;
     if (info) { this.storyTitle.textContent = info.title; this.storyText.textContent = info.text; }
+  }
+
+  /** Guide arrow in the story pill: `angle` is clockwise from straight ahead (radians); null hides it. */
+  setNav(angle: number | null, text: string): void {
+    this.storyNav.hidden = angle === null && !text;
+    if (angle === null) this.navArrow.style.visibility = 'hidden';
+    else { this.navArrow.style.visibility = 'visible'; this.navArrow.style.transform = `rotate(${angle.toFixed(3)}rad)`; }
+    if (this.navDist.textContent !== text) this.navDist.textContent = text;
+  }
+
+  /** The road route to the objective, drawn on the minimap. */
+  setRoute(pts: { x: number; z: number }[] | null): void { this.route = pts; }
+
+  pulseStory(): void {
+    this.storyPill.classList.remove('pulse');
+    void this.storyPill.offsetWidth;
+    this.storyPill.classList.add('pulse');
   }
 
   setStoryProgress(text: string): void {
@@ -229,6 +250,17 @@ export class Hud {
     g.rotate(rot);
     g.scale(scale / MM, scale / MM);
     g.drawImage(this.world.minimap.canvas, -(f.position.x + PAD) * MM, -(f.position.z + PAD) * MM);
+    if (this.route && this.route.length > 1) {
+      // route to the story goal, in the same rotated frame as the map image
+      g.lineJoin = 'round'; g.lineCap = 'round';
+      const trace = () => {
+        g.beginPath();
+        this.route!.forEach((p, k) => { const px = (p.x - f.position.x) * MM, pz = (p.z - f.position.z) * MM; if (k === 0) g.moveTo(px, pz); else g.lineTo(px, pz); });
+        g.stroke();
+      };
+      g.strokeStyle = 'rgba(20,20,30,.85)'; g.lineWidth = 6.5 * MM / scale; trace();
+      g.strokeStyle = '#ffd23a'; g.lineWidth = 3.5 * MM / scale; trace();
+    }
     g.restore();
 
     // blips (rotated into the radar frame, clamped to the rim)

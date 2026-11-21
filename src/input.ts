@@ -163,7 +163,7 @@ export class Input implements ControlState {
    * Poll the first connected gamepad (standard layout). Call once per frame.
    * Driving: RT gas, LT brake/reverse, left stick steer, A handbrake, RB nitro.
    * On foot: left stick move, right stick camera, X attack, RB kick, A jump / dodge, B dodge, LT or L3 sprint, LB weapon.
-   * Common: Y enter/exit, Start pause, Back reset car, D-pad up time of day, D-pad left/right weapon. In menus: D-pad + A, B back.
+   * Common: Y enter/exit, Start pause, right-stick click map, Back reset car, D-pad up time of day, D-pad left/right weapon. In menus: D-pad + A, B back.
    */
   pollGamepad(dt: number): void {
     const pads = typeof navigator.getGamepads === 'function' ? navigator.getGamepads() : [];
@@ -207,6 +207,7 @@ export class Input implements ControlState {
     if (edge(5) && foot) add('Kick');
     if (edge(8)) add('KeyR');
     if (edge(9)) { add('Escape'); add('Enter'); }
+    if (edge(11)) add('KeyM');
     if (edge(12)) { add('PadUp'); if (!this.menu) add('KeyT'); }
     if (edge(13)) add('PadDown');
     if (edge(14)) { add('PadLeft'); if (foot) add('WheelDown'); }

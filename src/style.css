@@ -14,6 +14,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1020; col
 #hud > * { position: absolute; }
 
 .hud-btn { pointer-events: auto; top: 14px; left: 14px; width: 44px; height: 44px; border-radius: 12px; border: 2px solid rgba(255,255,255,.7); background: rgba(14,18,28,.6); color: #fff; font-size: 22px; cursor: pointer; }
+.hud-btn#btn-map { left: 66px; font-size: 20px; }
 .hud-btn:hover { background: rgba(14,18,28,.85); }
 
 #status { top: 14px; right: 18px; text-align: right; }
@@ -152,7 +153,7 @@ button.big.ghost { background: transparent; border: 2px solid rgba(255,255,255,.
   #phealth { grid-template-columns: 38px 110px; }
   .is-touch #minimap { top: 62px; width: 80px; height: 80px; }
   .is-touch #wanted-banner { top: 146px; font-size: 10px; padding: 2px 8px; }
-  #toast { top: 58px; }
+  #toast { top: 96px; }
 }
 
 .kids-row .hint { display: block; font-size: 10px; font-weight: 600; opacity: .7; margin-top: 2px; max-width: 220px; }
@@ -182,3 +183,39 @@ body.gamepad #hints, body.gamepad .hints-foot { display: none; }
 body.foot-mode #pad-hint .pad-foot { display: block; }
 body.foot-mode #pad-hint .pad-drive { display: none; }
 .pad-focus { outline: 3px solid #ffd23a; outline-offset: 2px; }
+
+/* story guidance */
+#story-nav { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 4px; font-size: 15px; font-weight: 800; color: #ffd23a; }
+#nav-arrow { display: inline-block; width: 22px; height: 22px; line-height: 22px; font-size: 22px; transform-origin: 50% 50%; text-shadow: 0 0 6px rgba(255,210,58,.8); }
+#story-pill.pulse { animation: pillPulse 1.6s ease-out 1; }
+@keyframes pillPulse { 0%, 40% { box-shadow: 0 0 0 0 rgba(255,210,58,.9); transform: scale(1.06); } 100% { box-shadow: 0 0 0 18px rgba(255,210,58,0); transform: scale(1); } }
+@media (max-height: 460px) { #story-nav { font-size: 12px; margin-top: 2px; } #nav-arrow { font-size: 16px; line-height: 16px; height: 16px; width: 16px; } }
+
+/* big map */
+#bigmap { position: fixed; inset: 0; z-index: 30; background: rgba(8,12,20,.97); display: flex; align-items: stretch; justify-content: center; gap: 16px; padding: 18px; font-family: inherit; color: #fff; }
+#bigmap[hidden] { display: none; }
+#bigmap-wrap { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: center; }
+#bigmap-canvas { max-width: 100%; max-height: 100%; border-radius: 14px; border: 2px solid rgba(255,255,255,.35); background: #2d3b4a; }
+#bigmap-side { flex: 0 0 270px; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+#bigmap-side h2 { margin: 0; font-size: 18px; color: #ffd23a; letter-spacing: 1px; }
+#bigmap-side h3 { margin: 4px 0 2px; font-size: 11px; letter-spacing: 1.4px; opacity: .7; }
+#bigmap-side ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; }
+#bigmap-side li.done { opacity: .55; text-decoration: line-through; }
+#bigmap-side li.now { color: #ffd23a; }
+#bigmap-side li::before { content: '\25CB  '; }
+#bigmap-side li.done::before { content: '\2713  '; }
+#bigmap-side li.now::before { content: '\27A4  '; }
+#bigmap-goal { font-size: 14px; font-weight: 800; padding: 8px 10px; border-radius: 10px; background: rgba(255,210,58,.12); border: 2px solid #ffd23a; }
+#bigmap-legend { font-size: 12px; display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; align-items: center; opacity: .9; }
+#bigmap-legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; border: 1.5px solid #000; }
+#bigmap-close { pointer-events: auto; cursor: pointer; padding: 10px; border-radius: 10px; border: 2px solid rgba(255,255,255,.6); background: rgba(14,18,28,.8); color: #fff; font-weight: 800; font-size: 14px; }
+#bigmap-close.pad-focus { outline: 3px solid #ffd23a; }
+@media (max-width: 760px), (max-height: 460px) {
+  #bigmap { flex-direction: column; padding: 8px; gap: 8px; }
+  #bigmap-side { flex: 0 0 auto; max-height: 38%; font-size: 12px; }
+}
+@media (max-height: 460px) and (min-width: 600px) {
+  #bigmap { flex-direction: row; }
+  #bigmap-side { flex: 0 0 230px; max-height: none; }
+  #bigmap-side h2 { font-size: 15px; }
+}
