@@ -1159,20 +1159,37 @@ export class Game {
       this.hud.setLockOn(false);
       return;
     }
-    this.hud.setCrosshair(false);
     if (gun && auto) {
       this.guns.updateAutoAim(Math.min(35, gun.range * 0.7));
       const ap = this.guns.aimPoint;
       if (ap) {
-        // turn to the target, even if it is behind you, and show the lock-on box over it
+        // turn to the target, even if it is behind you
         pl.aimT = Math.max(pl.aimT, 0.3);
         pl.aimYaw = Math.atan2(ap.x - pl.x, ap.z - pl.z);
+        // the crosshair itself moves onto the target (the camera stays put); a target off the screen or behind the camera gets the
+        // crosshair on the screen edge with an arrow pointing toward it
         const v = this.autoV.set(ap.x, ap.y, ap.z).project(this.cameraRig.camera);
-        const onScreen = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
-        this.hud.setLockOn(onScreen, (v.x * 0.5 + 0.5) * window.innerWidth, (-v.y * 0.5 + 0.5) * window.innerHeight);
+        if (v.z > 1) { v.x = -v.x; v.y = -v.y; }
+        let px = (v.x * 0.5 + 0.5) * window.innerWidth, py = (-v.y * 0.5 + 0.5) * window.innerHeight;
+        const W = window.innerWidth, H = window.innerHeight, m = 44;
+        const off = v.z > 1 || px < m || px > W - m || py < m || py > H - m;
+        let edge: number | null = null;
+        if (off) {
+          const cx = W / 2, cy = H / 2;
+          let dx = px - cx, dy = py - cy;
+          if (Math.abs(dx) < 1 && Math.abs(dy) < 1) dy = 1;
+          const k = Math.min((W / 2 - m) / (Math.abs(dx) || 1e-6), (H / 2 - m) / (Math.abs(dy) || 1e-6));
+          px = cx + dx * k; py = cy + dy * k;
+          edge = (Math.atan2(dy, dx) * 180) / Math.PI;
+        }
+        const base: Record<GunId, number> = { pistol: 6, smg: 12, shotgun: 24, rocket: 18, paint: 10, grenade: 20 };
+        const gap = base[gun.id] + Math.min(14, pl.speed * 1.8) + pl.recoil * 10;
+        this.hud.setCrosshair(true, gap, true, gun.id === 'shotgun' || gun.id === 'rocket' || gun.id === 'grenade', gun.id === 'rocket' && ap.heli, false, { x: px, y: py, edge });
+        this.hud.setLockOn(false);
         return;
       }
     } else this.guns.aimPoint = null;
+    this.hud.setCrosshair(false);
     this.hud.setLockOn(false);
   }
   private autoV = new THREE.Vector3();

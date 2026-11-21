@@ -217,10 +217,14 @@ export class Hud {
   }
   private hitT = 0;
   /** Crosshair in the centre of the screen: its gap, colour state and shape. Hidden with show = false. */
-  setCrosshair(show: boolean, gap = 8, hostile = false, round = false, lock = false, zoom = false): void {
+  setCrosshair(show: boolean, gap = 8, hostile = false, round = false, lock = false, zoom = false, at?: { x: number; y: number; edge: number | null }): void {
     const el = document.getElementById('crosshair')!;
     if (el.hidden !== !show) el.hidden = !show;
     if (!show) return;
+    // auto-aim moves the crosshair onto its target; off the screen it sits on the edge with an arrow pointing the way
+    if (at) { el.style.left = `${Math.round(at.x)}px`; el.style.top = `${Math.round(at.y)}px`; } else { el.style.left = '50%'; el.style.top = '50%'; }
+    el.classList.toggle('edge', !!at && at.edge !== null);
+    if (at && at.edge !== null) el.style.setProperty('--ang', `${Math.round(at.edge)}deg`);
     el.style.setProperty('--gap', `${Math.round(gap)}px`);
     el.classList.toggle('hostile', hostile);
     el.classList.toggle('round', round);

@@ -172,10 +172,25 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       G.cameraRig.footYaw = sp.heading; pl.heading = sp.heading;
       for (let i = 0; i < 60; i++) G.update(1 / 60);
       const ap = gs.aimPoint;
+      const chEl = document.getElementById('crosshair');
+      // the target is behind the camera: the crosshair is on the screen edge with the arrow
+      out.edge = !chEl.hidden && chEl.classList.contains('edge') && chEl.classList.contains('hostile');
       out.locked = !!ap && ap.auto === true;
       out.closest = !!ap && Math.hypot(ap.x - cops[0].x, ap.z - cops[0].z) < 1;
       let d = Math.abs(Math.atan2(Math.sin(pl.heading - (sp.heading + Math.PI)), Math.cos(pl.heading - (sp.heading + Math.PI))));
       out.turned = Math.round(d * 100) / 100;
+      // a target ahead and to the side: the crosshair moves onto it (the camera does not)
+      const camYaw0 = G.cameraRig.footYaw;
+      const keep = [cops[0].x, cops[0].z];
+      put(cops[0], 14, 3.5);
+      for (let i = 0; i < 6; i++) G.update(1 / 60);
+      for (let i = 0; i < 3; i++) { G.cameraRig.update(1 / 60, G.followable); }
+      for (let i = 0; i < 2; i++) G.update(1 / 60);
+      const left = parseFloat(chEl.style.left), top = parseFloat(chEl.style.top);
+      out.onTarget = !chEl.hidden && !chEl.classList.contains('edge') && Math.abs(left - innerWidth / 2) > 25;
+      out.cameraStill = G.cameraRig.footYaw === camYaw0;
+      put(cops[0], -10, 0.5);
+      for (let i = 0; i < 40; i++) G.update(1 / 60);
       const before = cops[0].hp; const farBefore = cops[1].hp;
       gs.update(0.016, false, true);
       out.hit = cops[0].hp < before; out.otherHit = cops[1].hp < farBefore;
@@ -192,6 +207,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(autoRes.locked && autoRes.closest && autoRes.turned < 0.2, 'auto-aim picks the closest hostile, even behind you, and turns to face it', JSON.stringify(autoRes));
+    ok(autoRes.edge && autoRes.onTarget && autoRes.cameraStill, 'the crosshair moves onto the auto target (edge arrow when it is behind), the camera stays', JSON.stringify(autoRes));
     ok(autoRes.hit && !autoRes.otherHit, 'a shot with auto-aim goes to the locked target', JSON.stringify(autoRes));
     ok(autoRes.none && autoRes.manualWins, 'no target out of range; manual aiming takes priority', JSON.stringify(autoRes));
     // right mouse zooms with a gun out and kicks with fists
