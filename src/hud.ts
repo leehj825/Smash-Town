@@ -175,7 +175,7 @@ export class Hud {
     const S = this.mini.width;
     const c = S / 2;
     const metersVisible = 150;
-    const MM = 4;
+    const { scale: MM, pad: PAD } = this.world.minimap;
     const scale = S / metersVisible;
     const rot = -Math.PI / 2 - Math.atan2(Math.cos(f.heading), Math.sin(f.heading));
     g.clearRect(0, 0, S, S);
@@ -185,7 +185,7 @@ export class Hud {
     g.translate(c, c);
     g.rotate(rot);
     g.scale(scale / MM, scale / MM);
-    g.drawImage(this.world.minimapCanvas, -(f.position.x + 40) * MM, -(f.position.z + 40) * MM);
+    g.drawImage(this.world.minimap.canvas, -(f.position.x + PAD) * MM, -(f.position.z + PAD) * MM);
     g.restore();
 
     // blips (rotated into the radar frame, clamped to the rim)

@@ -20,7 +20,8 @@ const QUALITY_KEY = 'smashtown.quality';
 const TIME_KEY = 'smashtown.time';
 const AUDIO_KEY = 'smashtown.audio';
 const KIDS_KEY = 'smashtown.kids';
-const TRAFFIC: Record<Quality, number> = { high: 14, medium: 10, low: 6 };
+// fewer civilian cars: the map is bigger and the streets should feel calm
+const TRAFFIC: Record<Quality, number> = { high: 6, medium: 4, low: 3 };
 
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || matchMedia('(pointer: coarse)').matches;
 

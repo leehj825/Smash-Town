@@ -15,7 +15,7 @@ import type { Props } from './props';
 import { CIVILIAN_COLORS, CIVILIAN_KINDS, PLAYER_ROSTER, STATS, VehicleFactory, type VehicleKind } from './vehicle';
 import { GameVehicle, type AIMode, type VehicleEvents } from './vehicles';
 import type { Vfx } from './vfx';
-import { CELL, GRID, roadHalfWidth, type CircleCollider, type World } from './world';
+import type { CircleCollider, World } from './world';
 
 const SAVE_KEY = 'smashtown.save.v1';
 interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind }
@@ -67,7 +67,7 @@ export class Game {
   state: 'play' | 'garage' | 'busted' | 'wrecked' | 'wasted' = 'play';
   damageTotal = 0;
   hitStop = 0;
-  trafficTarget = 12;
+  trafficTarget = 6;
   useBlob = false;
 
   private rng = makeRng(99);
@@ -332,28 +332,22 @@ export class Game {
     }
   }
 
+  /** A barricade across a road segment roughly 115 m ahead of where the player is heading, with two cruisers on the approach side. */
   private spawnRoadblock(): void {
     const d = this.driving;
     const fx = d ? Math.sin(d.ctrl.heading) : 0, fz = d ? Math.cos(d.ctrl.heading) : 1;
     const px = this.focusX, pz = this.focusZ;
-    const alongZ = Math.abs(fz) >= Math.abs(fx);
-    const sgn = alongZ ? Math.sign(fz) || 1 : Math.sign(fx) || 1;
-    const clampN = (v: number) => Math.max(0, Math.min(GRID, v));
-    let x: number, z: number, hw: number;
-    if (alongZ) {
-      const line = clampN(Math.round(px / CELL));
-      hw = roadHalfWidth(line);
-      x = line * CELL;
-      const mid = Math.round((pz + sgn * 115 - 20) / CELL) * CELL + 20;
-      z = Math.max(20, Math.min(GRID * CELL - 20, mid));
-    } else {
-      const line = clampN(Math.round(pz / CELL));
-      hw = roadHalfWidth(line);
-      z = line * CELL;
-      const mid = Math.round((px + sgn * 115 - 20) / CELL) * CELL + 20;
-      x = Math.max(20, Math.min(GRID * CELL - 20, mid));
+    const tx = px + fx * 115, tz = pz + fz * 115;
+    let seg = null as (typeof this.world.segments)[number] | null, bd = Infinity;
+    for (const sgm of this.world.segments) {
+      if (sgm.len < 34 || sgm.hw < 6) continue;
+      if (Math.hypot(sgm.x - px, sgm.z - pz) < 70) continue;
+      const dd = Math.hypot(sgm.x - tx, sgm.z - tz);
+      if (dd < bd) { bd = dd; seg = sgm; }
     }
-    if (Math.hypot(x - px, z - pz) < 70) return;
+    if (!seg) return;
+    const { x, z, dx, dz, hw } = seg;
+    const alongZ = dz !== 0; // the road runs along z, so the barricade spreads along x
     const b = new MeshBuilder();
     const bw = hw * 2 - 1;
     const sx = alongZ ? bw : 1.2, sz = alongZ ? 1.2 : bw;
@@ -364,13 +358,14 @@ export class Game {
     this.scene.add(mesh);
     const box = { minX: x - sx / 2, maxX: x + sx / 2, minZ: z - sz / 2, maxZ: z + sz / 2 };
     this.world.boxes.push(box);
+    // the cruisers sit on the side the player approaches from, angled toward the oncoming car
+    const approach = (px - x) * dx + (pz - z) * dz >= 0 ? 1 : -1;
     const cars: GameVehicle[] = [];
     for (const side of [-1, 1]) {
-      const cx = alongZ ? x + side * (hw - 2.2) : x - sgn * 3.2;
-      const cz = alongZ ? z - sgn * 3.2 : z + side * (hw - 2.2);
-      const heading = alongZ ? (sgn > 0 ? Math.PI + side * 0.5 : side * 0.5) : (sgn > 0 ? -Math.PI / 2 + side * 0.5 : Math.PI / 2 + side * 0.5);
-      const v = this.spawnVehicle('police', STATS.police.color, cx, cz, heading, 'parked');
-      cars.push(v);
+      const cx = x + approach * 3.2 * dx + side * (hw - 2.2) * -dz;
+      const cz = z + approach * 3.2 * dz + side * (hw - 2.2) * dx;
+      const heading = Math.atan2(approach * dx, approach * dz) + side * 0.5;
+      cars.push(this.spawnVehicle('police', STATS.police.color, cx, cz, heading, 'parked'));
     }
     this.roadblocks.push({ x, z, mesh, box, cars });
   }

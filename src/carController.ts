@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { ControlState } from './input';
 import { STATS, dimsOf, type VehicleKind, type VehicleModel, type VehicleStats } from './vehicle';
-import { BOUNDS, type CircleCollider, type World } from './world';
+import type { CircleCollider, World } from './world';
 
 export interface CarEvents {
   onImpact: (strength: number) => void;
@@ -250,7 +250,7 @@ export class CarController {
   }
 
   private collide(): void {
-    const b = BOUNDS;
+    const b = this.world.bounds;
     if (this.position.x < b.minX) { this.position.x = b.minX; this.bounce(1, 0); }
     if (this.position.x > b.maxX) { this.position.x = b.maxX; this.bounce(-1, 0); }
     if (this.position.z < b.minZ) { this.position.z = b.minZ; this.bounce(0, 1); }

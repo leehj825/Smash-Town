@@ -77,6 +77,21 @@ function hydrantGeometry(): THREE.BufferGeometry {
   return b.build();
 }
 
+function treeGeometry(pine: boolean): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  b.cylinder(0.2, 0.3, 2.4, 6, 0, 1.2, 0, 0x7a5a3a);
+  if (pine) {
+    for (let k = 0; k < 3; k++) {
+      const r = 1.7 - k * 0.45;
+      b.add(new THREE.ConeGeometry(r, 2.2, 7), k % 2 ? 0x2f7d46 : 0x2a6f3f, new THREE.Matrix4().makeTranslation(0, 2.6 + k * 1.3, 0));
+    }
+  } else {
+    b.add(new THREE.IcosahedronGeometry(1.7, 0), 0x57b368, new THREE.Matrix4().makeTranslation(0, 3.3, 0));
+    b.add(new THREE.IcosahedronGeometry(1.25, 0), 0x6cc57a, new THREE.Matrix4().makeTranslation(0.6, 4.5, 0.2));
+  }
+  return b.build();
+}
+
 function benchGeometry(): THREE.BufferGeometry {
   const b = new MeshBuilder();
   b.box(1.8, 0.08, 0.5, 0, 0.5, 0, 0x9b6b3f);
@@ -117,14 +132,45 @@ export function buildProps(world: World, vfx: Vfx): Props {
   const rng = makeRng(777);
   const lists: Record<PropType, Placement[]> = { palm: [], lamp: [], hydrant: [], bench: [], newsstand: [], trash: [] };
   const EDGE = 1.4;
+  const trees: Placement[] = [];
+  const pines: Placement[] = [];
 
   for (const lot of world.lots) {
     const { x0, x1, z0, z1, district } = lot;
-    if (district !== 'beach' || lot.i % 2 === 0) {
-      for (const [x, z, dz] of [
+    if (district === 'water') continue;
+    const lx = (x0 + x1) / 2, lz = (z0 + z1) / 2;
+    if (district !== 'forest' && (district !== 'beach' || lot.i % 2 === 0)) {
+      const corners = [
         [x0 + EDGE, z0 + EDGE, -1], [x1 - EDGE, z0 + EDGE, -1],
         [x0 + EDGE, z1 - EDGE, 1], [x1 - EDGE, z1 - EDGE, 1],
-      ] as const) lists.lamp.push({ x, z, rot: Math.atan2(-dz, 0), scale: 1 });
+      ] as const;
+      const used = district === 'park' || district === 'suburb' ? corners.slice(0, 2) : corners;
+      for (const [x, z, dz] of used) lists.lamp.push({ x, z, rot: Math.atan2(-dz, 0), scale: 1 });
+    }
+    // trees: dense in parks, along the gardens of the suburb, in the corners of the plaza
+    if (district === 'park') {
+      const n = 10 + Math.floor(rng() * 7);
+      for (let k = 0; k < n; k++) {
+        const x = x0 + 3 + rng() * (x1 - x0 - 6), z = z0 + 3 + rng() * (z1 - z0 - 6);
+        if (Math.abs(x - lx) < 2.8 || Math.abs(z - lz) < 2.8) continue; // keep the footpaths clear
+        (rng() < 0.4 ? pines : trees).push({ x, z, rot: rng() * 6.28, scale: 0.8 + rng() * 0.6 });
+      }
+    } else if (district === 'suburb') {
+      const n = 3 + Math.floor(rng() * 4);
+      for (let k = 0; k < n; k++) {
+        const side = k % 2 === 0;
+        const x = x0 + 3 + rng() * (x1 - x0 - 6), z = side ? z0 + 2.2 : z1 - 2.2;
+        (rng() < 0.3 ? pines : trees).push({ x, z, rot: rng() * 6.28, scale: 0.8 + rng() * 0.5 });
+      }
+    } else if (district === 'forest') {
+      const n = Math.floor(((x1 - x0) * (z1 - z0)) / 110);
+      for (let k = 0; k < n; k++) {
+        const x = x0 + 2 + rng() * (x1 - x0 - 4), z = z0 + 2 + rng() * (z1 - z0 - 4);
+        (rng() < 0.65 ? pines : trees).push({ x, z, rot: rng() * 6.28, scale: 0.8 + rng() * 0.7 });
+      }
+      continue;
+    } else if (district === 'plaza') {
+      for (const [x, z] of [[x0 + 4, z0 + 4], [x1 - 4, z0 + 4], [x0 + 4, z1 - 4], [x1 - 4, z1 - 4]] as const) trees.push({ x, z, rot: rng() * 6.28, scale: 1 });
     }
     const palmSpacing = district === 'beach' ? 8 : district === 'oldtown' ? 12 : district === 'downtown' ? 18 : 0;
     if (palmSpacing > 0) {
@@ -139,13 +185,18 @@ export function buildProps(world: World, vfx: Vfx): Props {
         }
       }
     }
-    const hCount = district === 'oldtown' ? 3 : district === 'harbor' ? 0 : district === 'beach' ? 1 : 2;
+    const hCount = district === 'oldtown' ? 3 : district === 'harbor' || district === 'park' || district === 'plaza' ? 0 : district === 'beach' || district === 'suburb' ? 1 : 2;
     for (let n = 0; n < hCount; n++) {
       const top = rng() < 0.5;
       lists.hydrant.push({ x: x0 + 4 + rng() * (x1 - x0 - 8), z: top ? z0 + EDGE + 0.4 : z1 - EDGE - 0.4, rot: rng() * Math.PI * 2, scale: 1 });
     }
     // benches along the road-facing edges (packed in Old Town for combos)
-    const bCount = district === 'oldtown' ? 3 : district === 'harbor' ? 0 : 1;
+    if (district === 'park') {
+      for (let n = 0; n < 3; n++) lists.bench.push({ x: lx + (n - 1) * 8, z: lz + 2.6, rot: 0, scale: 1 });
+    } else if (district === 'plaza') {
+      for (const [x, z, rot] of [[lx - 7.5, lz, Math.PI / 2], [lx + 7.5, lz, -Math.PI / 2], [lx, lz - 7.5, 0], [lx, lz + 7.5, Math.PI]] as const) lists.bench.push({ x, z, rot, scale: 1 });
+    }
+    const bCount = district === 'park' || district === 'plaza' || district === 'suburb' ? 0 : district === 'oldtown' ? 3 : district === 'harbor' ? 0 : 1;
     for (let n = 0; n < bCount; n++) {
       const top = n % 2 === 0;
       lists.bench.push({
@@ -194,6 +245,10 @@ export function buildProps(world: World, vfx: Vfx): Props {
     return mesh;
   };
   (Object.keys(lists) as PropType[]).forEach((k) => { meshes[k] = instance(geos[k], mat, lists[k], true); });
+  instance(treeGeometry(false), mat, trees, true);
+  instance(treeGeometry(true), mat, pines, true);
+  for (const p of trees) world.circles.push({ x: p.x, z: p.z, r: 0.55 });
+  for (const p of pines) world.circles.push({ x: p.x, z: p.z, r: 0.55 });
   const lampHeadMaterial = new THREE.MeshStandardMaterial({ color: 0xfff1c9, emissive: 0xffe2a0, emissiveIntensity: 0.2, flatShading: true });
   const lampHeads = instance(lampHeadGeometry(), lampHeadMaterial, lists.lamp, false);
 

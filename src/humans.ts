@@ -104,7 +104,7 @@ export class Humans {
   private time = 0;
 
   constructor(private world: World, private hooks: HumanHooks) {
-    this.walkLots = world.lots.filter((l) => l.district !== 'harbor');
+    this.walkLots = world.lots.filter((l) => l.district !== 'harbor' && l.district !== 'water');
     this.group.add(this.renderer.group);
     for (let i = 0; i < N; i++) {
       const h = new Human(i);
