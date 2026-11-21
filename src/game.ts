@@ -646,7 +646,7 @@ export class Game {
       else if (this.deskNear(room)) this.deskAction(room);
       else if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shopAction(room);
     }
-    this.input.gunOut = false; this.cameraRig.aimMode = 0; this.guns.aimPoint = null; this.hud.setCrosshair(false);
+    this.input.gunOut = false; this.cameraRig.aimMode = 0; this.guns.aimPoint = null; this.hud.setCrosshair(false); this.hud.setLockOn(false); this.hud.setGunOut(false);
     this.hud.setPrompt(this.state === 'play' ? this.insidePrompt(room) : null);
     this.progress.tick(dt);
     this.updateLights();
@@ -1018,17 +1018,28 @@ export class Game {
     // ---- player control
     const playing = this.state === 'play';
     const look = input.takeLook();
-    // aiming: with a gun out the crosshair sits in the middle of the screen, the camera tightens over the shoulder,
-    // and the body keeps facing where the camera points (sprinting lowers the gun)
+    // Aiming has two switches. AIM (right mouse, X, left trigger, the AIM button) puts the crosshair in the middle of the screen, tightens
+    // the camera over the shoulder and keeps the body facing where the camera points. AUTO (B, D-pad down, the AUTO button) locks on to the
+    // closest hostile in range, behind you too. With both off you walk and run normally. Sprinting lowers the gun.
+    const pl0 = this.humans.player;
     const gun = this.onFoot && !this.inside && !this.climb && this.state === 'play' ? this.guns.current() : null;
     input.gunOut = this.onFoot && !!this.guns.current();
-    const aiming = !!gun && !input.nitro && this.humans.player.hp > 0;
-    this.cameraRig.aimMode = aiming ? (input.aimHeld ? 2 : 1) : 0;
-    const zoomed = aiming && input.aimHeld;
-    if (this.onFoot) this.cameraRig.applyLook(look.x * (zoomed ? 0.6 : 1), look.y * (zoomed ? 0.6 : 1));
-    if (aiming) { this.humans.player.aimT = Math.max(this.humans.player.aimT, 0.3); this.humans.player.aimYaw = this.cameraRig.moveYaw; }
-    else if (gun && input.nitro) this.humans.player.aimT = 0;
-    this.updateCrosshair(aiming ? gun : null, zoomed);
+    if (gun) {
+      if (input.wasPressed('KeyX') || input.wasPressed('AimToggle')) { this.aimOn = !this.aimOn; this.hud.toast(this.aimOn ? bi('Aim on', '조준 켜짐') : bi('Aim off', '조준 꺼짐'), 900); }
+      if (input.wasPressed('KeyB') || input.wasPressed('AutoToggle')) {
+        this.autoAim = !this.autoAim;
+        try { localStorage.setItem('smashtown.autoaim', this.autoAim ? '1' : '0'); } catch { /* ignore */ }
+        this.hud.toast(this.autoAim ? bi('Auto-aim on', '자동 조준 켜짐') : bi('Auto-aim off', '자동 조준 꺼짐'), 900);
+      }
+    }
+    const lowered = input.nitro || pl0.hp <= 0;
+    const manual = !!gun && this.aimOn && !lowered;
+    const auto = !!gun && this.autoAim && !manual && !lowered;
+    this.cameraRig.aimMode = manual ? 1 : 0;
+    if (this.onFoot) this.cameraRig.applyLook(look.x * (manual ? 0.85 : 1), look.y * (manual ? 0.85 : 1));
+    if (manual) { pl0.aimT = Math.max(pl0.aimT, 0.3); pl0.aimYaw = this.cameraRig.moveYaw; }
+    else if (gun && input.nitro) pl0.aimT = 0;
+    this.updateCrosshair(gun, manual, auto);
     for (const v of this.vehicles) {
       switch (v.ai) {
         case 'player':
@@ -1095,7 +1106,7 @@ export class Game {
     this.hud.setStoryProgress(this.story.progressText());
     this.hud.setTelemetryVisible(!!d);
     this.hud.setFootMode(this.onFoot, pl.weapon, this.humans.ownedFlags());
-    this.hud.setAmmo(this.onFoot ? this.guns.hudText() : null);
+    this.hud.setAmmo(this.onFoot && this.guns.hudText() ? `${this.guns.hudText()}${this.aimOn ? ' \u00B7 AIM' : ''}${this.autoAim ? ' \u00B7 AUTO' : ''}` : null);
     this.hud.setReloadButton(this.onFoot && this.guns.needsReload());
     this.hud.setPlayerHp(Math.max(0, pl.hp / pl.maxHp));
     this.hud.setWantedBanner(this.stars > 0);
@@ -1134,16 +1145,41 @@ export class Game {
   }
 
   /** The crosshair: where it points, how open it is (moving and firing widen it), red over a hostile. */
-  private updateCrosshair(gun: GunDef | null, zoomed: boolean): void {
-    if (!gun) { this.guns.aimPoint = null; this.hud.setCrosshair(false); return; }
-    this.guns.updateAim();
-    const ap = this.guns.aimPoint!;
+  private updateCrosshair(gun: GunDef | null, manual: boolean, auto: boolean): void {
+    this.hud.setGunOut(this.onFoot && !!this.guns.current());
+    this.hud.setAimButtons(this.aimOn, this.autoAim);
     const pl = this.humans.player;
-    const base: Record<GunId, number> = { pistol: 6, smg: 12, shotgun: 24, rocket: 18, paint: 10, grenade: 20 };
-    const gap = (base[gun.id] + Math.min(14, pl.speed * 1.8) + pl.recoil * 10) * (zoomed ? 0.65 : 1);
-    const round = gun.id === 'shotgun' || gun.id === 'rocket' || gun.id === 'grenade';
-    this.hud.setCrosshair(true, gap, ap.hostile, round, gun.id === 'rocket' && ap.heli, zoomed);
+    if (gun && manual) {
+      this.guns.updateAim();
+      const ap = this.guns.aimPoint!;
+      const base: Record<GunId, number> = { pistol: 6, smg: 12, shotgun: 24, rocket: 18, paint: 10, grenade: 20 };
+      const gap = base[gun.id] + Math.min(14, pl.speed * 1.8) + pl.recoil * 10;
+      const round = gun.id === 'shotgun' || gun.id === 'rocket' || gun.id === 'grenade';
+      this.hud.setCrosshair(true, gap, ap.hostile, round, gun.id === 'rocket' && ap.heli, false);
+      this.hud.setLockOn(false);
+      return;
+    }
+    this.hud.setCrosshair(false);
+    if (gun && auto) {
+      this.guns.updateAutoAim(Math.min(35, gun.range * 0.7));
+      const ap = this.guns.aimPoint;
+      if (ap) {
+        // turn to the target, even if it is behind you, and show the lock-on box over it
+        pl.aimT = Math.max(pl.aimT, 0.3);
+        pl.aimYaw = Math.atan2(ap.x - pl.x, ap.z - pl.z);
+        const v = this.autoV.set(ap.x, ap.y, ap.z).project(this.cameraRig.camera);
+        const onScreen = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
+        this.hud.setLockOn(onScreen, (v.x * 0.5 + 0.5) * window.innerWidth, (-v.y * 0.5 + 0.5) * window.innerHeight);
+        return;
+      }
+    } else this.guns.aimPoint = null;
+    this.hud.setLockOn(false);
   }
+  private autoV = new THREE.Vector3();
+
+  /** Aim switches (see update): manual aim starts off each session, auto-aim is remembered. */
+  aimOn = false;
+  autoAim = (() => { try { return localStorage.getItem('smashtown.autoaim') === '1'; } catch { return false; } })();
 
   /** Street pickups: health, armor, cash, burger stands. */
   private updatePickups(dt: number): void {

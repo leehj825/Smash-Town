@@ -201,6 +201,8 @@ export class Hud {
     });
   }
 
+  /** Whether a gun is out (shows the touch AIM / AUTO buttons). */
+  setGunOut(on: boolean): void { document.body.classList.toggle('gun-out', on); }
   setAmmo(text: string | null): void {
     const el = document.getElementById('ammo')!;
     el.hidden = !text;
@@ -218,13 +220,24 @@ export class Hud {
   setCrosshair(show: boolean, gap = 8, hostile = false, round = false, lock = false, zoom = false): void {
     const el = document.getElementById('crosshair')!;
     if (el.hidden !== !show) el.hidden = !show;
-    document.body.classList.toggle('gun-out', show);
     if (!show) return;
     el.style.setProperty('--gap', `${Math.round(gap)}px`);
     el.classList.toggle('hostile', hostile);
     el.classList.toggle('round', round);
     el.classList.toggle('lock', lock);
     el.classList.toggle('zoom', zoom);
+  }
+  /** Auto-aim: a red box over the chosen target at screen position (x, y) in pixels. */
+  setLockOn(show: boolean, x = 0, y = 0): void {
+    const el = document.getElementById('lockon')!;
+    if (el.hidden !== !show) el.hidden = !show;
+    if (show) { el.style.left = `${Math.round(x)}px`; el.style.top = `${Math.round(y)}px`; }
+    document.body.classList.toggle('gun-out', show || document.body.classList.contains('gun-out'));
+  }
+  /** The touch AIM and AUTO buttons light up while on. */
+  setAimButtons(aim: boolean, auto: boolean): void {
+    document.getElementById('btn-aim')?.classList.toggle('on', aim);
+    document.getElementById('btn-auto')?.classList.toggle('on', auto);
   }
   /** A bullet hit something: the crosshair flashes yellow for a moment. */
   hitMarker(): void {

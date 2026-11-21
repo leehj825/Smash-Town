@@ -28,7 +28,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     const clip = (a) => S((a) => {
       const G = g(); const pl = G.humans.player;
       // with a gun out the body always faces where the camera points: point the camera along +z
-      G.humans.equip(a.w); pl.heading = 0; pl.aimYaw = 0; pl.aimT = a.aim ? 99 : 0; G.cameraRig.footYaw = 0;
+      G.humans.equip(a.w); G.aimOn = true; G.autoAim = false; pl.heading = 0; pl.aimYaw = 0; pl.aimT = a.aim ? 99 : 0; G.cameraRig.footYaw = 0;
       pl.vx = pl.vz = 0; G.state = 'play';
       for (let i = 0; i < 12; i++) { pl.mvx = a.mx || 0; pl.mvz = a.mz || 0; G.update(1 / 60); }
       return pl.anim.clipName;
@@ -47,7 +47,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
 
     // facing: a raised gun turns the body to the aim while you move sideways
     const face = await S(() => {
-      const G = g(); const pl = G.humans.player; G.humans.equip(4); pl.heading = 0; G.cameraRig.footYaw = 1;
+      const G = g(); const pl = G.humans.player; G.humans.equip(4); G.aimOn = true; pl.heading = 0; G.cameraRig.footYaw = 1;
       for (let i = 0; i < 40; i++) { pl.mvx = 0; pl.mvz = 4.8; G.update(1 / 60); }
       return { heading: Math.round(pl.heading * 10) / 10, blend: Math.round(pl.aimBlend * 10) / 10 };
     });

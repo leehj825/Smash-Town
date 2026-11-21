@@ -26,7 +26,7 @@ export class Input implements ControlState {
   onPadChange: ((active: boolean) => void) | null = null;
   private pad = { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, a: false, x: false, rb: false, lb: false, lsClick: false };
   private mouseDown = false;
-  private rightDown = false;
+  private prevLt = 0;
   /** Set by the game: a gun is in the player's hand on foot (right mouse and the left trigger then aim instead of kicking / sprinting). */
   gunOut = false;
   private prevBtn: boolean[] = [];
@@ -43,13 +43,14 @@ export class Input implements ControlState {
     canvas.addEventListener('mousedown', (e) => {
       this.setPadActive(false);
       if (e.button === 0) { this.pressed.add('Attack'); this.mouseDown = true; }
-      if (e.button === 2) { this.rightDown = true; if (!this.gunOut) this.pressed.add('Kick'); }
+      // right click: kick with fists, switch aiming on / off with a gun out
+      if (e.button === 2) this.pressed.add(this.gunOut ? 'AimToggle' : 'Kick');
       // capture the mouse on first click for orbiting (Esc releases it)
       if (e.button === 0 && !document.pointerLockElement && !document.body.classList.contains('is-touch')) {
         try { void canvas.requestPointerLock?.(); } catch { /* optional */ }
       }
     });
-    window.addEventListener('mouseup', (e) => { if (e.button === 0) this.mouseDown = false; if (e.button === 2) this.rightDown = false; });
+    window.addEventListener('mouseup', (e) => { if (e.button === 0) this.mouseDown = false; });
     window.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement === canvas) { this.lookX += e.movementX; this.lookY += e.movementY; }
       else if (e.buttons & 4) { this.lookX += e.movementX; this.lookY += e.movementY; } // middle-drag orbit
@@ -90,7 +91,7 @@ export class Input implements ControlState {
       this.down.add(code);
     });
     window.addEventListener('keyup', (e) => this.down.delete(canonical(e.code)));
-    window.addEventListener('blur', () => { this.down.clear(); this.mouseDown = false; this.rightDown = false; });
+    window.addEventListener('blur', () => { this.down.clear(); this.mouseDown = false; });
   }
 
   private any(...codes: string[]): boolean {
@@ -140,10 +141,6 @@ export class Input implements ControlState {
     // gamepad: RB boosts the car; on foot LT or a left-stick click sprints
     // with a gun out the left trigger aims, so only a left-stick click sprints
     return this.mode === 'car' ? this.pad.rb : (!this.gunOut && this.pad.lt > 0.5) || this.pad.lsClick;
-  }
-  /** Zoom held: right mouse, the touch AIM button, or the left trigger (only with a gun out). */
-  get aimHeld(): boolean {
-    return this.gunOut && (this.rightDown || this.virtual.has('aim') || (this.mode === 'foot' && !this.menu && this.pad.lt > 0.5));
   }
   /** Fire button held: left mouse, the touch HIT button, RT or X on a gamepad (used by automatic guns). */
   get fireHeld(): boolean {
@@ -210,6 +207,9 @@ export class Input implements ControlState {
     P.a = held(0); P.x = held(2); P.rb = held(5); P.lb = held(4); P.lsClick = held(10);
 
     const foot = this.mode === 'foot' && !this.menu;
+    // left trigger: a press switches aiming on / off (it is the sprint trigger only while no gun is out)
+    if (foot && P.lt > 0.5 && this.prevLt <= 0.5) this.pressed.add('AimToggle');
+    this.prevLt = P.lt;
     const now: boolean[] = [];
     for (let i = 0; i < 16; i++) now[i] = held(i);
     const edge = (i: number) => now[i] && !this.prevBtn[i];
@@ -226,7 +226,7 @@ export class Input implements ControlState {
     if (edge(9)) { add('Escape'); add('Enter'); }
     if (edge(11)) add('KeyM');
     if (edge(12)) { add('PadUp'); if (!this.menu) add('KeyT'); }
-    if (edge(13)) add('PadDown');
+    if (edge(13)) { add('PadDown'); if (foot) add('AutoToggle'); }
     if (edge(14)) { add('PadLeft'); if (foot) add('WheelDown'); }
     if (edge(15)) { add('PadRight'); if (foot) add('WheelUp'); }
     this.prevBtn = now;

@@ -32,27 +32,48 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     await S(() => g().enterExit()); await p.waitForTimeout(600);
     await S(() => { g().humans.equip(0); }); await frames(3);
     ok(!(await shown()), 'no crosshair with fists');
-    await S(() => { g().humans.equip(4); }); await frames(3);
-    ok(await shown(), 'crosshair with a gun in hand');
+    await S(() => { g().humans.equip(4); g().aimOn = false; g().autoAim = false; }); await frames(3);
+    ok(!(await shown()), 'a gun out does not show the crosshair until aiming is switched on');
+    await S(() => g().input.tap('AimToggle')); await frames(3);
+    ok(await shown() && (await S(() => g().aimOn)), 'the AIM button switches aiming on (a toggle)');
+    await S(() => g().input.tap('AimToggle')); await frames(3);
+    ok(!(await shown()), 'pressing it again switches aiming off');
+    await S(() => { window.__tog = []; const set = g().input.pressed; if (!set.__spy2) { const add = set.add.bind(set); set.add = (c) => { if (c === 'AimToggle') window.__tog.push(c); return add(c); }; set.__spy2 = true; } });
+    await p.mouse.move(400, 240); await p.mouse.down({ button: 'right' }); await p.mouse.up({ button: 'right' });
+    ok((await S(() => window.__tog.length)) === 1, 'right click is the aim toggle with a gun out');
+    await frames(3);
+    await S(() => { if (!g().aimOn) g().input.tap('AimToggle'); }); await frames(3);
+    await p.keyboard.press('KeyX'); await p.waitForTimeout(200);
+    ok(!(await S(() => g().aimOn)), 'X switches aiming off as well');
+    await S(() => { g().aimOn = true; }); await frames(3);
+    ok(await shown(), 'crosshair with a gun in hand and aiming on');
 
     // zoom: right mouse, the AIM button or the left trigger tighten the camera
     const fov = await S(() => {
       const G = g(); const cam = window.__smash.camera; const out = {};
-      G.input.setVirtual('aim', false); for (let i = 0; i < 90; i++) { G.update(1 / 60); G.cameraRig.update(1 / 60, G.followable); } out.aim = cam.fov;
-      G.input.setVirtual('aim', true); for (let i = 0; i < 90; i++) { G.update(1 / 60); G.cameraRig.update(1 / 60, G.followable); } out.zoom = cam.fov;
-      G.input.setVirtual('aim', false); G.humans.equip(0); for (let i = 0; i < 120; i++) { G.update(1 / 60); G.cameraRig.update(1 / 60, G.followable); } out.fists = cam.fov;
+      G.aimOn = true; for (let i = 0; i < 90; i++) { G.update(1 / 60); G.cameraRig.update(1 / 60, G.followable); } out.aim = cam.fov;
+      G.aimOn = false; for (let i = 0; i < 90; i++) { G.update(1 / 60); G.cameraRig.update(1 / 60, G.followable); } out.zoom = cam.fov;
+      G.humans.equip(0); for (let i = 0; i < 120; i++) { G.update(1 / 60); G.cameraRig.update(1 / 60, G.followable); } out.fists = cam.fov;
       G.humans.equip(4);
       return out;
     });
-    ok(fov.zoom < fov.aim - 3 && fov.aim < fov.fists - 2, 'the camera tightens when a gun is out and zooms when aiming', JSON.stringify(fov));
+    ok(fov.aim < fov.zoom - 3 && Math.abs(fov.zoom - fov.fists) < 1.5, 'the camera tightens only while aiming is on; off, it is the ordinary camera', JSON.stringify(fov));
 
     // the body keeps facing where the camera points, even when walking sideways
     const face = await S(() => {
-      const G = g(); const pl = G.humans.player; G.humans.equip(4); G.cameraRig.footYaw = 1.2; pl.heading = 0;
+      const G = g(); const pl = G.humans.player; G.humans.equip(4); G.aimOn = true; G.cameraRig.footYaw = 1.2; pl.heading = 0;
       for (let i = 0; i < 40; i++) { pl.mvx = 3; pl.mvz = 0; G.update(1 / 60); }
       return Math.round(pl.heading * 10) / 10;
     });
     ok(face === 1.2, 'the body faces the camera direction', String(face));
+    // aiming off: you walk and run normally, the body turns with the movement
+    const normal = await S(() => {
+      const G = g(); const pl = G.humans.player; G.aimOn = false; G.autoAim = false; G.cameraRig.footYaw = 0; pl.heading = 0; pl.aimT = 0;
+      for (let i = 0; i < 40; i++) { pl.mvx = 4.5; pl.mvz = 0; G.update(1 / 60); }
+      return { heading: Math.round(pl.heading * 10) / 10, clip: pl.anim.clipName };
+    });
+    ok(Math.abs(normal.heading - 1.6) < 0.15 && normal.clip === 'proRunF', 'with aiming off the body turns with the movement and runs forward', JSON.stringify(normal));
+    await S(() => { g().aimOn = true; });
     // sprinting lowers the gun: the crosshair goes and the body turns with the movement
     const sprint = await S(() => {
       const G = g(); const orig = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(G.input), 'nitro');
@@ -133,6 +154,44 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     });
     ok(heli.seen && heli.hp < 100 && !heli.off, 'bullets wear down the helicopter when the crosshair is on it', JSON.stringify(heli));
 
+    // auto-aim: locks on to the closest hostile in range, behind you too
+    const autoRes = await S(() => {
+      const G = g(); const pl = G.humans.player; const gs = G.guns; const sp = G.world.spawn;
+      const fx = Math.sin(sp.heading), fz = Math.cos(sp.heading), rx = Math.cos(sp.heading), rz = -Math.sin(sp.heading);
+      G.humans.setPlayerActive(true, sp.x, sp.z, sp.heading); G.onFoot = true;
+      for (const v of G.vehicles) if (Math.hypot(v.x - sp.x, v.z - sp.z) < 90) v.ctrl.position.x += 900;
+      G.humans.equip(3); G.aimOn = false; G.autoAim = true; G.input.padActive = false;
+      gs.cool = 0; gs.reloading = null; gs.mag.pistol = 12; pl.hp = pl.maxHp;
+      const cops = G.humans.list.filter((h) => h !== pl).slice(0, 3);
+      for (const c of cops) { c.active = true; c.role = 1; c.state = 0; c.ko = false; c.leaving = false; c.hp = 100; c.invuln = 0; c.y = 0.1; }
+      const put = (c, f, r) => { c.x = pl.x + fx * f + rx * r; c.z = pl.z + fz * f + rz * r; };
+      put(cops[0], -10, 0.5); put(cops[1], 22, 0); put(cops[2], 70, 0);   // behind and close, ahead and further, far away
+      const out = {};
+      G.cameraRig.footYaw = sp.heading; pl.heading = sp.heading;
+      for (let i = 0; i < 60; i++) G.update(1 / 60);
+      const ap = gs.aimPoint;
+      out.locked = !!ap && ap.auto === true;
+      out.closest = !!ap && Math.hypot(ap.x - cops[0].x, ap.z - cops[0].z) < 1;
+      let d = Math.abs(Math.atan2(Math.sin(pl.heading - (sp.heading + Math.PI)), Math.cos(pl.heading - (sp.heading + Math.PI))));
+      out.turned = Math.round(d * 100) / 100;
+      const before = cops[0].hp; const farBefore = cops[1].hp;
+      gs.update(0.016, false, true);
+      out.hit = cops[0].hp < before; out.otherHit = cops[1].hp < farBefore;
+      // out of range: only the far cop is left, 70 m away
+      put(cops[0], 400, 0); put(cops[1], 400, 3);
+      for (let i = 0; i < 5; i++) G.update(1 / 60);
+      out.none = G.guns.aimPoint === null;
+      // manual aim wins over auto-aim
+      G.aimOn = true; put(cops[0], -10, 0.5);
+      for (let i = 0; i < 5; i++) G.update(1 / 60);
+      out.manualWins = !G.guns.aimPoint || !G.guns.aimPoint.auto;
+      G.aimOn = false; G.autoAim = false;
+      for (const c of cops) c.x += 700;
+      return out;
+    });
+    ok(autoRes.locked && autoRes.closest && autoRes.turned < 0.2, 'auto-aim picks the closest hostile, even behind you, and turns to face it', JSON.stringify(autoRes));
+    ok(autoRes.hit && !autoRes.otherHit, 'a shot with auto-aim goes to the locked target', JSON.stringify(autoRes));
+    ok(autoRes.none && autoRes.manualWins, 'no target out of range; manual aiming takes priority', JSON.stringify(autoRes));
     // right mouse zooms with a gun out and kicks with fists
     const kick = [];
     for (const w of [4, 0]) {

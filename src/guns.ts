@@ -56,7 +56,7 @@ export class Guns {
   private rockets: Rocket[] = [];
   private grenades: Grenade[] = [];
   /** Where the crosshair points right now (null when not aiming): the first thing the camera ray meets. */
-  aimPoint: { x: number; y: number; z: number; t: number; hostile: boolean; heli: boolean } | null = null;
+  aimPoint: { x: number; y: number; z: number; t: number; hostile: boolean; heli: boolean; auto?: boolean } | null = null;
   /** A thrown grenade leaves the hand part-way into the throw clip. */
   private pendingThrow: { t: number; dx: number; dz: number } | null = null;
   private flash: THREE.PointLight;
@@ -269,11 +269,47 @@ export class Guns {
   }
   private camDir = new THREE.Vector3();
 
+  /**
+   * Auto-aim: the closest hostile (a cop on foot, a police car, the helicopter) within `range` with a clear line of fire, in any
+   * direction (behind you too). The result is an aim point like the crosshair's, so shooting treats both the same.
+   */
+  updateAutoAim(range: number): void {
+    const G = this.game;
+    const pl = G.humans.player;
+    const cands: { x: number; y: number; z: number; d: number; heli: boolean }[] = [];
+    for (const h of G.humans.list) {
+      if (!h.active || h.role !== Role.Cop || h.state === St.Down || h.state === St.Dead || h.ko || h.leaving) continue;
+      const d = Math.hypot(h.x - pl.x, h.z - pl.z);
+      if (d < range && d > 1) cands.push({ x: h.x, y: h.y + 1.0, z: h.z, d, heli: false });
+    }
+    for (const v of G.vehicles) {
+      if (!v.isPolice || v.ctrl.wrecked || v === G.driving) continue;
+      const d = Math.hypot(v.x - pl.x, v.z - pl.z);
+      if (d < range && d > 2) cands.push({ x: v.x, y: 0.9, z: v.z, d, heli: false });
+    }
+    const hc = G.heli;
+    if (hc.active) {
+      const d = hc.distTo(pl.x, pl.z);
+      if (d < range + 10) cands.push({ x: hc.x, y: hc.y, z: hc.z, d, heli: true });
+    }
+    cands.sort((a, b) => a.d - b.d);
+    this.aimPoint = null;
+    for (const c of cands.slice(0, 6)) {
+      if (!c.heli) {
+        const dx = (c.x - pl.x) / c.d, dz = (c.z - pl.z) / c.d;
+        // a wall, prop or car in the way: not a clear shot
+        if (this.trace(pl.x, pl.z, dx, dz, c.d - 0.8, G.driving, 1.4, (c.y - 1.4) / c.d)) continue;
+      }
+      this.aimPoint = { x: c.x, y: c.y, z: c.z, t: c.d, hostile: true, heli: c.heli, auto: true };
+      return;
+    }
+  }
+
   private aim(): { dx: number; dz: number } {
     const G = this.game;
     const pl = G.humans.player;
     // keyboard and mouse aim exactly where the crosshair points: the shot goes from the gun to the point under the crosshair
-    if (this.aimPoint && !G.input.padActive && !document.body.classList.contains('is-touch')) {
+    if (this.aimPoint && (this.aimPoint.auto || (!G.input.padActive && !document.body.classList.contains('is-touch')))) {
       const ox = pl.x, oz = pl.z;
       const dx = this.aimPoint.x - ox, dz = this.aimPoint.z - oz;
       const L = Math.hypot(dx, dz);
@@ -347,7 +383,7 @@ export class Guns {
     const base = Math.atan2(aim.dx, aim.dz);
     // the bullet climbs or falls from the gun to the point under the crosshair
     const apt = this.aimPoint;
-    const slope = apt && !G.input.padActive && !document.body.classList.contains('is-touch') ? (apt.y - 1.4) / Math.max(2, Math.hypot(apt.x - ox, apt.z - oz)) : 0;
+    const slope = apt && (apt.auto || (!G.input.padActive && !document.body.classList.contains('is-touch'))) ? (apt.y - 1.4) / Math.max(2, Math.hypot(apt.x - ox, apt.z - oz)) : 0;
     for (let i = 0; i < g.pellets; i++) {
       const a = base + (Math.random() - 0.5) * 2 * g.spread;
       const dx = Math.sin(a), dz = Math.cos(a);
