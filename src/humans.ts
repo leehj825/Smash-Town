@@ -109,6 +109,7 @@ export class Humans {
     this.player.role = Role.Player;
     this.player.look = { shirt: 0xd93636, pants: 0x2a4a8a, skin: 0xe0ac69, shoe: 0xffffff, hair: 0x2a1a10, cap: false };
     this.player.weapon = 0;
+    this.player.atkScale = 0.75; // punches, kicks and swings play ~30 % slower than the raw GDD frame data
     this.renderer.setLook(0, this.player.look); // bright red hoodie, jeans, white sneakers
     for (let i = COP_LAST + 1; i < N; i++) this.initCivilian(this.list[i]);
     const baton = new THREE.CylinderGeometry(0.04, 0.04, 0.7, 6).rotateZ(Math.PI / 2);
@@ -767,7 +768,7 @@ export class Humans {
     }
     const speed = h.speed;
     if (speed < 0.4) {
-      this.selName = civ ? 'idleCalm' : h.role === Role.Cop ? 'idleAlert' : 'idle';
+      this.selName = civ ? 'idleCalm' : h.role === Role.Cop ? 'idleAlert' : h.weapon > 0 ? 'idle' : 'idleEase';
       h.clipU += dt / CLIPS[this.selName].d;
       this.selU = h.clipU;
       return;
@@ -778,7 +779,9 @@ export class Humans {
     const run = speed > 3.0 || (civ && h.fleeing);
     let name: string;
     if (civ || (Math.abs(left) < Math.abs(fwd) * 0.9 && fwd >= 0) || h.mvx * h.mvx + h.mvz * h.mvz < 0.01) {
-      name = civ ? (run ? 'runCalm' : 'walkCalm') : run ? 'run' : 'walk';
+      // unarmed characters (player with fists, civilians) use the relaxed Calm clips; armed ones the combat stance
+      const calm = civ || (h.role === Role.Player && h.weapon === 0);
+      name = calm ? (run ? 'runCalm' : 'walkCalm') : run ? 'run' : 'walk';
     } else if (Math.abs(fwd) >= Math.abs(left) * 0.9 && fwd < 0) name = run ? 'runB' : 'walkB';
     else name = left > 0 ? (run ? 'strafeRunP' : 'strafeWalkP') : (run ? 'strafeRunN' : 'strafeWalkN');
     const nat = Humans.NATURAL[name] ?? 1.5;

@@ -189,9 +189,10 @@ export class PoliceBrain {
       return;
     }
 
-    let want = c.stats.maxSpeed;
+    // police drive at ~88 % of their top speed, so a fast car can outrun them
+    let want = c.stats.maxSpeed * 0.88;
     if (tg.onFoot) want = clamp(dist * 1.4, 0, 22);
-    else if (dist < 9) want = tg.speed + 5; // ram
+    else if (dist < 9) want = Math.min(tg.speed + 5, c.stats.maxSpeed * 0.92); // ram
     if (Math.abs(diff) > 0.9) want = Math.min(want, 16);
     ctl.throttle = c.forwardSpeed < want ? 1 : c.forwardSpeed > want + 4 ? -1 : 0;
     if (tg.onFoot && dist < 5) { ctl.throttle = 0; ctl.handbrake = true; }

@@ -322,6 +322,25 @@ Legend: ✅ done · ◐ partial · ⬜ not done. "Tested" means exercised by a s
 | Mobile touch controls | ◐ | Driving: steer arrows + gas/brake/nitro/drift. On foot: **analog left stick** (forward/back + strafe, with deadzone), KICK / DODGE / JUMP / WPN / F / HIT buttons, drag-to-orbit. Layout verified overlap-free at 667×375, 740×360, 844×390 and 915×412; not tested on a real device. |
 | Performance targets (60 fps, <100 draw calls) | ◐ | ≈100 draw calls measured with shadow pass included, ~290k triangles. Frame rate unverified. |
 
+### 9.1 Balance tuning (v3.1, from playtest feedback)
+
+Playtesting showed that once wanted, too many police arrived and escaping was nearly impossible. Changes:
+
+| Area | Before | Now |
+| :--- | :--- | :--- |
+| Heat per star | 25 / 70 / 130 / 210 / 320 | 30 / 90 / 170 / 270 / 400 |
+| Heat from a smashed prop / hit pedestrian / hit civilian car / hijack | +6 / +25 / +15 / +25 | +3 / +15 / +10 / +20 |
+| Police cars by stars (1→5) | 1 · 3 · 4 · 6 · 8 | 1 · 2 · 3 · 4 · 6 |
+| Reinforcements | a new car every 1.4 s, 80–170 m away, always replenished | one every 4 s (first after 3 s), 110–220 m away, **none while you are evading** |
+| Police speed | 100 % of top speed | 88 % of top speed (a fast car can outrun them; ramming capped at 92 %) |
+| Giving up | cars far away teleported back near the player | cars left more than 190 m behind are removed |
+| Roadblocks (3★+) | up to 2, every 12 s | 1, every 25 s |
+| Losing the heat | out of sight (>60 m) for 6 s, −14 heat/s | out of sight (>85 m) for 4 s, −22 heat/s |
+| Busted (stopped with a cop within 7.5 m) | 2.2 s | 3.0 s |
+| Foot cops by stars (1→5) | 2 · 4 · 5 · 6 · 7 | 1 · 2 · 3 · 4 · 5 |
+| Player attack speed | GDD frame data | ~30 % slower (all wind-up / active / recovery times ×1.33); cops were already slower to telegraph |
+| Unarmed locomotion | `walk` / `run` / `idle` | `walkCalm` / `runCalm` / `idleEase`; armed characters keep the combat stance clips |
+
 ## 10. Known Gaps & Technical Debt
 
 1. **No automated tests.** Verification so far is ad-hoc Playwright scripts. → proposal 8.5.
