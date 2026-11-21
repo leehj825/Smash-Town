@@ -17,6 +17,8 @@ export interface Room {
   ox: number; oz: number;
   counter: { x: number; z: number };
   exit: { x: number; z: number };
+  /** The ledger desk where you buy or collect income from this shop (donut, motel, arcade only). */
+  desk?: { x: number; z: number };
   light: THREE.PointLight;
   beacon: Beacon;
 }
@@ -57,6 +59,8 @@ export class Interiors {
       }
       // a rug at the door and a themed machine
       b.box(3, 0.04, 1.6, ox, 0.03, oz + D / 2 - 1.2, 0x884444);
+      const ownable = d.id === 'donut' || d.id === 'motel' || d.id === 'arcade';
+      if (ownable) { b.box(1.9, 0.95, 0.9, ox + 4.6, 0.48, oz - 3.8, 0x3b3f55); b.box(0.7, 0.08, 0.5, ox + 4.6, 1.0, oz - 3.8, 0xffd23a); }
       if (d.id === 'arcade') for (let i = 0; i < 4; i++) b.box(1.0, 2.0, 0.9, ox - 4.5 + i * 3, 1.0, oz + 2.8, [0xff4d6d, 0x35e0ff, 0xffd23a, 0x7dff6a][i]);
       if (d.id === 'motel') b.box(2.2, 0.7, 3.4, ox + 4.5, 0.35, oz + 2, 0xf4f4f4);
       if (d.id === 'clothes') for (let i = 0; i < 4; i++) b.box(0.7, 1.8, 0.5, ox - 4.5 + i * 3, 0.9, oz + 2.8, [0xd93636, 0x3b82f6, 0x2fb87a, 0xf2a73b][i]);
@@ -72,11 +76,12 @@ export class Interiors {
       wall(ox - W / 2 - T, ox - W / 2, oz - D / 2, oz + D / 2);
       wall(ox + W / 2, ox + W / 2 + T, oz - D / 2, oz + D / 2);
       wall(ox - 3, ox + 3, oz - 3.95, oz - 2.85); // counter
+      if (ownable) wall(ox + 3.6, ox + 5.6, oz - 4.25, oz - 3.35); // desk
       const beacon = new Beacon(d.color, 3.2);
       this.group.add(beacon.group);
       this.rooms.push({
         id: d.id, en: d.en, ko: d.ko, color: d.color, css: d.css, door: { x: 0, z: 0, h: 0 },
-        ox, oz, counter: { x: ox, z: oz - 3.4 }, exit: { x: ox, z: oz + D / 2 - 0.9 }, light, beacon,
+        ox, oz, counter: { x: ox, z: oz - 3.4 }, exit: { x: ox, z: oz + D / 2 - 0.9 }, desk: ownable ? { x: ox + 4.6, z: oz - 2.6 } : undefined, light, beacon,
       });
     });
     this.placeDoors(world);

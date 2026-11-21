@@ -1,4 +1,6 @@
 import { bi, onLangChange } from './i18n';
+import type { Game } from './game';
+import { ACHIEVEMENTS, OWNABLE, dailyById, type OwnableShop, type StatKey } from './progress';
 import { ACTIONS, RESERVED, bindKey, keyFor, prettyKey, resetBinds, settings, saveSettings } from './settings';
 
 /** A full-screen panel that freezes the game while open. */
@@ -82,5 +84,47 @@ export class HowToPlay implements Modal {
       </ul>
       <button class="big small" id="howto-ok">${bi('GOT IT', '알겠어요')}</button></div>`;
     this.el.querySelector('#howto-ok')!.addEventListener('click', () => this.close());
+  }
+}
+
+const STAT_LABELS: [StatKey, string, string][] = [
+  ['smashes', 'Props smashed', '부순 물건'], ['stars', 'Golden stars', '황금 별'], ['copsKO', 'Cops knocked out', '제압한 경찰'],
+  ['gigs', 'Side jobs done', '완료한 부업'], ['quests', 'Street quests done', '완료한 거리 퀘스트'], ['earned', 'Money earned', '번 돈'],
+  ['driveM', 'Distance driven', '주행 거리'], ['roofs', 'Ladders climbed', '오른 사다리'], ['shops', 'Shop visits', '상점 방문'], ['playSec', 'Time played', '플레이 시간'],
+];
+
+/** Lifetime stats, achievements, daily challenges and owned shops. */
+export class StatsPanel implements Modal {
+  readonly el = make('stats');
+  constructor(private game: Game) { onLangChange(() => { if (this.isOpen) this.render(); }); }
+  get isOpen(): boolean { return !this.el.hidden; }
+  open(): void { this.el.hidden = false; this.render(); }
+  close(): void { this.el.hidden = true; }
+
+  private render(): void {
+    const p = this.game.progress;
+    const fmt = (k: StatKey, v: number) => k === 'earned' ? `$${Math.floor(v).toLocaleString('en-US')}` : k === 'driveM' ? `${(v / 1000).toFixed(1)} km` : k === 'playSec' ? `${Math.floor(v / 3600)}h ${Math.floor((v % 3600) / 60)}m` : String(Math.floor(v));
+    const stats = STAT_LABELS.map(([k, en, ko]) => `<div class="erow"><span>${bi(en, ko)}</span><b>${fmt(k, p.stats[k])}</b></div>`).join('');
+    const daily = p.daily.ids.map((id) => {
+      const q = dailyById(id)!;
+      const done = p.daily.done.includes(id);
+      const have = Math.min(q.target, Math.floor(p.stats[q.key] - p.daily.base[q.key]));
+      return `<div class="erow ${done ? 'done' : ''}"><span>${done ? '\u2713' : '\u25CB'} ${bi(q.en, q.ko)}</span><b>${done ? bi('done', '완료') : `${have}/${q.target} \u00B7 $${q.reward}`}</b></div>`;
+    }).join('');
+    const ach = ACHIEVEMENTS.map((a) => {
+      const done = p.ach.includes(a.id);
+      return `<div class="erow ${done ? 'done' : 'todo'}"><span>${done ? '\u2605' : '\u2606'} ${bi(a.en, a.ko)}</span><b>${done ? '' : `${Math.floor(Math.min(a.target, p.stats[a.key]))}/${a.target}`}</b></div>`;
+    }).join('');
+    const shops = (Object.keys(OWNABLE) as OwnableShop[]).map((id) => {
+      const own = p.owned.includes(id);
+      return `<div class="erow"><span>${id === 'donut' ? bi("Donna's Donuts", '도나의 도넛') : id === 'motel' ? bi('24h Motel', '24시 모텔') : bi('Arcade', '오락실')}</span><b>${own ? `$${Math.floor(p.pending[id]).toLocaleString('en-US')} ${bi('waiting', '대기 중')}` : `${bi('for sale', '판매 중')} $${OWNABLE[id].price.toLocaleString('en-US')}`}</b></div>`;
+    }).join('');
+    this.el.innerHTML = `<div class="panel wide"><h2>${bi('STATS', '기록')}</h2><div class="scroll statsbox">
+      <h3>${bi('DAILY CHALLENGES', '오늘의 도전')}</h3>${daily}
+      <h3>${bi('YOUR SHOPS', '내 가게')}</h3>${shops}
+      <h3>${bi('LIFETIME', '누적 기록')}</h3>${stats}
+      <h3>${bi('ACHIEVEMENTS', '업적')} ${p.ach.length}/${ACHIEVEMENTS.length}</h3>${ach}</div>
+      <button class="big small" id="stats-back">${bi('BACK', '뒤로')}</button></div>`;
+    this.el.querySelector('#stats-back')!.addEventListener('click', () => this.close());
   }
 }

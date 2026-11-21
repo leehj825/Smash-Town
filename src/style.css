@@ -272,3 +272,8 @@ body.foot-mode.can-reload #btn-reload { display: block; }
 /* screen fade for doors */
 #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 20; }
 #fade.on { opacity: 1; }
+
+.statsbox h3 { margin: 12px 0 4px; font-size: 11px; letter-spacing: 1.2px; color: #ffd23a; text-align: left; }
+.statsbox .erow { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 2px 0; text-align: left; }
+.statsbox .erow.done { color: #7dff9b; }
+.statsbox .erow.todo { opacity: .7; }

@@ -15,7 +15,7 @@ import { Hud } from './hud';
 import { Game } from './game';
 import { BigMap } from './bigmap';
 import { Radio } from './radio';
-import { ControlsPanel, HowToPlay, type Modal } from './overlays';
+import { ControlsPanel, HowToPlay, StatsPanel, type Modal } from './overlays';
 import { settings, saveSettings } from './settings';
 import { SAVE_KEY } from './game';
 import { setupTouch } from './touch';
@@ -79,7 +79,8 @@ const radio = new Radio(game.audio);
 game.radioDuck = (v) => radio.setDuck(v);
 const controlsPanel = new ControlsPanel();
 const howto = new HowToPlay();
-const modals: Modal[] = [controlsPanel, howto, bigmap];
+const statsPanel = new StatsPanel(game);
+const modals: Modal[] = [controlsPanel, howto, statsPanel, bigmap];
 const openModal = (): Modal | undefined => modals.find((m) => m.isOpen);
 
 // ---------------------------------------------------------------- post-processing / quality
@@ -214,6 +215,7 @@ function wireSeg(cls: 'sens' | 'fov' | 'shake'): void {
 }
 wireSeg('sens'); wireSeg('fov'); wireSeg('shake');
 document.getElementById('btn-controls')!.addEventListener('click', () => controlsPanel.open());
+document.getElementById('btn-stats')!.addEventListener('click', () => statsPanel.open());
 document.getElementById('btn-howto')!.addEventListener('click', () => howto.open());
 const newGameBtn = document.getElementById('btn-newgame')!;
 let armedTimer = 0;
@@ -330,5 +332,5 @@ frame();
 
 // Debug handle for tests and tinkering from the console.
 (window as unknown as { __smash: unknown }).__smash = {
-  game, env, hud, renderer, scene, camera, applyQuality, applyTime, startGame, bigmap, radio, get quality() { return quality; },
+  game, env, hud, renderer, scene, camera, applyQuality, applyTime, startGame, bigmap, radio, statsPanel, get quality() { return quality; },
 };

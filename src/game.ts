@@ -13,6 +13,10 @@ import { Pickups } from './pickups';
 import { Helicopter } from './heli';
 import { Interiors, type Room } from './interiors';
 import { RoofDash } from './roofdash';
+import { SideQuests } from './sidequests';
+import { Progress, type ProgressSave } from './tracker';
+import { OWNABLE, type OwnableShop } from './progress';
+import { Mood } from './mood';
 import type { Roof } from './world';
 import { GUN_ORDER, GUNS, Guns, type GunId } from './guns';
 import { BODY_KEYS, BODY_PRICES, MAX_LEVEL, NEONS, NEON_PRICE, PAINTS, PAINT_PRICE, UP_KEYS, UP_PRICES, emptyBody, emptyCar, fineFor, resprayCost, type BodyProgress, type CarProgress } from './upgrades';
@@ -28,7 +32,7 @@ import type { Vfx } from './vfx';
 import type { CircleCollider, World } from './world';
 
 export const SAVE_KEY = 'smashtown.save.v1';
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; outfit?: number }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; outfit?: number; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -80,6 +84,9 @@ export class Game {
   readonly guns: Guns;
   readonly interiors: Interiors;
   readonly roofDash: RoofDash;
+  readonly sideQuests: SideQuests;
+  readonly progress: Progress;
+  readonly mood: Mood;
   /** The shop the player is inside (null on the street). While inside, the city is frozen and unseen. */
   inside: Room | null = null;
   private ret = { x: 0, z: 0, h: 0 };
@@ -169,6 +176,9 @@ export class Game {
     this.heli.attach(this.scene);
     this.interiors = new Interiors(d.world, this.scene);
     this.roofDash = new RoofDash(this);
+    this.sideQuests = new SideQuests(this);
+    this.progress = new Progress(this.save.progress, (m) => this.hud.toast(m, 3600), (n) => { this.cash += n; this.hud.setCash(this.cash); this.saveDirty = true; this.audio.cash(); }, () => { this.saveDirty = true; });
+    this.mood = new Mood(this);
     this.applyOutfit(this.save.outfit ?? 0);
     this.humans.guns = this.guns.flags();
 
@@ -217,7 +227,7 @@ export class Game {
       const ammo: Partial<Record<GunId, number>> = {};
       for (const g of GUN_ORDER) { const n = Number(s.ammo?.[g]); if (Number.isFinite(n) && n > 0) ammo[g] = Math.floor(n); }
       const outfit = Number.isInteger(s.outfit) ? Number(s.outfit) : 0;
-      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, outfit };
+      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, outfit, progress: s.progress };
     } catch {
       return fallback;
     }
@@ -228,6 +238,7 @@ export class Game {
     if (this.noSave) return;
     this.save.cash = Math.round(this.cash);
     this.save.collected = this.collectibles.indices();
+    this.save.progress = this.progress.toSave();
     this.save.outfit = this.save.outfit ?? 0;
     this.save.guns = [...this.guns.owned];
     this.save.ammo = { ...this.guns.reserve };
@@ -245,7 +256,7 @@ export class Game {
   readonly earned: Record<EarnSrc, number> = { props: 0, stars: 0, gigs: 0, story: 0, police: 0, other: 0 };
 
   addCash(n: number, src: EarnSrc = 'other'): void {
-    if (n > 0) this.earned[src] += n;
+    if (n > 0) { this.earned[src] += n; this.progress?.add('earned', n); }
     this.cash += n;
     this.saveDirty = true;
     this.hud.setCash(this.cash);
@@ -347,6 +358,7 @@ export class Game {
     const value = this.props.smash(c.smash, c.x, c.z, vx, vz);
     if (!byPlayer) return;
     this.smashTotal++;
+    this.progress.add('smashes');
     this.input.rumble(0.3, 0.7, 90);
     this.story.onSmash();
     this.damageTotal += value;
@@ -496,7 +508,7 @@ export class Game {
       this.climb = null;
       pl.roof = c.up ? c.roof : null;
       pl.y = c.ty;
-      if (c.up) this.hud.toast(bi('Rooftop! Golden stars shine from up here.', '옥상이에요! 위에는 황금 별이 빛나요.'), 2200);
+      if (c.up) { this.progress.add('roofs'); this.hud.toast(bi('Rooftop! Golden stars shine from up here.', '옥상이에요! 위에는 황금 별이 빛나요.'), 2200); }
     }
   }
 
@@ -520,6 +532,7 @@ export class Game {
     if (this.stars > 0) { this.hud.toast(bi('The door is locked - the police are watching!', '문이 잠겨 있어요 - 경찰이 지켜보고 있어요!'), 2400); return; }
     const pl = this.humans.player;
     this.ret = { x: pl.x, z: pl.z, h: pl.heading };
+    this.progress.add('shops');
     this.fadeThen(() => {
       this.inside = room;
       this.humans.setPlayerActive(true, room.exit.x, room.exit.z - 2.2, Math.PI);
@@ -543,7 +556,7 @@ export class Game {
     switch (room.id) {
       case 'donut':
         if (pl.hp >= pl.maxHp) { this.hud.toast(bi('You are not hungry!', '배고프지 않아요!')); return; }
-        if (!this.pay(10)) return;
+        if (!this.pay(this.mood.saved ? 5 : 10)) return;
         pl.hp = pl.maxHp; this.popups.spawn(pl.x, 3, pl.z, bi('Yum! Full HP', '냠! 체력 회복'), '#ff8fb8');
         break;
       case 'motel':
@@ -571,12 +584,38 @@ export class Game {
     }
   }
 
+  private deskNear(room: Room): boolean {
+    const pl = this.humans.player;
+    return !!room.desk && Math.hypot(pl.x - room.desk.x, pl.z - room.desk.z) < 2.4;
+  }
+
+  /** Buy the shop, or collect the income it has earned while you were away. */
+  private deskAction(room: Room): void {
+    const id = room.id as OwnableShop;
+    const pl = this.humans.player;
+    if (!this.progress.owned.includes(id)) {
+      if (!this.pay(OWNABLE[id].price)) return;
+      this.progress.buy(id);
+      this.hud.toast(`${bi('You own', '소유')} ${bi(room.en, room.ko)}! +$${OWNABLE[id].perMin}/min`, 3200);
+    } else {
+      const n = this.progress.collect(id);
+      if (n <= 0) { this.hud.toast(bi('Nothing to collect yet', '아직 받을 돈이 없어요')); return; }
+      this.addCash(n, 'other');
+      this.popups.spawn(pl.x, 3, pl.z, `+$${n.toLocaleString('en-US')}`, '#ffd23a');
+    }
+  }
+
   private insidePrompt(room: Room): string | null {
     const pl = this.humans.player;
     if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) return bi('[F] Leave', '[F] 나가기');
+    if (this.deskNear(room)) {
+      const id = room.id as OwnableShop;
+      if (!this.progress.owned.includes(id)) return `${bi('[F] Buy this shop', '[F] 이 가게 사기')} - $${OWNABLE[id].price.toLocaleString('en-US')} (${bi('earns', '수입')} $${OWNABLE[id].perMin}/${bi('min', '분')})`;
+      return `${bi('[F] Collect shop income', '[F] 가게 수입 받기')} - $${Math.floor(this.progress.pending[id]).toLocaleString('en-US')}`;
+    }
     if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) {
       switch (room.id) {
-        case 'donut': return bi('[F] Buy a donut - $10 (full HP)', '[F] 도넛 구매 - $10 (체력 회복)');
+        case 'donut': return this.mood.saved ? bi('[F] Buy a donut - $5 (hero discount!)', '[F] 도넛 구매 - $5 (영웅 할인!)') : bi('[F] Buy a donut - $10 (full HP)', '[F] 도넛 구매 - $10 (체력 회복)');
         case 'motel': return bi('[F] Rest and save - $40', '[F] 휴식 및 저장 - $40');
         case 'arcade': return bi('[F] Play a game - $50', '[F] 게임하기 - $50');
         case 'clothes': return bi('[F] Try a new outfit - $100', '[F] 새 옷 입어보기 - $100');
@@ -604,9 +643,11 @@ export class Game {
     this.interiors.update(dt);
     if (playing && (input.wasPressed('KeyF') || input.wasPressed('KeyE'))) {
       if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) this.leaveBuilding();
+      else if (this.deskNear(room)) this.deskAction(room);
       else if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shopAction(room);
     }
     this.hud.setPrompt(this.state === 'play' ? this.insidePrompt(room) : null);
+    this.progress.tick(dt);
     this.updateLights();
     this.hud.update(this.followable, 1, 1, false, [], dt);
     this.hud.setNav(null, ''); this.hud.setRoute(null);
@@ -1020,7 +1061,8 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') this.roofDash.update(dt);
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); }
+    if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);
     this.collectStars();
@@ -1118,6 +1160,7 @@ export class Game {
     if (this.state !== 'play') return;
     const i = this.collectibles.tryCollect(this.focusX, this.focusZ, this.onFoot ? 2.4 : 4, this.onFoot ? this.humans.player.y : 0);
     if (i < 0) return;
+    this.progress.add('stars');
     this.addCash(300, 'stars');
     this.popups.spawn(this.focusX, 3, this.focusZ, '+$300', '#ffe27a');
     this.saveDirty = true;
@@ -1234,6 +1277,7 @@ export class Game {
       onPlayerHurt: () => { this.cameraRig.shake(0.35); this.audio.thump(); this.input.rumble(0.9, 0.6, 180); },
       onCopDown: (h) => {
         this.addCash(150, 'police');
+        this.progress.add('copsKO');
         if (Math.random() < 0.55) this.pickups.drop(h.x, h.z, (['cash', 'health', 'ammo'] as const)[Math.floor(Math.random() * 3)], 120);
         this.addHeat(15);
         if (this.humans.kids) this.popups.spawn(h.x, h.y + 2.2, h.z, t('pop.ko'), '#8a5cd6'); // knocked out, not killed
@@ -1580,6 +1624,7 @@ export class Game {
     this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
     for (const m of this.roofDash.markers()) this.pushBlip(m.x, m.z, '#4dd2ff', false, m.active ? 5.5 : 4);
+    for (const m of this.sideQuests.markers()) this.pushBlip(m.x, m.z, m.color, true, 5);
     this.pickups.forEach((type, x, z) => { if (Math.hypot(x - this.focusX, z - this.focusZ) < 90 && type !== 'cash') this.pushBlip(x, z, Pickups.color(type), false, 3); });
     this.story.blips(this.pushBlip);
     for (let i = 0; i < this.collectibles.total; i++) {

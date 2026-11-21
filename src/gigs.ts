@@ -108,6 +108,7 @@ export class GigManager {
     g.hud.showGig(false);
     if (ok) {
       g.addCash(reward, 'gigs');
+      g.progress.add('gigs');
       g.hud.toast(tf('gig.complete', { n: reward.toLocaleString('en-US') }), 3000);
     } else {
       g.hud.toast(t('gig.failed'), 2600);
