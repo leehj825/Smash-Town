@@ -18,7 +18,7 @@ import { Progress, type ProgressSave } from './tracker';
 import { OWNABLE, type OwnableShop } from './progress';
 import { Mood } from './mood';
 import type { Roof } from './world';
-import { GUN_ORDER, GUNS, Guns, type GunId } from './guns';
+import { GUN_ORDER, GUNS, Guns, type GunDef, type GunId } from './guns';
 import { BODY_KEYS, BODY_PRICES, MAX_LEVEL, NEONS, NEON_PRICE, PAINTS, PAINT_PRICE, UP_KEYS, UP_PRICES, emptyBody, emptyCar, fineFor, resprayCost, type BodyProgress, type CarProgress } from './upgrades';
 import type { Blip, GarageModel, Hud } from './hud';
 import type { Input } from './input';
@@ -646,6 +646,7 @@ export class Game {
       else if (this.deskNear(room)) this.deskAction(room);
       else if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shopAction(room);
     }
+    this.input.gunOut = false; this.cameraRig.aimMode = 0; this.guns.aimPoint = null; this.hud.setCrosshair(false);
     this.hud.setPrompt(this.state === 'play' ? this.insidePrompt(room) : null);
     this.progress.tick(dt);
     this.updateLights();
@@ -1017,7 +1018,17 @@ export class Game {
     // ---- player control
     const playing = this.state === 'play';
     const look = input.takeLook();
-    if (this.onFoot) this.cameraRig.applyLook(look.x, look.y);
+    // aiming: with a gun out the crosshair sits in the middle of the screen, the camera tightens over the shoulder,
+    // and the body keeps facing where the camera points (sprinting lowers the gun)
+    const gun = this.onFoot && !this.inside && !this.climb && this.state === 'play' ? this.guns.current() : null;
+    input.gunOut = this.onFoot && !!this.guns.current();
+    const aiming = !!gun && !input.nitro && this.humans.player.hp > 0;
+    this.cameraRig.aimMode = aiming ? (input.aimHeld ? 2 : 1) : 0;
+    const zoomed = aiming && input.aimHeld;
+    if (this.onFoot) this.cameraRig.applyLook(look.x * (zoomed ? 0.6 : 1), look.y * (zoomed ? 0.6 : 1));
+    if (aiming) { this.humans.player.aimT = Math.max(this.humans.player.aimT, 0.3); this.humans.player.aimYaw = this.cameraRig.moveYaw; }
+    else if (gun && input.nitro) this.humans.player.aimT = 0;
+    this.updateCrosshair(aiming ? gun : null, zoomed);
     for (const v of this.vehicles) {
       switch (v.ai) {
         case 'player':
@@ -1120,6 +1131,18 @@ export class Game {
     const m = Math.max(this.route!.len, straight);
     this.hud.setNav(Math.atan2(side, along), `${Math.round(m / 5) * 5} m`);
     this.hud.setRoute(pts);
+  }
+
+  /** The crosshair: where it points, how open it is (moving and firing widen it), red over a hostile. */
+  private updateCrosshair(gun: GunDef | null, zoomed: boolean): void {
+    if (!gun) { this.guns.aimPoint = null; this.hud.setCrosshair(false); return; }
+    this.guns.updateAim();
+    const ap = this.guns.aimPoint!;
+    const pl = this.humans.player;
+    const base: Record<GunId, number> = { pistol: 6, smg: 12, shotgun: 24, rocket: 18, paint: 10, grenade: 20 };
+    const gap = (base[gun.id] + Math.min(14, pl.speed * 1.8) + pl.recoil * 10) * (zoomed ? 0.65 : 1);
+    const round = gun.id === 'shotgun' || gun.id === 'rocket' || gun.id === 'grenade';
+    this.hud.setCrosshair(true, gap, ap.hostile, round, gun.id === 'rocket' && ap.heli, zoomed);
   }
 
   /** Street pickups: health, armor, cash, burger stands. */

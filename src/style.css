@@ -277,3 +277,25 @@ body.foot-mode.can-reload #btn-reload { display: block; }
 .statsbox .erow { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 2px 0; text-align: left; }
 .statsbox .erow.done { color: #7dff9b; }
 .statsbox .erow.todo { opacity: .7; }
+
+/* aiming crosshair */
+#crosshair { position: fixed; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; --gap: 8px; z-index: 6; }
+#crosshair .ch { position: absolute; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.65); transition: transform .06s linear; }
+#crosshair .t, #crosshair .b { width: 2px; height: 9px; left: -1px; }
+#crosshair .l, #crosshair .r { height: 2px; width: 9px; top: -1px; }
+#crosshair .t { top: calc(-9px - var(--gap)); } #crosshair .b { top: var(--gap); }
+#crosshair .l { left: calc(-9px - var(--gap)); } #crosshair .r { left: var(--gap); }
+#crosshair .dot { width: 3px; height: 3px; left: -1.5px; top: -1.5px; border-radius: 50%; }
+#crosshair .ring { display: none; width: 30px; height: 30px; left: -15px; top: -15px; border-radius: 50%; background: none; border: 2px solid rgba(255,255,255,.85); box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
+#crosshair.round .ring { display: block; }
+#crosshair.round .ch:not(.ring):not(.dot) { display: none; }
+#crosshair.hostile .ch { background: #ff3b3b; } #crosshair.hostile .ring { background: none; border-color: #ff3b3b; }
+#crosshair.lock::after { content: ''; position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border: 2px solid #ff3b3b; border-radius: 4px; animation: lockPulse .5s infinite alternate; }
+@keyframes lockPulse { from { transform: scale(1); } to { transform: scale(.82); } }
+#crosshair.hit .t, #crosshair.hit .b, #crosshair.hit .l, #crosshair.hit .r { background: #ffd23a; transform: scale(1.5); }
+#crosshair.zoom { --gap: 5px; }
+/* touch: an AIM button next to RELOAD when a gun is out */
+#btn-aim { position: absolute; right: 84px; bottom: 178px; width: 54px; height: 54px; border-radius: 50%; border: 2px solid #ff6b6b; background: rgba(14,18,28,.75); color: #ff9b9b; font-weight: 800; font-size: 11px; pointer-events: auto; display: none; }
+#btn-aim.down { background: rgba(255,80,80,.5); }
+body.foot-mode.gun-out #btn-aim { display: block; }
+@media (max-height: 460px) { #btn-aim { bottom: 132px; width: 46px; height: 46px; right: 76px; } }

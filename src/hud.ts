@@ -213,6 +213,26 @@ export class Hud {
     this.lastAction = text;
     document.querySelectorAll<HTMLElement>('#touch button[data-tap="KeyF"]').forEach((b) => { b.textContent = text; });
   }
+  private hitT = 0;
+  /** Crosshair in the centre of the screen: its gap, colour state and shape. Hidden with show = false. */
+  setCrosshair(show: boolean, gap = 8, hostile = false, round = false, lock = false, zoom = false): void {
+    const el = document.getElementById('crosshair')!;
+    if (el.hidden !== !show) el.hidden = !show;
+    document.body.classList.toggle('gun-out', show);
+    if (!show) return;
+    el.style.setProperty('--gap', `${Math.round(gap)}px`);
+    el.classList.toggle('hostile', hostile);
+    el.classList.toggle('round', round);
+    el.classList.toggle('lock', lock);
+    el.classList.toggle('zoom', zoom);
+  }
+  /** A bullet hit something: the crosshair flashes yellow for a moment. */
+  hitMarker(): void {
+    const el = document.getElementById('crosshair')!;
+    el.classList.add('hit');
+    window.clearTimeout(this.hitT);
+    this.hitT = window.setTimeout(() => el.classList.remove('hit'), 130);
+  }
   setReloadButton(on: boolean): void { document.body.classList.toggle('can-reload', on); }
 
   setPlayerArmor(frac: number): void { this.pArmor.style.width = `${Math.round(frac * 100)}%`; }

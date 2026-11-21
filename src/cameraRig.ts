@@ -34,6 +34,9 @@ export class CameraRig {
   footYaw = Math.PI;
   footPitch = 0.25;
   private lookIdle = 0;
+  /** 0 = ordinary orbit camera, 1 = aiming (closer, over the shoulder), 2 = zoomed. Set by the game each frame. */
+  aimMode: 0 | 1 | 2 = 0;
+  private aimBlend = 0;
   private wasFoot = false;
   private right = new THREE.Vector3();
 
@@ -41,7 +44,8 @@ export class CameraRig {
   applyLook(dx: number, dy: number): void {
     if (dx === 0 && dy === 0) return;
     this.footYaw -= dx * 0.0035;
-    this.footPitch = Math.max(-0.12, Math.min(0.9, this.footPitch + dy * 0.0025));
+    // aiming lets you look up (to shoot at the helicopter) and keeps the camera from tipping far down
+    this.footPitch = Math.max(this.aimMode ? -0.5 : -0.12, Math.min(this.aimMode ? 0.4 : 0.9, this.footPitch + dy * 0.0025));
     this.lookIdle = 0;
   }
 
@@ -51,19 +55,25 @@ export class CameraRig {
   private updateFoot(dt: number, f: Followable): void {
     if (!this.wasFoot) { this.footYaw = f.heading + Math.PI * 0 ; this.wasFoot = true; this.lookIdle = 2; }
     this.lookIdle += dt;
-    if (f.sprinting && this.lookIdle > 1) {
+    const aimT = this.aimMode === 2 ? 1 : this.aimMode === 1 ? 0.55 : 0;
+    this.aimBlend += (aimT - this.aimBlend) * (1 - Math.exp(-dt * 9));
+    const ab = this.aimBlend;
+    // entering aim mode levels the view so the crosshair points ahead, not at the ground
+    if (this.aimMode && this.footPitch > 0.12) this.footPitch += (0.08 - this.footPitch) * (1 - Math.exp(-dt * 6));
+    if (f.sprinting && this.lookIdle > 1 && !this.aimMode) {
       const d = Math.atan2(Math.sin(f.heading - this.footYaw), Math.cos(f.heading - this.footYaw));
       this.footYaw += d * (1 - Math.exp(-dt * 1.6));
     }
-    const dist = 4.8;
+    const dist = 4.8 - ab * 2.1;
+    const side = 0.5 + ab * 0.45;
     const hor = dist * Math.cos(this.footPitch);
-    const ver = 1.2 + dist * Math.sin(this.footPitch);
+    const ver = 1.2 + ab * 0.35 + dist * Math.sin(this.footPitch);
     const sy = Math.sin(this.footYaw), cy = Math.cos(this.footYaw);
     this.right.set(-cy, 0, sy);
     const desired = this.tmp.set(
-      f.position.x - sy * hor + this.right.x * 0.5,
-      f.position.y + ver,
-      f.position.z - cy * hor + this.right.z * 0.5,
+      f.position.x - sy * hor + this.right.x * side,
+      Math.max(f.position.y + 0.4, f.position.y + ver),
+      f.position.z - cy * hor + this.right.z * side,
     );
     // pull the camera in when a wall is behind the player, but never closer than ~40 % of the full distance; lift it instead
     const tx = f.position.x, tz = f.position.z;
@@ -75,13 +85,13 @@ export class CameraRig {
     desired.y += (1 - frac) * 1.6;
     if (!this.initialised) { this.pos.copy(desired); this.initialised = true; }
     else this.pos.lerp(desired, 1 - Math.exp(-dt * 12));
-    this.look.set(f.position.x + this.right.x * 0.5, f.position.y + 1.45, f.position.z + this.right.z * 0.5);
+    this.look.set(f.position.x + this.right.x * side, f.position.y + 1.45 + ab * 0.05, f.position.z + this.right.z * side);
     this.shakeTime += dt;
     this.shakeAmp *= Math.exp(-dt * 6);
     const sh = this.shakeAmp * Math.sin(this.shakeTime * 60);
     this.camera.position.set(this.pos.x + sh * 0.12, this.pos.y + sh * 0.1, this.pos.z + sh * 0.12);
     this.camera.lookAt(this.look);
-    this.camera.fov += (58 + settings.fov - this.camera.fov) * (1 - Math.exp(-dt * 4));
+    this.camera.fov += (58 - ab * 14 + settings.fov - this.camera.fov) * (1 - Math.exp(-dt * 6));
     this.camera.updateProjectionMatrix();
   }
 

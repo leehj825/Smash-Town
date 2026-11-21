@@ -55,6 +55,8 @@ export class Guns {
   private tracers: Tracer[] = [];
   private rockets: Rocket[] = [];
   private grenades: Grenade[] = [];
+  /** Where the crosshair points right now (null when not aiming): the first thing the camera ray meets. */
+  aimPoint: { x: number; y: number; z: number; t: number; hostile: boolean; heli: boolean } | null = null;
   /** A thrown grenade leaves the hand part-way into the throw clip. */
   private pendingThrow: { t: number; dx: number; dz: number } | null = null;
   private flash: THREE.PointLight;
@@ -202,9 +204,81 @@ export class Guns {
   }
 
   // ------------------------------------------------------------------ shooting
+  /** The camera ray through the centre of the screen against people, cars, props, buildings, the ground and the helicopter. */
+  updateAim(): void {
+    const G = this.game;
+    const cam = G.cameraRig.camera;
+    const o = cam.position;
+    const d = this.camDir;
+    cam.getWorldDirection(d);
+    let bt = 90, hostile = false, heli = false;
+    const near = (t: number, h: boolean, hl = false) => { if (t > 0.5 && t < bt) { bt = t; hostile = h; heli = hl; } };
+    // a vertical cylinder at (cx, cz): the ray's distance along itself where it enters, if it is at a height inside [y0, y1]
+    const cyl = (cx: number, cz: number, r: number, y0: number, y1: number): number => {
+      const px = cx - o.x, pz = cz - o.z;
+      const flat = Math.hypot(d.x, d.z) || 1e-6;
+      const ux = d.x / flat, uz = d.z / flat;
+      const proj = px * ux + pz * uz;
+      if (proj < 0) return -1;
+      const d2 = px * px + pz * pz - proj * proj;
+      if (d2 > r * r) return -1;
+      const th = Math.max(0, proj - Math.sqrt(r * r - d2)) / flat; // along the 3D ray
+      const y = o.y + d.y * th;
+      return y >= y0 && y <= y1 ? th : -1;
+    };
+    const pl = G.humans.player;
+    for (const h of G.humans.list) {
+      if (!h.active || h === pl || h.state === St.Dead) continue;
+      const t = cyl(h.x, h.z, 0.5, h.y - 0.1, h.y + 1.9);
+      if (t > 0) near(t, h.role === Role.Cop && h.state !== St.Down && !h.ko);
+    }
+    for (const v of G.vehicles) {
+      if (v === G.driving || v.ctrl.wrecked) continue;
+      const t = cyl(v.x, v.z, 1.8, 0, 1.8);
+      if (t > 0) near(t, v.isPolice);
+    }
+    for (const c of G.world.circles) {
+      if (c.dead || Math.abs(c.x - o.x) > 100 || Math.abs(c.z - o.z) > 100) continue;
+      const t = cyl(c.x, c.z, c.r, 0, c.smash ? 1.3 : 7);
+      if (t > 0) near(t, false);
+    }
+    for (const b of G.world.boxes) {
+      if (b.maxX < o.x - 100 || b.minX > o.x + 100 || b.maxZ < o.z - 100 || b.minZ > o.z + 100) continue;
+      let t0 = 0, t1 = 200, ok = true;
+      for (const [oo, dd, lo, hi] of [[o.x, d.x, b.minX, b.maxX], [o.z, d.z, b.minZ, b.maxZ]] as const) {
+        if (Math.abs(dd) < 1e-6) { if (oo < lo || oo > hi) { ok = false; break; } continue; }
+        let a = (lo - oo) / dd, c2 = (hi - oo) / dd;
+        if (a > c2) [a, c2] = [c2, a];
+        t0 = Math.max(t0, a); t1 = Math.min(t1, c2);
+        if (t0 > t1) { ok = false; break; }
+      }
+      if (ok && o.y + d.y * t0 < 40) near(t0, false);
+    }
+    if (d.y < -0.001) near((0.1 - o.y) / d.y, false);
+    const hc = G.heli;
+    if (hc.active) {
+      // a 3.4 m ball around the helicopter
+      const px = hc.x - o.x, py = hc.y - o.y, pz = hc.z - o.z;
+      const proj = px * d.x + py * d.y + pz * d.z;
+      if (proj > 0) {
+        const d2 = px * px + py * py + pz * pz - proj * proj;
+        if (d2 < 3.4 * 3.4) near(Math.max(0.6, proj - Math.sqrt(3.4 * 3.4 - d2)), true, true);
+      }
+    }
+    this.aimPoint = { x: o.x + d.x * bt, y: o.y + d.y * bt, z: o.z + d.z * bt, t: bt, hostile, heli };
+  }
+  private camDir = new THREE.Vector3();
+
   private aim(): { dx: number; dz: number } {
     const G = this.game;
     const pl = G.humans.player;
+    // keyboard and mouse aim exactly where the crosshair points: the shot goes from the gun to the point under the crosshair
+    if (this.aimPoint && !G.input.padActive && !document.body.classList.contains('is-touch')) {
+      const ox = pl.x, oz = pl.z;
+      const dx = this.aimPoint.x - ox, dz = this.aimPoint.z - oz;
+      const L = Math.hypot(dx, dz);
+      if (L > 2.5) return { dx: dx / L, dz: dz / L };
+    }
     const f = new THREE.Vector3();
     G.cameraRig.camera.getWorldDirection(f);
     let dx = f.x, dz = f.z;
@@ -265,7 +339,7 @@ export class Guns {
       if (hc.active) {
         const hd = hc.distTo(ox, oz);
         const da = Math.abs(WRAP(Math.atan2(hc.x - ox, hc.z - oz) - Math.atan2(aim.dx, aim.dz)));
-        if (hd < 85 && da < 0.5) { homing = true; d0 = Math.max(10, hd); }
+        if ((hd < 85 && da < 0.5) || (this.aimPoint?.heli && hd < 130)) { homing = true; d0 = Math.max(10, hd); }
       }
       this.rockets.push({ mesh, x: ox, z: oz, dx: aim.dx, dz: aim.dz, life: g.range / 46 + 0.5, homing, d0 });
       return;
@@ -275,7 +349,19 @@ export class Guns {
       const a = base + (Math.random() - 0.5) * 2 * g.spread;
       const dx = Math.sin(a), dz = Math.cos(a);
       const hit = this.trace(ox, oz, dx, dz, g.range, G.driving);
-      const len = hit ? hit.t : g.range;
+      let len = hit ? hit.t : g.range;
+      // the helicopter is above the flat shot: the crosshair ray decides whether a bullet reaches it
+      const ap = this.aimPoint;
+      if (ap && ap.heli && g.dmg > 0 && (!hit || ap.t * 0.99 < hit.t + 8)) {
+        const hcd = G.heli.distTo(ox, oz);
+        if (hcd < g.range + 20) {
+          len = Math.min(len, Math.max(1, hcd));
+          G.heli.hp -= g.dmg;
+          G.hud.hitMarker();
+          G.vfx.emitSparks(G.heli.x, G.heli.y, G.heli.z, 3);
+          if (G.heli.hp <= 0) G.heliDown();
+        }
+      }
       this.tracer(ox, oz, dx, dz, len, g.id === 'paint' ? 0xff4dd2 : 0xffe9a0);
       if (hit) this.impact(hit, dx, dz, g);
     }
@@ -352,6 +438,7 @@ export class Guns {
     if (hit.kind === 'human' && hit.human) {
       const h = hit.human;
       if (g.dmg > 0) {
+        G.hud.hitMarker();
         const wasCop = h.role === Role.Cop;
         G.humans.gunHit(G.humans.player, h, g.dmg, dx, dz, g.dmg >= 20 && g.pellets === 1);
         G.addHeat(wasCop ? 6 : 3);
@@ -364,6 +451,7 @@ export class Guns {
     } else if (hit.kind === 'vehicle' && hit.vehicle) {
       const v = hit.vehicle;
       if (g.dmg > 0) {
+        G.hud.hitMarker();
         v.ctrl.damage(g.dmg * 0.004);
         if (v.isPolice) G.addHeat(2);
         // a lucky hit can burst a tyre: slower and less grip
