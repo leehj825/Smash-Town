@@ -69,7 +69,9 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     // aiming off: you walk and run normally, the body turns with the movement
     const normal = await S(() => {
       const G = g(); const pl = G.humans.player; G.aimOn = false; G.autoAim = false; G.cameraRig.footYaw = 0; pl.heading = 0; pl.aimT = 0;
-      for (let i = 0; i < 40; i++) { pl.mvx = 4.5; pl.mvz = 0; G.update(1 / 60); }
+      G.input.setStick(-1, 0); // the stick pushed to the left of the screen (camera along +z): the world +x direction
+      for (let i = 0; i < 40; i++) G.update(1 / 60);
+      G.input.setStick(0, 0);
       return { heading: Math.round(pl.heading * 10) / 10, clip: pl.anim.clipName };
     });
     ok(Math.abs(normal.heading - 1.6) < 0.15 && normal.clip === 'proRunF', 'with aiming off the body turns with the movement and runs forward', JSON.stringify(normal));
