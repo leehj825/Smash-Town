@@ -35,7 +35,7 @@ import type { Vfx } from './vfx';
 import type { CircleCollider, World } from './world';
 
 export const SAVE_KEY = 'smashtown.save.v1';
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; progress?: ProgressSave }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -590,8 +590,25 @@ export class Game {
         this.popups.spawn(pl.x, 3, pl.z, bi('New look!', '새 옷!'), '#b084ff');
         break;
       }
+      case 'bank': {
+        const n = Math.floor(this.cash);
+        if (n < 100) { this.hud.toast(bi('Bring at least $100 to deposit', '입금은 최소 $100부터예요')); return; }
+        this.cash -= n; this.save.bank = (this.save.bank ?? 0) + n;
+        this.popups.spawn(pl.x, 3, pl.z, bi(`Deposited $${n.toLocaleString('en-US')}`, `$${n.toLocaleString('en-US')} 입금`), '#ffd23a');
+        this.flushSave();
+        break;
+      }
       case 'gun': this.openGarage('arms'); break;
     }
+  }
+
+  /** Savings earn 1% a minute of play, up to $300 a minute, and cannot be lost to a bust. */
+  private bankTimer = 0;
+  private tickBank(dt: number): void {
+    const b = this.save.bank ?? 0;
+    if (b <= 0) return;
+    this.bankTimer += dt;
+    if (this.bankTimer >= 60) { this.bankTimer -= 60; this.save.bank = b + Math.min(300, Math.floor(b * 0.01)); }
   }
 
   private deskNear(room: Room): boolean {
@@ -601,6 +618,14 @@ export class Game {
 
   /** Buy the shop, or collect the income it has earned while you were away. */
   private deskAction(room: Room): void {
+    if (room.id === 'bank') {
+      const b = this.save.bank ?? 0;
+      if (b <= 0) { this.hud.toast(bi('Your account is empty', '계좌가 비어 있어요')); return; }
+      this.save.bank = 0; this.addCash(b, 'other');
+      this.popups.spawn(this.humans.player.x, 3, this.humans.player.z, `+$${b.toLocaleString('en-US')}`, '#ffd23a');
+      this.flushSave();
+      return;
+    }
     const id = room.id as OwnableShop;
     const pl = this.humans.player;
     if (!this.progress.owned.includes(id)) {
@@ -619,6 +644,7 @@ export class Game {
     const pl = this.humans.player;
     if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) return bi('[F] Leave', '[F] 나가기');
     if (this.deskNear(room)) {
+      if (room.id === 'bank') return `${bi('[F] Withdraw all', '[F] 전액 출금')} - $${Math.floor(this.save.bank ?? 0).toLocaleString('en-US')}`;
       const id = room.id as OwnableShop;
       if (!this.progress.owned.includes(id)) return `${bi('[F] Buy this shop', '[F] 이 가게 사기')} - $${OWNABLE[id].price.toLocaleString('en-US')} (${bi('earns', '수입')} $${OWNABLE[id].perMin}/${bi('min', '분')})`;
       return `${bi('[F] Collect shop income', '[F] 가게 수입 받기')} - $${Math.floor(this.progress.pending[id]).toLocaleString('en-US')}`;
@@ -629,6 +655,7 @@ export class Game {
         case 'motel': return bi('[F] Rest and save - $40', '[F] 휴식 및 저장 - $40');
         case 'arcade': return bi('[F] Play a game - $50', '[F] 게임하기 - $50');
         case 'clothes': return bi('[F] Try a new outfit - $100', '[F] 새 옷 입어보기 - $100');
+        case 'bank': return bi('[F] Deposit all cash (safe from busts, +1%/min)', '[F] 전액 입금 (체포 안전, 분당 +1%)');
         case 'gun': return bi('[F] Browse weapons', '[F] 무기 보기');
       }
     }
@@ -1097,7 +1124,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.tickBank(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);

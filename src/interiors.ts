@@ -6,7 +6,7 @@ import type { BoxCollider, World } from './world';
 // Enterable shops. Each room is a small set built far outside the city (a "hidden pocket"); stepping through a door fades out and
 // teleports the player there, so street traffic, police and cameras can never interfere. Walls are ordinary box colliders.
 
-export type ShopKind = 'donut' | 'gun' | 'clothes' | 'arcade' | 'motel';
+export type ShopKind = 'donut' | 'gun' | 'clothes' | 'arcade' | 'motel' | 'bank';
 export interface Room {
   id: ShopKind;
   en: string; ko: string;
@@ -28,6 +28,7 @@ const DEFS: { id: ShopKind; en: string; ko: string; color: number; css: string; 
   { id: 'gun', en: 'Gun Shop', ko: '총기 상점', color: 0xff9a3d, css: '#ff9a3d', floor: 0x4a4a52, wall: 0x6b7280, frac: 0.22 },
   { id: 'clothes', en: 'Clothes Shop', ko: '옷 가게', color: 0xb084ff, css: '#b084ff', floor: 0xd9d2e9, wall: 0x9a85d6, frac: 0.48 },
   { id: 'arcade', en: 'Arcade', ko: '오락실', color: 0x35e0ff, css: '#35e0ff', floor: 0x1d1f33, wall: 0x2c3057, frac: 0.7 },
+  { id: 'bank', en: 'Smash Bank', ko: '스매시 은행', color: 0xffd23a, css: '#ffd23a', floor: 0xcfd3da, wall: 0x3c4a6b, frac: 0.86 },
   { id: 'motel', en: '24h Motel', ko: '24시 모텔', color: 0x7dff6a, css: '#7dff6a', floor: 0xcdb99a, wall: 0xd9c9a8, frac: -2 },
 ];
 
@@ -59,9 +60,10 @@ export class Interiors {
       }
       // a rug at the door and a themed machine
       b.box(3, 0.04, 1.6, ox, 0.03, oz + D / 2 - 1.2, 0x884444);
-      const ownable = d.id === 'donut' || d.id === 'motel' || d.id === 'arcade';
+      const ownable = d.id === 'donut' || d.id === 'motel' || d.id === 'arcade' || d.id === 'bank';
       if (ownable) { b.box(1.9, 0.95, 0.9, ox + 4.6, 0.48, oz - 3.8, 0x3b3f55); b.box(0.7, 0.08, 0.5, ox + 4.6, 1.0, oz - 3.8, 0xffd23a); }
       if (d.id === 'arcade') for (let i = 0; i < 4; i++) b.box(1.0, 2.0, 0.9, ox - 4.5 + i * 3, 1.0, oz + 2.8, [0xff4d6d, 0x35e0ff, 0xffd23a, 0x7dff6a][i]);
+      if (d.id === 'bank') for (let i = 0; i < 3; i++) b.box(1.4, 1.1, 1.4, ox - 4.5 + i * 2, 0.55, oz + 2.8, 0xb7bcc7);
       if (d.id === 'motel') b.box(2.2, 0.7, 3.4, ox + 4.5, 0.35, oz + 2, 0xf4f4f4);
       if (d.id === 'clothes') for (let i = 0; i < 4; i++) b.box(0.7, 1.8, 0.5, ox - 4.5 + i * 3, 0.9, oz + 2.8, [0xd93636, 0x3b82f6, 0x2fb87a, 0xf2a73b][i]);
       const mesh = new THREE.Mesh(b.build(), mat);

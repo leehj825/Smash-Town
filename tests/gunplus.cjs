@@ -64,6 +64,15 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { driving, shot: before - gs.mag.pistol };
     });
     ok(drive.driving && drive.shot === 1, 'a pistol can be fired from the car', JSON.stringify(drive));
+    const bank = await S(() => {
+      const G = g(); const r = G.interiors.rooms.find((q) => q.id === 'bank');
+      G.stars = 0; G.cash = 5000; G.save.bank = 0;
+      G.shopAction(r);
+      const dep = { cash: G.cash, bank: G.save.bank };
+      G.cash = 0; G.deskAction(r);
+      return { dep, after: G.cash, bank: G.save.bank };
+    });
+    ok(bank.dep.cash === 0 && bank.dep.bank === 5000 && bank.after === 5000 && bank.bank === 0, 'the bank takes deposits and pays them back', JSON.stringify(bank));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();
