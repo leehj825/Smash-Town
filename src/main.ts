@@ -14,7 +14,8 @@ import { CameraRig } from './cameraRig';
 import { Hud } from './hud';
 import { Game } from './game';
 import { BigMap } from './bigmap';
-import { Radio } from './radio';
+import { Radio, STATIONS } from './radio';
+import { Weather, type WeatherKind } from './weather';
 import { ControlsPanel, HowToPlay, StatsPanel, type Modal } from './overlays';
 import { settings, saveSettings } from './settings';
 import { SAVE_KEY } from './game';
@@ -76,6 +77,8 @@ const hud = new Hud(world);
 const game = new Game({ scene, world, props, vfx, hud, input, env, cameraRig });
 const bigmap = new BigMap(game);
 const radio = new Radio(game.audio);
+const weather = new Weather(env, game.audio);
+scene.add(weather.group);
 game.radioDuck = (v) => radio.setDuck(v);
 const controlsPanel = new ControlsPanel();
 const howto = new HowToPlay();
@@ -134,23 +137,36 @@ function applyTime(t: TimeOfDay, instant = false): void {
 const savedT = storedGet(TIME_KEY);
 applyTime(savedT === 'noon' || savedT === 'sunset' || savedT === 'night' ? savedT : 'noon', true);
 
-const RADIO_KEY = 'smashtown.radio';
-function applyRadio(on: boolean, announce = false): void {
-  storedSet(RADIO_KEY, on ? '1' : '0');
-  radio.setEnabled(on && game.audio.enabled);
-  document.querySelectorAll<HTMLElement>('.radio').forEach((b) => b.classList.toggle('sel', (b.dataset.r === '1') === on));
-  if (announce) hud.toast(on ? `\u266A ${radio.name}` : bi('Radio off', '라디오 끔'), 1600);
+const RADIO_KEY = 'smashtown.radio2';
+type RadioChoice = 'off' | '0' | '1' | '2';
+const radioChoice = (): RadioChoice => { const v = storedGet(RADIO_KEY); return v === '0' || v === '1' || v === '2' ? v : v === 'off' ? 'off' : '0'; };
+function applyRadio(v: RadioChoice, announce = false): void {
+  storedSet(RADIO_KEY, v);
+  if (v !== 'off') radio.setStation(Number(v));
+  radio.setEnabled(v !== 'off' && game.audio.enabled);
+  document.querySelectorAll<HTMLElement>('.radio').forEach((b) => b.classList.toggle('sel', b.dataset.r === v));
+  if (announce) hud.toast(v === 'off' ? bi('Radio off', '라디오 끔') : `\u266A ${bi(STATIONS[Number(v)].en, STATIONS[Number(v)].ko)}`, 1800);
+}
+
+const WEATHER_KEY = 'smashtown.weather';
+function applyWeather(m: 'auto' | WeatherKind): void {
+  storedSet(WEATHER_KEY, m);
+  weather.setMode(m);
+  document.querySelectorAll<HTMLElement>('.weather').forEach((b) => b.classList.toggle('sel', b.dataset.w === m));
 }
 
 function applyAudio(on: boolean): void {
   game.audio.setEnabled(on);
-  radio.setEnabled(on && storedGet(RADIO_KEY) !== '0');
+  radio.setEnabled(on && radioChoice() !== 'off');
   storedSet(AUDIO_KEY, on ? '1' : '0');
-  document.querySelectorAll<HTMLElement>('.radio').forEach((b) => b.addEventListener('click', () => applyRadio(b.dataset.r === '1')));
+  document.querySelectorAll<HTMLElement>('.radio').forEach((b) => b.addEventListener('click', () => applyRadio(b.dataset.r as RadioChoice)));
+document.querySelectorAll<HTMLElement>('.weather').forEach((b) => b.addEventListener('click', () => applyWeather(b.dataset.w as 'auto' | WeatherKind)));
 document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.classList.toggle('sel', (b.dataset.a === '1') === on));
 }
 applyAudio(storedGet(AUDIO_KEY) !== '0');
-document.querySelectorAll<HTMLElement>('.radio').forEach((b) => b.classList.toggle('sel', (b.dataset.r === '1') === (storedGet(RADIO_KEY) !== '0')));
+document.querySelectorAll<HTMLElement>('.radio').forEach((b) => b.classList.toggle('sel', b.dataset.r === radioChoice()));
+const savedW = storedGet(WEATHER_KEY);
+applyWeather(savedW === 'clear' || savedW === 'rain' || savedW === 'fog' || savedW === 'storm' ? savedW : 'auto');
 
 /** Kids Play (default ON): nobody dies - defeated cops and the player are only knocked out. */
 function applyKids(on: boolean): void {
@@ -176,7 +192,7 @@ function startGame(): void {
   if (!settings.tutorialDone) howto.open();
   try {
     game.audio.init(); // needs a user gesture
-    applyRadio(storedGet(RADIO_KEY) !== '0');
+    applyRadio(radioChoice());
   } catch (err) {
     console.warn('Audio unavailable:', err);
   }
@@ -303,7 +319,7 @@ function tick(): void {
     if (input.wasPressed('KeyM')) toggleMap();
     else if (game.state !== 'garage' && game.state !== 'dialog' && (input.wasPressed('Escape') || input.wasPressed('KeyP'))) setPaused(true);
     if (input.wasPressed('KeyT')) applyTime(env.cycleTime());
-    if (input.wasPressed('KeyN')) applyRadio(storedGet(RADIO_KEY) === '0', true);
+    if (input.wasPressed('KeyN')) { const order: RadioChoice[] = ['off', '0', '1', '2']; applyRadio(order[(order.indexOf(radioChoice()) + 1) % order.length], true); }
   } else if (state === 'paused') {
     if (input.wasPressed('Escape') || input.wasPressed('KeyP')) setPaused(false);
     dt = 0;
@@ -324,6 +340,8 @@ function tick(): void {
   }
 
   cameraRig.update(state === 'title' ? 0.016 : dt || 0.0001, game.followable);
+  weather.indoors = !!game.inside;
+  weather.update(Math.max(dt, 0.001), camera);
   env.update(Math.max(dt, 0.016), game.followable.position, camera);
   composer.render();
   input.endFrame();
@@ -332,5 +350,5 @@ frame();
 
 // Debug handle for tests and tinkering from the console.
 (window as unknown as { __smash: unknown }).__smash = {
-  game, env, hud, renderer, scene, camera, applyQuality, applyTime, startGame, bigmap, radio, statsPanel, get quality() { return quality; },
+  game, env, hud, renderer, scene, camera, applyQuality, applyTime, startGame, bigmap, radio, statsPanel, weather, get quality() { return quality; },
 };

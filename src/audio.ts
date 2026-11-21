@@ -21,6 +21,7 @@ export class AudioEngine {
   private scrFilter!: BiquadFilterNode;
   private sirenOsc!: OscillatorNode;
   private sirenGain!: GainNode;
+  private rainGain!: GainNode;
   private t = 0;
   enabled = true;
   volume = 0.8;
@@ -60,6 +61,13 @@ export class AudioEngine {
     this.scrGain = ctx.createGain(); this.scrGain.gain.value = 0;
     scr.connect(this.scrFilter); this.scrFilter.connect(this.scrGain); this.scrGain.connect(this.master);
     scr.start();
+
+    // rain: looping noise through a band-pass, level set by the weather
+    const rain = ctx.createBufferSource(); rain.buffer = this.noiseBuf; rain.loop = true;
+    const rf = ctx.createBiquadFilter(); rf.type = 'bandpass'; rf.frequency.value = 3600; rf.Q.value = 0.5;
+    this.rainGain = ctx.createGain(); this.rainGain.gain.value = 0;
+    rain.connect(rf); rf.connect(this.rainGain); this.rainGain.connect(this.master);
+    rain.start();
 
     // siren
     this.sirenOsc = ctx.createOscillator(); this.sirenOsc.type = 'square';
@@ -151,6 +159,14 @@ export class AudioEngine {
   }
   click(): void { this.burst(0.03, 5200, 0.25); }
   reload(): void { this.burst(0.05, 4000, 0.25); window.setTimeout(() => this.burst(0.05, 3000, 0.3), 280); }
+  /** Rain loudness 0..1. */
+  setRain(level: number): void {
+    if (this.ctx) this.rainGain.gain.setTargetAtTime(level * 0.1, this.ctx.currentTime, 0.4);
+  }
+  thunder(): void {
+    this.burst(1.4, 260, 0.55);
+    this.thud(55, 1.0, 0.7);
+  }
   explosion(): void {
     this.burst(0.9, 900, 0.7);
     this.thud(90, 0.7, 0.7);

@@ -61,7 +61,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     });
     ok(rad.on && !!rad.state, 'radio starts with an audio context', JSON.stringify(rad));
     await p.keyboard.press('KeyN'); await p.waitForTimeout(300);
-    ok(await S(() => localStorage.getItem('smashtown.radio')) === '0' || await S(() => !window.__smash.radio.enabled), 'N toggles the radio');
+    ok(await S(() => localStorage.getItem('smashtown.radio2')) === '1' && await S(() => window.__smash.radio.station) === 1, 'N switches to the next radio station');
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();

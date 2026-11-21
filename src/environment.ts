@@ -31,6 +31,10 @@ const PRESETS: Record<TimeOfDay, Preset> = {
   night: P(0x070b24, 0x1c2450, 0.0042, 0x8fb0ff, 1.0, [0.3, 0.7, -0.35], 0x4a62b8, 0x2c2c58, 1.25, 1),
 };
 
+const GREY_TOP = new THREE.Color(0x5f6877);
+const GREY_HOR = new THREE.Color(0x98a1ae);
+const FLASH = new THREE.Color(0xe8f0ff);
+
 /** Sky dome, 2-light core rig (hemisphere + directional sun/moon), fog, and smooth time-of-day blending. */
 export class Environment {
   readonly scene: THREE.Scene;
@@ -45,6 +49,9 @@ export class Environment {
   night = 0;
   timeOfDay: TimeOfDay = 'noon';
 
+  private wDim = 0; private wFog = 0; private wGrey = 0; private wFlash = 0;
+  private tmpTop = new THREE.Color();
+  private tmpHor = new THREE.Color();
   private shadowSize = 40;
   private tmpRight = new THREE.Vector3();
   private tmpUp = new THREE.Vector3();
@@ -115,6 +122,12 @@ export class Environment {
     return next;
   }
 
+  /** Weather look: dimmer sun, thicker fog, greyer sky, and a lightning flash. */
+  setWeather(dim: number, fog: number, grey: number, flash: number): void {
+    this.wDim = dim; this.wFog = fog; this.wGrey = grey; this.wFlash = flash;
+    this.apply();
+  }
+
   setShadowMapSize(size: number): void {
     this.sun.shadow.mapSize.set(size, size);
     this.sun.shadow.map?.dispose();
@@ -155,16 +168,20 @@ export class Environment {
 
   private apply(): void {
     const c = this.cur;
-    this.fog.color.copy(c.horizon);
-    this.fog.density = c.fog;
+    const lit = 1 - c.night * 0.85; // grey skies are darker at night
+    this.tmpTop.copy(c.skyTop).lerp(GREY_TOP, this.wGrey * 0.7 * lit);
+    this.tmpHor.copy(c.horizon).lerp(GREY_HOR, this.wGrey * 0.7 * lit);
+    if (this.wFlash > 0.02) { this.tmpTop.lerp(FLASH, this.wFlash * 0.6); this.tmpHor.lerp(FLASH, this.wFlash * 0.6); }
+    this.fog.color.copy(this.tmpHor);
+    this.fog.density = c.fog * (1 + this.wFog * 3);
     this.scene.background = null;
-    this.skyMat.uniforms.top.value = c.skyTop;
-    this.skyMat.uniforms.bottom.value = c.horizon;
+    this.skyMat.uniforms.top.value = this.tmpTop;
+    this.skyMat.uniforms.bottom.value = this.tmpHor;
     this.sun.color.copy(c.sunColor);
-    this.sun.intensity = c.sunIntensity;
+    this.sun.intensity = c.sunIntensity * (1 - 0.6 * this.wDim);
     this.hemi.color.copy(c.hemiSky);
     this.hemi.groundColor.copy(c.hemiGround);
-    this.hemi.intensity = c.hemiIntensity;
+    this.hemi.intensity = c.hemiIntensity * (1 - 0.15 * this.wDim) + this.wFlash * 1.6;
     this.night = c.night;
   }
 }

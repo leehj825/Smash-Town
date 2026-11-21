@@ -42,6 +42,8 @@ export class CarController {
   lastJump = 0;
 
   stats: VehicleStats;
+  /** Road grip multiplier set by the weather (1 = dry). */
+  static gripMul = 1;
   private radius: number;
   private offsets: number[];
   private steerVis = 0;
@@ -142,7 +144,7 @@ export class CarController {
       if (hb) vf *= Math.exp(-0.9 * dt);
 
       const hardTurn = Math.abs(steerIn) > 0.5 && speedAbs > st.maxSpeed * 0.63;
-      const grip = hb ? 1.1 : hardTurn ? st.grip * 0.47 : st.grip;
+      const grip = (hb ? 1.1 : hardTurn ? st.grip * 0.47 : st.grip) * CarController.gripMul;
       vl *= Math.exp(-grip * dt);
     }
 
