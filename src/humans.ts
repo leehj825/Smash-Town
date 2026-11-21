@@ -1,7 +1,7 @@
 import type { Roof } from './world';
 import * as THREE from 'three';
-import { CharacterRenderer, type Look } from './characters';
-import { AnimPlayer, CLIPS } from './mocap';
+import { CharacterRenderer, J, type Look } from './characters';
+import { AnimPlayer, CLIPS, sampleClip } from './mocap';
 import {
   ATTACKS, DODGE, GRAVITY, JUMP_VY, PUNCH_COMBO, SPRINT_SPEED, SWING_COMBO, St, WALK_SPEED, type Attack,
 } from './combat';
@@ -19,6 +19,7 @@ const PANTS = [0x2c3e50, 0x4a4e59, 0x6b4f3a, 0x1f2d3d, 0x7f8c8d, 0x3b5a8c];
 const SKINS = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac];
 const HAIRS = [0x2a1a10, 0x5a3a1a, 0xc9a24a, 0x1a1a1a, 0x8a3a1a];
 
+const AXIS_X = new THREE.Vector3(1, 0, 0);
 const wrap = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
 const TWO_PI = Math.PI * 2;
 
@@ -55,6 +56,10 @@ export class Human {
   peak = 0;
   /** Riot officer: carries a shield that blocks most hits from the front. */
   riot = false;
+  /** Gun handling (player): seconds the weapon stays raised after a shot, where it points, how raised it is now, and shot / reload kicks. */
+  aimT = 0; aimYaw = 0; aimBlend = 0; recoil = 0; reloadK = 0;
+  /** Which knock-out clip a bullet hit picked (empty = the ordinary fall). */
+  fallClip = '';
   /** Seconds left of free-running (a driver who just got out of a hijacked car), instead of following a sidewalk loop. */
   freeT = 0;
   lastStepSign = 1;
@@ -225,7 +230,7 @@ export class Humans {
   ignoreShield = false;
   gunHit(att: Human, t: Human, dmg: number, nx: number, nz: number, heavy: boolean): boolean {
     if (!t.active || t.state === St.Dead) return false;
-    const a: Attack = { ...ATTACKS.cross, dmg, push: heavy ? 7 : 3, up: heavy ? 2 : 0, heavy, popup: heavy ? 'wham' : 'pow' };
+    const a: Attack = { ...ATTACKS.cross, dmg, push: heavy ? 7 : 3, up: heavy ? 2 : 0, heavy, popup: heavy ? 'wham' : 'pow', gun: true };
     const bp = this.bodyPower;
     this.bodyPower = 1;
     const r = this.applyHit(att, t, a, nx, nz);
@@ -247,6 +252,8 @@ export class Humans {
     h.invuln = Math.max(0, h.invuln - dt);
     h.dodgeCd = Math.max(0, h.dodgeCd - dt);
     h.flash = Math.max(0, h.flash - dt);
+    h.aimT = Math.max(0, h.aimT - dt);
+    h.recoil = Math.max(0, h.recoil - dt * 7);
     this.combatTimer = Math.max(0, this.combatTimer - dt);
 
     // weapon switching: 1 fists, 2 bat, 3 baton; wheel / V cycle
@@ -304,7 +311,11 @@ export class Humans {
       // In a fight (a cop within 12 m) the character stays facing the enemy and strafes / backpedals with the
       // stick; otherwise it turns toward the direction of travel (camera-relative run).
       const foe = this.nearestCop(h, 12);
-      if (foe && (this.combatTimer > 0 || Math.hypot(foe.x - h.x, foe.z - h.z) < 9)) {
+      if (h.weapon >= 3 && h.aimT > 0) {
+        // a raised gun points where it is aimed, so the body strafes and backpedals instead of turning to run
+        const d = wrap(h.aimYaw - h.heading);
+        h.heading += Math.max(-16 * dt, Math.min(16 * dt, d));
+      } else if (foe && (this.combatTimer > 0 || Math.hypot(foe.x - h.x, foe.z - h.z) < 9)) {
         const d = wrap(Math.atan2(foe.x - h.x, foe.z - h.z) - h.heading);
         h.heading += Math.max(-11 * dt, Math.min(11 * dt, d));
       } else if (mag > 0.1) {
@@ -471,7 +482,15 @@ export class Humans {
     if (this.kids && killed && t.role === Role.Cop) t.hp = 1, t.ko = true;
     const heavy = (a.heavy && !blocked) || killed;
     t.attack = null; t.buffered = 0;
+    // a bullet knocks you out the way it hit: facing the shooter, back turned, or from the side
+    const faced = Math.sin(t.heading) * -nx + Math.cos(t.heading) * -nz;
+    t.fallClip = '';
     t.heading = Math.atan2(-nx, -nz);
+    if (a.gun && heavy) {
+      if (faced < -0.35) { t.fallClip = 'proDieBack'; t.heading = Math.atan2(nx, nz); }
+      else if (faced < 0.35) { t.fallClip = 'proDieRight'; t.heading = Math.atan2(-nx, -nz) + Math.PI / 2; }
+      else t.fallClip = 'proDieFront';
+    }
     if (heavy) {
       t.state = killed && t.role !== Role.Civ && !this.kids ? St.Dead : St.Down;
       t.stateDur = t.stateT = killed ? 2.4 : 1.4;
@@ -888,12 +907,15 @@ export class Humans {
         return;
       case St.Down:
       case St.Dead:
+        if (h.fallClip) { this.selName = h.fallClip; this.selU = Math.min(1, h.downT / 1.5); this.selFade = 0.05; return; } // a shot: the long fall, sped up
         this.selName = 'die'; this.selU = Math.min(1, h.downT / 0.9); this.selFade = 0.04;
         return;
       case St.GetUp:
+        if (h.fallClip) { this.selName = h.fallClip; this.selU = Math.max(0, h.stateT / h.stateDur); this.selFade = 0.04; return; }
         this.selName = 'die'; this.selU = Math.max(0, h.stateT / h.stateDur); this.selFade = 0.04; // rise = the fall played backwards
         return;
     }
+    if (h.role === Role.Player && h.weapon >= 3 && this.chooseGunClip(h, dt)) return;
     // airborne (jump): the Sword-and-Shield jump clip, apex at 0.5 s mapped to the physics apex
     if (!h.grounded) {
       this.selName = 'gsJump'; this.selU = Math.min(1, (h.airT * (0.5 / (JUMP_VY / GRAVITY))) / CLIPS.gsJump.d); this.selFade = 0.06;
@@ -923,6 +945,87 @@ export class Humans {
     this.selName = name; this.selU = h.clipU;
   }
 
+  /** The player with a gun in hand: pistol-grip clips for handguns, the rifle set (eight directions) for long guns. */
+  private chooseGunClip(h: Human, dt: number): boolean {
+    const pistol = h.weapon === 3 || h.weapon === 7;
+    const rocket = h.weapon === 6;
+    if (!h.grounded) {
+      // the three-part jump: take-off, a held loop in the air, then the landing pose as the fall ends
+      const t = h.airT;
+      if (t < 0.22) { this.selName = 'proJumpUp'; this.selU = t / 0.22; }
+      else { this.selName = 'proJumpLoop'; this.selU = (t - 0.22) * 1.5; }
+      this.selFade = 0.06;
+      return true;
+    }
+    const aim = h.aimT > 0;
+    if (h.speed < 0.4) {
+      this.selName = pistol ? 'pistolIdle' : rocket ? (aim ? 'rifleAimIdle' : 'proIdle') : aim ? 'proIdleAim' : 'proIdle';
+      h.clipU += dt / CLIPS[this.selName].d;
+      this.selU = h.clipU;
+      return true;
+    }
+    // direction of travel relative to where the body faces
+    const fwd = h.mvx * Math.sin(h.heading) + h.mvz * Math.cos(h.heading);
+    const left = h.mvx * Math.cos(h.heading) - h.mvz * Math.sin(h.heading);
+    const run = h.speed > 3.0;
+    let name: string;
+    if (pistol) {
+      if (Math.abs(left) > Math.abs(fwd) * 1.1) name = left > 0 ? 'pistolStrafeL' : 'pistolStrafeR';
+      else if (fwd >= 0) name = run ? 'pistolRun' : 'pistolWalk';
+      else name = run ? 'pistolRunB' : 'pistolWalkB';
+    } else {
+      // eight sectors around the body: F, FL, L, BL, B, BR, R, FR
+      const a = Math.atan2(left, fwd); // 0 = straight ahead, + = to the left
+      const sector = Math.round(a / (Math.PI / 4));
+      const dir = ['F', 'FL', 'L', 'BL', 'B', 'BR', 'R', 'FR'][((sector % 8) + 8) % 8];
+      name = (h.speed > 6.0 ? 'proSprint' : 'proRun') + dir;
+    }
+    const nat = CLIPS[name].speed || Humans.NATURAL[name] || 3;
+    const rate = Math.max(0.5, Math.min(2.4, h.speed / nat));
+    h.clipU += (dt * rate) / CLIPS[name].d;
+    this.selName = name; this.selU = h.clipU; this.selFade = 0.12;
+    return true;
+  }
+
+  private qa = new THREE.Quaternion();
+  private qb = new THREE.Quaternion();
+  private aimPose = new Float32Array(15 * 4 + 2);
+  private static readonly UPPER = [J.torso, J.head, J.shL, J.elL, J.wrL, J.shR, J.elR, J.wrR];
+
+  /** Layers the raised-gun arms over a moving clip, and adds the shot kick and the reload dip (the packs have neither). */
+  private gunPose(h: Human, dt: number): void {
+    const out = h.anim.out;
+    const pistol = h.weapon === 3 || h.weapon === 7;
+    const moving = h.speed >= 0.4 && h.grounded;
+    const target = !pistol && h.aimT > 0 && moving ? 1 : 0;
+    h.aimBlend += (target - h.aimBlend) * Math.min(1, dt * 14);
+    if (h.aimBlend > 0.02) {
+      sampleClip(CLIPS[h.weapon === 6 ? 'rifleAimIdle' : 'proIdleAim'], 0, this.aimPose);
+      for (const j of Humans.UPPER) {
+        this.qa.fromArray(out, j * 4);
+        this.qb.fromArray(this.aimPose, j * 4);
+        this.qa.slerp(this.qb, h.aimBlend).toArray(out, j * 4);
+      }
+    }
+    if (h.recoil > 0.01) {
+      // the body kicks back and the arms rise a little
+      this.rot(out, J.torso, -0.16 * h.recoil);
+      this.rot(out, J.shR, -0.28 * h.recoil);
+      this.rot(out, J.shL, -0.28 * h.recoil);
+    }
+    if (h.reloadK > 0.01) {
+      // the gun comes down and the head looks at it
+      this.rot(out, J.shR, 0.55 * h.reloadK);
+      this.rot(out, J.shL, 0.4 * h.reloadK);
+      this.rot(out, J.head, 0.25 * h.reloadK);
+    }
+  }
+  private rot(pose: Float32Array, joint: number, angle: number): void {
+    this.qa.fromArray(pose, joint * 4);
+    this.qb.setFromAxisAngle(AXIS_X, angle);
+    this.qa.multiply(this.qb).toArray(pose, joint * 4);
+  }
+
   private animate(h: Human, dt: number): void {
     if (h.state !== h.prevState) { h.prevState = h.state; h.downT = 0; }
     if (h.state === St.Down || h.state === St.Dead) h.downT += dt;
@@ -936,6 +1039,7 @@ export class Humans {
 
     this.chooseClip(h, dt);
     h.anim.play(this.selName, this.selU, dt, this.selFade);
+    if (h.role === Role.Player && h.weapon >= 3) this.gunPose(h, dt);
 
     if (h.flash > 0) { this.renderer.setLook(h.slot, h.look, h.flash); h.flashed = true; }
     else if (h.flashed) { this.renderer.setLook(h.slot, h.look); h.flashed = false; }

@@ -13,16 +13,25 @@ const KEEP = [
   'slash1', 'slash3', 'slash5', 'gsSlash', 'gsSlash5', 'slashWalk1', 'slashRun1', 'slashWalk3', 'slashRun3',
   'impact', 'impact2', 'die', 'die2', 'dive', 'dodgeB', 'dodgeP', 'dodgeN', 'gsJump', 'block', 'blockIdle',
 ];
+// the gun clips (model_check branch claude/add-gun-animations, data/anims_guns.js): the ones the guns use
+const GUN_KEEP = [
+  'pistolIdle', 'pistolWalk', 'pistolRun', 'pistolWalkB', 'pistolRunB', 'pistolStrafeL', 'pistolStrafeR',
+  'proIdle', 'proIdleAim', 'rifleAimIdle', 'rifleFire',
+  ...['F', 'FL', 'FR', 'L', 'R', 'B', 'BL', 'BR'].flatMap((d) => ['proRun' + d, 'proSprint' + d]),
+  'proJumpUp', 'proJumpLoop', 'proJumpDown', 'proDieFront', 'proDieBack', 'proDieRight',
+];
 const mod = await import(pathToFileURL(join(root, 'data/anims.js')).href);
-const all = mod.default;
+const gunMod = await import(pathToFileURL(join(root, 'data/anims_guns.js')).href);
+const all = { ...mod.default, ...gunMod.default };
 const r3 = (v) => Math.round(v * 1000) / 1000;
 const out = {};
-for (const name of KEEP) {
+for (const name of [...KEEP, ...GUN_KEEP]) {
   const c = all[name];
   if (!c) { console.warn('missing clip', name); continue; }
   const t = {};
   for (const [bone, frames] of Object.entries(c.t)) t[bone] = Array.isArray(frames[0]) ? frames.map((f) => f.map(r3)) : frames.map(r3);
   out[name] = { d: c.d, n: c.n, loop: !!c.loop, hit: c.hit || 0, t };
+  if (c.root) out[name].root = c.root; // how far the hips travel over the clip (m, m, degrees): gives each locomotion clip its natural speed
 }
 writeFileSync('src/data/anims.json', JSON.stringify(out));
 console.log('wrote', Object.keys(out).length, 'clips');

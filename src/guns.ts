@@ -115,6 +115,8 @@ export class Guns {
   update(dt: number, fireHeld: boolean, firePressed: boolean): void {
     const g = this.current();
     this.cool = Math.max(0, this.cool - dt);
+    const pl = this.game.humans.player;
+    pl.reloadK = this.reloading ? Math.sin(Math.PI * Math.min(1, Math.max(0, 1 - this.reloadT / GUNS[this.reloading].reload))) : 0;
     if (this.reloading) {
       this.reloadT -= dt;
       if (this.reloadT <= 0) {
@@ -204,6 +206,7 @@ export class Guns {
     this.cool = g.rate;
     const aim = this.aim();
     pl.heading = Math.atan2(aim.dx, aim.dz);
+    pl.aimYaw = pl.heading; pl.aimT = 1.6; pl.recoil = 1;
     const ox = pl.x + aim.dx * 0.7, oz = pl.z + aim.dz * 0.7;
     this.curX = ox; this.curZ = oz;
     G.audio.gun(g.id);

@@ -118,6 +118,8 @@ export class CharacterRenderer {
   private white = new THREE.Color(0xffffff);
   // model_check holds right-hand items tilted "blade up and a little forward from the forearm"
   private shieldOff = new THREE.Matrix4().compose(new THREE.Vector3(-0.1, -0.16, 0.2), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0)), new THREE.Vector3(1, 1, 1));
+  // gun clips point the hand along its own -y (the fingers), so a gun's barrel (+y in its geometry) is turned to point down the hand
+  private gunGrip = new THREE.Matrix4().compose(new THREE.Vector3(0, -0.02, 0.01), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI, 0, 0)), new THREE.Vector3(1, 1, 1));
   private grip = new THREE.Matrix4().compose(
     new THREE.Vector3(-0.003, -0.09, -0.002),
     new THREE.Quaternion(0.7931, -0.1585, 0.1425, 0.5706),
@@ -234,7 +236,7 @@ export class CharacterRenderer {
     const wb = this.weapons.bat, wt = this.weapons.baton;
     for (let k = 0; k < 5; k++) this.gunMeshes[k].setMatrixAt(slot, this.zero);
     if (weapon >= 3) {
-      this.tmp.copy(this.world[J.wrR]).multiply(this.grip);
+      this.tmp.copy(this.world[J.wrR]).multiply(this.gunGrip);
       this.gunMeshes[weapon - 3].setMatrixAt(slot, this.tmp);
       wb.setMatrixAt(slot, this.zero); wt.setMatrixAt(slot, this.zero);
     } else if (weapon > 0) {
