@@ -87,8 +87,14 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     // wreck -> always respawn with a free car
     await S(() => { const G = g(); G.cash = 0; G.driving.ctrl.hp = 0; });
     await p.waitForTimeout(1500);
-    for (let i = 0; i < 40 && (await S(() => g().state)) !== 'play'; i++) await p.waitForTimeout(500);
-    ok(await S(() => !!g().driving && g().state === 'play'), 'after a wreck with $0 you still get a car');
+    // the 2.8 s wreck timer is slow under software GL, so skip ahead once the wreck screen shows
+    for (let i = 0; i < 60; i++) {
+      const st = await S(() => { const G = g(); if (G.state === 'wrecked') G.stateTimer = Math.min(G.stateTimer, 0.05); return [G.state, !!G.driving, !!(G.driving && G.driving.ctrl.wrecked)]; });
+      if (i > 2 && (st[0] === 'play' || st[0] === 'garage') && st[1] && !st[2]) break;
+      await p.waitForTimeout(500);
+    }
+    ok(await S(() => !!g().driving && !g().driving.ctrl.wrecked && (g().state === 'play' || g().state === 'garage')), 'after a wreck with $0 you still get a car');
+    await S(() => { if (g().state === 'garage') g().closeGarage(); });
 
     // persistence
     await S(() => g().addCash(1)); await p.waitForTimeout(3500);
