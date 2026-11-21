@@ -88,9 +88,9 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     // shot kick and reload dip
     const kick = await S(() => {
       const G = g(); const pl = G.humans.player; G.humans.equip(4); G.guns.mag.smg = 30; G.guns.cool = 0; G.guns.reloading = null;
-      G.guns.update(1 / 60, false, true);
+      G.guns.update(1 / 60, true, true); // an SMG fires while the button is held
       const shot = { recoil: pl.recoil > 0.9, aim: pl.aimT > 1.4 };
-      G.guns.mag.smg = 5; G.guns.reload(); G.guns.update(0.5, false, false);
+      G.guns.mag.smg = 5; G.guns.reload(); G.guns.update(0.5, false, false); G.guns.update(0.1, false, false);
       return { ...shot, reload: pl.reloadK > 0.3 };
     });
     ok(kick.recoil && kick.aim && kick.reload, 'a shot kicks and raises the gun; reloading dips it', JSON.stringify(kick));

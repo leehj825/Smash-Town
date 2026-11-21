@@ -1,6 +1,6 @@
 # Gun animations for Smash Town (review)
 
-The clips live in the model_check repository (branch `claude/add-gun-animations`, file `data/anims_guns.js`). To bring the chosen ones into this game, add their names to `KEEP` in `scripts/extract-anims.mjs` and read them from `data/anims_guns.js` as well as `data/anims.js`. Nothing has been wired into the game yet; this is the review only.
+The clips live in the model_check repository (branch `claude/add-gun-animations`, file `data/anims_guns.js`). To bring the chosen ones into this game, add their names to `KEEP` in `scripts/extract-anims.mjs` and read them from `data/anims_guns.js` as well as `data/anims.js`. The recommended set is now used by the game (see "In the game" below).
 
 
 84 Mixamo clips from three packs, retargeted to the 13-bone rig and stored in `data/anims_guns.js` (about 700 KB). The viewer lists them with the Nexus clips, in three new groups: **Pistol**, **Rifle** and **Pro rifle**.
@@ -49,6 +49,19 @@ Things to know before using them:
 3. **Speeds.** Play locomotion at `game speed / natural speed` (the `Speed` column), as Smash Town already does for its other clips.
 4. **`rifleFire` is a held pose.** Its arms barely move during the clip, so it is a firing pose, not a recoil animation.
 5. **Headshot deaths** (`proDieFrontHead`, `proDieBackHead`) are longer and more violent; keep them for a rocket or shotgun kill.
+
+## In the game
+
+`scripts/extract-anims.mjs` now also copies the 33 recommended clips (plus their `root` travel, which gives each clip its natural speed). In `src/humans.ts`:
+
+- **Pistol and paintball gun:** `pistolIdle`, `pistolWalk` / `pistolRun`, `pistolWalkB` / `pistolRunB`, `pistolStrafeL` / `pistolStrafeR`.
+- **SMG and shotgun:** `proIdle` (gun down), `proIdleAim` (just fired), and the eight-way `proRun*` / `proSprint*` sets (sprint above 6 m/s). Playback speed is the game speed divided by the clip's natural speed.
+- **Rocket launcher:** `proIdle`, and `rifleAimIdle` while aiming.
+- **Aiming:** a shot keeps the gun raised for 1.6 s. In that time the body turns to face where it is aimed (so the legs strafe and backpedal instead of turning), and on long guns the raised arms of the aim pose are layered over the run clip.
+- **Kick and reload:** a shot leans the body back and lifts the arms (about 0.14 s); reloading lowers the gun and the head. These are code, because the packs have no such clips.
+- **Jump:** `proJumpUp` then `proJumpLoop` while airborne.
+- **Knock-outs:** a bullet or blast that knocks someone down plays `proDieFront`, `proDieBack` or `proDieRight` by the direction of the hit (sped up to 1.5 s, then held), and the person is turned to match the clip.
+- **Gun in hand:** guns point down the hand (the hand bone points along its own -y), so their model is flipped relative to the bat's grip.
 
 The tables below list every clip. *Speed* is the natural travel speed of looping clips; *Pose* is how the hands sit (aim = hands high in front, ready = mid, low = carried low, crouched, falling).
 
