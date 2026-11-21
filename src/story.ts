@@ -154,7 +154,7 @@ export class StoryManager {
 
   private completeChapter(c: Chapter): void {
     const g = this.game;
-    g.addCash(c.reward);
+    g.addCash(c.reward, 'story');
     g.hud.toast(`${bi('Chapter complete!', '챕터 완료!')} +$${c.reward.toLocaleString('en-US')}`, 3600);
     if (c.finale) {
       g.unlockVehicle('supercar');

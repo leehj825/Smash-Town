@@ -1,3 +1,5 @@
+import { canonical, settings } from './settings';
+
 export interface ControlState {
   throttle: number;
   steer: number;
@@ -69,7 +71,7 @@ export class Input implements ControlState {
   }
 
   takeLook(): { x: number; y: number } {
-    const r = { x: this.lookX, y: this.lookY };
+    const r = { x: this.lookX * settings.sens, y: this.lookY * settings.sens };
     this.lookX = this.lookY = 0;
     return r;
   }
@@ -78,10 +80,11 @@ export class Input implements ControlState {
     window.addEventListener('keydown', (e) => {
       this.setPadActive(false);
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
-      if (!this.down.has(e.code)) this.pressed.add(e.code);
-      this.down.add(e.code);
+      const code = canonical(e.code);
+      if (!this.down.has(code)) this.pressed.add(code);
+      this.down.add(code);
     });
-    window.addEventListener('keyup', (e) => this.down.delete(e.code));
+    window.addEventListener('keyup', (e) => this.down.delete(canonical(e.code)));
     window.addEventListener('blur', () => this.down.clear());
   }
 

@@ -187,6 +187,16 @@ export class Humans {
     if (p.hp <= 0) p.hp = p.maxHp * 0.5;
   }
 
+  /** Garage training: melee damage and run speed multipliers for the player (health sets maxHp). */
+  bodyPower = 1;
+  bodySpeed = 1;
+  setBody(health: number, power: number, speed: number): void {
+    this.player.maxHp = 100 + 20 * health;
+    this.player.hp = Math.min(this.player.hp, this.player.maxHp);
+    this.bodyPower = 1 + 0.15 * power;
+    this.bodySpeed = 1 + 0.05 * speed;
+  }
+
   healPlayer(): void { this.player.hp = this.player.maxHp; }
 
   equip(slot: number): void {
@@ -249,7 +259,7 @@ export class Humans {
     // locomotion
     if (free || !h.grounded) {
       const sprint = inp.nitro && h.grounded;
-      const max = (sprint ? SPRINT_SPEED : WALK_SPEED) * Math.min(1, mag);
+      const max = (sprint ? SPRINT_SPEED : WALK_SPEED) * Math.min(1, mag) * (h.role === Role.Player ? this.bodySpeed : 1);
       const dvx = (mag > 0.05 ? (mx / Math.max(mag, 1e-4)) * max : 0) - h.mvx;
       const dvz = (mag > 0.05 ? (mz / Math.max(mag, 1e-4)) * max : 0) - h.mvz;
       const dl = Math.hypot(dvx, dvz);
@@ -412,7 +422,7 @@ export class Humans {
 
   private applyHit(att: Human, t: Human, a: Attack, nx: number, nz: number): boolean {
     if (t.invuln > 0) { if (t.role === Role.Player) this.hooks.onWhiff(att); return false; }
-    const dmg = att.role === Role.Cop ? 8 : a.dmg;
+    const dmg = att.role === Role.Cop ? 8 : a.dmg * (att.role === Role.Player ? this.bodyPower : 1);
     t.hp -= dmg;
     t.flash = 0.14;
     let killed = t.hp <= 0;

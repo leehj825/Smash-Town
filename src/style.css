@@ -219,3 +219,39 @@ body.foot-mode #pad-hint .pad-drive { display: none; }
   #bigmap-side { flex: 0 0 230px; max-height: none; }
   #bigmap-side h2 { font-size: 15px; }
 }
+
+/* settings extras */
+#pause .panel { max-height: 94vh; overflow-y: auto; }
+.seg.warn { border-color: #ff6b6b; color: #ffb4b4; }
+.seg.warn.armed { background: #ff3b3b; color: #fff; border-color: #ff3b3b; }
+.panel.wide { width: min(94vw, 520px); }
+.modal { z-index: 40; }
+.modal .scroll { max-height: 52vh; overflow-y: auto; margin: 8px 0; padding-right: 6px; }
+.modal .hint { font-size: 12px; opacity: .75; margin: 4px 0 8px; }
+.seg.key { min-width: 92px; }
+.howto { list-style: none; margin: 10px 0; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.35; }
+.howto b { color: #ffd23a; margin-right: 4px; }
+@media (max-height: 460px) { .modal .scroll { max-height: 38vh; } .howto { font-size: 12px; gap: 4px; } #pause .panel { padding: 14px 20px; } #pause .row { margin: 6px 0; } }
+
+/* earnings + garage tabs */
+#earnings { margin: 6px 0 4px; font-size: 12px; text-align: left; }
+#earnings h3 { margin: 0 0 4px; font-size: 11px; letter-spacing: 1px; color: #3dff8a; }
+#earnings h3 b { color: #fff; }
+#earnings .erow { display: flex; justify-content: space-between; opacity: .85; padding: 1px 0; }
+.garage-panel { max-height: 94vh; overflow-y: auto; width: min(94vw, 640px); }
+.gactions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.gactions .big { margin-top: 6px; }
+button.big.warnbtn { background: #7a3dff; box-shadow: 0 6px 0 #4a1fb0; }
+button.big:disabled { filter: grayscale(.8); opacity: .55; cursor: default; }
+.gtabs { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin: 12px 0 8px; }
+.gbody { min-height: 120px; }
+.gsub { font-size: 13px; opacity: .8; margin-bottom: 6px; }
+.ulist { display: flex; flex-direction: column; gap: 8px; }
+.urow { display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.06); }
+.urow small { display: block; font-size: 11px; opacity: .7; }
+.urow .lv { color: #ffd23a; letter-spacing: 2px; font-size: 12px; }
+.urow .seg { min-width: 84px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 6px 0 10px; }
+.swatch { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(255,255,255,.35); cursor: pointer; color: #fff; font-size: 14px; padding: 0; }
+.swatch.sel { border-color: #ffd23a; box-shadow: 0 0 0 2px #000, 0 0 10px #ffd23a; }
+@media (max-height: 460px) { .garage-panel { padding: 12px 18px; } .urow { padding: 4px 8px; } .gbody { min-height: 60px; } .gtabs { margin: 6px 0 4px; } }

@@ -3,7 +3,7 @@ import { MeshBuilder, paletteMaterial } from './geo';
 import type { I18nKey } from './i18n';
 
 export type VehicleKind =
-  | 'sports' | 'supercar' | 'muscle' | 'sedan' | 'taxi' | 'pickup'
+  | 'sports' | 'supercar' | 'muscle' | 'sedan' | 'taxi' | 'pickup' | 'limo' | 'monster'
   | 'police' | 'interceptor' | 'swat' | 'armored';
 
 export interface VehicleStats {
@@ -25,13 +25,15 @@ export const STATS: Record<VehicleKind, VehicleStats> = {
   pickup:      { maxSpeed: 30, accel: 20, grip: 8,   dmg: 0.7, mass: 1.5, name: 'veh.pickup',   price: 3000, color: 0x2fb87a },
   muscle:      { maxSpeed: 41, accel: 34, grip: 7.5, dmg: 0.8, mass: 1.3, name: 'veh.muscle',   price: 5000, color: 0xff2a55 },
   supercar:    { maxSpeed: 45, accel: 37, grip: 10.5, dmg: 1.2, mass: 0.9, name: 'veh.supercar', price: 9000, color: 0xff6a00 },
+  limo:        { maxSpeed: 34, accel: 23, grip: 8.5, dmg: 0.55, mass: 1.9, name: 'veh.limo',    price: 30000, color: 0x14141f },
+  monster:     { maxSpeed: 31, accel: 24, grip: 7,   dmg: 0.35, mass: 3.0, name: 'veh.monster', price: 60000, color: 0xff7a1a },
   police:      { maxSpeed: 36, accel: 28, grip: 9,   dmg: 0.9, mass: 1.2, name: null, price: 0, color: 0x1a1a24 },
   interceptor: { maxSpeed: 42, accel: 34, grip: 10,  dmg: 0.9, mass: 1.1, name: null, price: 0, color: 0x1a1a24 },
   swat:        { maxSpeed: 33, accel: 24, grip: 7.5, dmg: 0.6, mass: 2.2, name: null, price: 0, color: 0x23262f },
   armored:     { maxSpeed: 30, accel: 20, grip: 7,   dmg: 0.35, mass: 3.2, name: null, price: 0, color: 0x3a4658 },
 };
 
-export const PLAYER_ROSTER: VehicleKind[] = ['sports', 'sedan', 'taxi', 'pickup', 'muscle', 'supercar'];
+export const PLAYER_ROSTER: VehicleKind[] = ['sports', 'sedan', 'taxi', 'pickup', 'muscle', 'supercar', 'limo', 'monster'];
 export const CIVILIAN_KINDS: VehicleKind[] = ['sedan', 'sedan', 'taxi', 'pickup', 'muscle'];
 export const CIVILIAN_COLORS = [0xe85a4f, 0x3b82f6, 0x2fb87a, 0xf2a73b, 0x8a5cd6, 0xf4a7b9, 0x66d1c9, 0xeceff4, 0x8d99ae];
 
@@ -52,6 +54,8 @@ const SPECS: Record<VehicleKind, Spec> = {
   sedan:   { w: 1.85, len: 4.5, bodyH: 0.62, clr: 0.3, hoodLen: 1.3, wedge: false, trunkLen: 1.1, cabinLen: 2.2, cabinH: 0.62, cabinZ: -0.1, taper: 0.8, cabinColor: DARK, wheelR: 0.38, wheelX: 0.93, wheelZ: 1.4 },
   taxi:    { w: 1.85, len: 4.5, bodyH: 0.62, clr: 0.3, hoodLen: 1.3, wedge: false, trunkLen: 1.1, cabinLen: 2.2, cabinH: 0.62, cabinZ: -0.1, taper: 0.8, cabinColor: DARK, wheelR: 0.38, wheelX: 0.93, wheelZ: 1.4, sign: true },
   pickup:  { w: 2.0, len: 5.2, bodyH: 0.7, clr: 0.45, hoodLen: 1.4, wedge: false, trunkLen: 1.9, cabinLen: 1.7, cabinH: 0.65, cabinZ: 0.2, taper: 0.82, cabinColor: DARK, wheelR: 0.5, wheelX: 1.0, wheelZ: 1.6, bed: true },
+  limo:    { w: 1.95, len: 6.6, bodyH: 0.66, clr: 0.3, hoodLen: 1.4, wedge: false, trunkLen: 1.3, cabinLen: 3.9, cabinH: 0.62, cabinZ: -0.2, taper: 0.82, cabinColor: DARK, wheelR: 0.4, wheelX: 0.97, wheelZ: 2.1, stripe: 0xc9ccd6 },
+  monster: { w: 2.3, len: 5.4, bodyH: 0.85, clr: 1.0, hoodLen: 1.5, wedge: false, trunkLen: 1.8, cabinLen: 1.7, cabinH: 0.7, cabinZ: 0.2, taper: 0.82, cabinColor: DARK, wheelR: 0.95, wheelX: 1.25, wheelZ: 1.7, bed: true, stripe: 0x1a1a24 },
   police:  { w: 1.9, len: 4.7, bodyH: 0.62, clr: 0.3, hoodLen: 1.3, wedge: false, trunkLen: 1.1, cabinLen: 2.2, cabinH: 0.62, cabinZ: -0.1, taper: 0.8, cabinColor: DARK, wheelR: 0.39, wheelX: 0.95, wheelZ: 1.45, bar: true, police: true },
   interceptor: { w: 1.95, len: 4.6, bodyH: 0.5, clr: 0.28, hoodLen: 1.7, wedge: true, trunkLen: 1.2, cabinLen: 1.9, cabinH: 0.52, cabinZ: -0.15, taper: 0.7, cabinColor: DARK, wheelR: 0.39, wheelX: 0.98, wheelZ: 1.4, bar: true, police: true, spoiler: true },
   swat:    { w: 2.15, len: 5.4, bodyH: 0.95, clr: 0.45, hoodLen: 1.2, wedge: false, trunkLen: 0.2, cabinLen: 4.0, cabinH: 0.95, cabinZ: -0.55, taper: 0.97, cabinColor: null, wheelR: 0.5, wheelX: 1.05, wheelZ: 1.7, bar: true, plating: true },

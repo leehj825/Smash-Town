@@ -1,6 +1,7 @@
+import { BODY_DESC, BODY_KEYS, BODY_NAMES, BODY_PRICES, MAX_LEVEL, NEONS, NEON_PRICE, PAINTS, PAINT_PRICE, UP_DESC, UP_KEYS, UP_NAMES, UP_PRICES, type BodyProgress, type CarProgress } from './upgrades';
 import type { World } from './world';
 import type { Followable } from './cameraRig';
-import { t, tf, type I18nKey } from './i18n';
+import { bi, t, tf, type I18nKey } from './i18n';
 import { PLAYER_ROSTER, STATS, type VehicleKind } from './vehicle';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -10,15 +11,24 @@ export interface Blip { x: number; z: number; color: string; flash?: boolean; si
 export interface GarageModel {
   cash: number;
   repairCost: number;
+  respray: { cost: number; state: 'none' | 'ok' | 'police' };
   unlocked: Set<VehicleKind>;
   selected: VehicleKind;
+  car: CarProgress;
+  body: BodyProgress;
 }
 export interface GarageHandlers {
   onRepair: () => void;
+  onRespray: () => void;
   onBuy: (k: VehicleKind) => void;
   onSelect: (k: VehicleKind) => void;
+  onUpgrade: (i: number) => void;
+  onPaint: (color: number) => void;
+  onNeon: (color: number) => void;
+  onBody: (i: number) => void;
   onClose: () => void;
 }
+type GarageTab = 'cars' | 'tune' | 'look' | 'body';
 
 /** DOM/canvas HUD: wanted stars, cash, combo, minimap, speedometer, nitro/HP, gigs, toasts, garage. */
 export class Hud {
@@ -46,6 +56,7 @@ export class Hud {
   private toastTimer = 0;
   private garageModel: GarageModel | null = null;
   private garageHandlers: GarageHandlers | null = null;
+  private garageTab: GarageTab = 'cars';
   private flash = 0;
   private telemetry = $('telemetry');
   private pHealth = $('phealth-fill');
@@ -310,35 +321,82 @@ export class Hud {
   private renderGarage(): void {
     const m = this.garageModel!;
     const h = this.garageHandlers!;
-    const cards = PLAYER_ROSTER.map((k) => {
-      const st = STATS[k];
-      const owned = m.unlocked.has(k);
-      const sel = m.selected === k;
-      const label = sel ? t('ui.garage.selected') : owned ? t('ui.garage.select') : `${t('ui.garage.unlock')} $${st.price.toLocaleString('en-US')}`;
-      const stat = (v: number, max: number) => `<i style="width:${Math.round((v / max) * 100)}%"></i>`;
-      return `<div class="vcard ${sel ? 'sel' : ''}">
-        <div class="vname">${t(st.name as I18nKey)}</div>
-        <div class="vbars"><span class="vb">${stat(st.maxSpeed, 46)}</span><span class="vb">${stat(st.accel, 38)}</span><span class="vb">${stat(st.grip, 11)}</span></div>
-        <button class="seg vbtn" data-k="${k}" ${sel ? 'disabled' : ''}>${label}</button>
-      </div>`;
-    }).join('');
+    const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+    const stars = (lv: number) => '●'.repeat(lv) + '○'.repeat(MAX_LEVEL - lv);
+    const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
+    const tabs: [GarageTab, string][] = [['cars', bi('Cars', '차량')], ['tune', bi('Tune-up', '튜닝')], ['look', bi('Paint & neon', '도색·네온')], ['body', bi('Training', '훈련')]];
+    let body = '';
+    if (this.garageTab === 'cars') {
+      body = '<div class="vgrid">' + PLAYER_ROSTER.map((k) => {
+        const st = STATS[k];
+        const owned = m.unlocked.has(k);
+        const sel = m.selected === k;
+        const label = sel ? t('ui.garage.selected') : owned ? t('ui.garage.select') : `${t('ui.garage.unlock')} ${money(st.price)}`;
+        const stat = (v: number, max: number) => `<i style="width:${Math.min(100, Math.round((v / max) * 100))}%"></i>`;
+        return `<div class="vcard ${sel ? 'sel' : ''}">
+          <div class="vname">${t(st.name as I18nKey)}</div>
+          <div class="vbars"><span class="vb">${stat(st.maxSpeed, 46)}</span><span class="vb">${stat(st.accel, 38)}</span><span class="vb">${stat(st.grip, 11)}</span></div>
+          <button class="seg vbtn" data-k="${k}" ${sel ? 'disabled' : ''}>${label}</button>
+        </div>`;
+      }).join('') + '</div>';
+    } else if (this.garageTab === 'tune') {
+      body = `<div class="gsub">${t(STATS[m.selected].name as I18nKey)}</div><div class="ulist">` + UP_KEYS.map((k, i) => {
+        const lv = m.car.up[i];
+        const price = lv < MAX_LEVEL ? UP_PRICES[k][lv] : 0;
+        return `<div class="urow"><div><b>${bi(UP_NAMES[k][0], UP_NAMES[k][1])}</b> <span class="lv">${stars(lv)}</span><small>${bi(UP_DESC[k][0], UP_DESC[k][1])}</small></div>
+          <button class="seg up" data-i="${i}" ${lv >= MAX_LEVEL ? 'disabled' : ''}>${lv >= MAX_LEVEL ? bi('MAX', '최대') : money(price)}</button></div>`;
+      }).join('') + '</div>';
+    } else if (this.garageTab === 'look') {
+      const sw = (c: number, cls: string, cur: boolean) => `<button class="swatch ${cls} ${cur ? 'sel' : ''}" data-c="${c}" style="background:${c ? hex(c) : '#555'}" aria-label="${c ? hex(c) : 'default'}">${c ? '' : '✕'}</button>`;
+      body = `<div class="gsub">${t(STATS[m.selected].name as I18nKey)}</div>
+        <h3>${bi('Paint', '도색')} - ${money(PAINT_PRICE)}</h3>
+        <div class="swatches">${sw(0, 'paint', m.car.paint === 0)}${PAINTS.map((c) => sw(c, 'paint', m.car.paint === c)).join('')}</div>
+        <h3>${bi('Neon underglow', '네온 언더글로우')} - ${money(NEON_PRICE)}</h3>
+        <div class="swatches">${sw(0, 'neon', m.car.neon === 0)}${NEONS.map((c) => sw(c, 'neon', m.car.neon === c)).join('')}</div>`;
+    } else {
+      body = '<div class="ulist">' + BODY_KEYS.map((k, i) => {
+        const lv = m.body[k];
+        return `<div class="urow"><div><b>${bi(BODY_NAMES[k][0], BODY_NAMES[k][1])}</b> <span class="lv">${stars(lv)}</span><small>${bi(BODY_DESC[k][0], BODY_DESC[k][1])}</small></div>
+          <button class="seg bup" data-i="${i}" ${lv >= MAX_LEVEL ? 'disabled' : ''}>${lv >= MAX_LEVEL ? bi('MAX', '최대') : money(BODY_PRICES[k][lv])}</button></div>`;
+      }).join('') + '</div>';
+    }
+    const rs = m.respray;
+    const resprayLabel = rs.state === 'none' ? bi('Quick Respray (no heat)', '빠른 도색 (수배 없음)')
+      : rs.state === 'police' ? bi('Quick Respray - police too close', '빠른 도색 - 경찰이 너무 가까움')
+      : `${bi('Quick Respray: clear heat', '빠른 도색: 수배 해제')} - ${money(rs.cost)}`;
     this.garageEl.innerHTML = `<div class="panel garage-panel">
       <h2>${t('ui.garage.title')}</h2>
-      <div class="gcash">${t('ui.garage.cash')}: <b>$${Math.round(m.cash).toLocaleString('en-US')}</b></div>
-      <button class="big small" id="g-repair">${t('ui.garage.repair')} - $${m.repairCost.toLocaleString('en-US')}</button>
-      <h3>${t('ui.garage.vehicles')}</h3>
-      <div class="vgrid">${cards}</div>
+      <div class="gcash">${t('ui.garage.cash')}: <b>${money(m.cash)}</b></div>
+      <div class="gactions">
+        <button class="big small" id="g-repair">${t('ui.garage.repair')} - ${money(m.repairCost)}</button>
+        <button class="big small warnbtn" id="g-respray" ${rs.state === 'none' ? 'disabled' : ''}>${resprayLabel}</button>
+      </div>
+      <div class="gtabs">${tabs.map(([id, label]) => `<button class="seg gtab ${this.garageTab === id ? 'sel' : ''}" data-tab="${id}">${label}</button>`).join('')}</div>
+      <div class="gbody">${body}</div>
       <button class="big small ghost" id="g-close">${t('ui.garage.close')}</button>
     </div>`;
+    const q = (sel: string) => this.garageEl.querySelectorAll<HTMLElement>(sel);
     this.garageEl.querySelector('#g-repair')!.addEventListener('click', () => h.onRepair());
+    this.garageEl.querySelector('#g-respray')!.addEventListener('click', () => h.onRespray());
     this.garageEl.querySelector('#g-close')!.addEventListener('click', () => h.onClose());
-    this.garageEl.querySelectorAll<HTMLElement>('.vbtn').forEach((b) =>
-      b.addEventListener('click', () => {
-        const k = b.dataset.k as VehicleKind;
-        if (m.unlocked.has(k)) h.onSelect(k);
-        else h.onBuy(k);
-      }),
-    );
+    q('.gtab').forEach((b) => b.addEventListener('click', () => { this.garageTab = b.dataset.tab as GarageTab; this.renderGarage(); }));
+    q('.vbtn').forEach((b) => b.addEventListener('click', () => {
+      const k = b.dataset.k as VehicleKind;
+      if (m.unlocked.has(k)) h.onSelect(k); else h.onBuy(k);
+    }));
+    q('button.up').forEach((b) => b.addEventListener('click', () => h.onUpgrade(Number(b.dataset.i))));
+    q('button.bup').forEach((b) => b.addEventListener('click', () => h.onBody(Number(b.dataset.i))));
+    q('.swatch.paint').forEach((b) => b.addEventListener('click', () => h.onPaint(Number(b.dataset.c))));
+    q('.swatch.neon').forEach((b) => b.addEventListener('click', () => h.onNeon(Number(b.dataset.c))));
+  }
+
+  /** Session earnings lines on the pause screen. */
+  setEarnings(rows: [string, number][]): void {
+    const el = document.getElementById('earnings');
+    if (!el) return;
+    const total = rows.reduce((a, r) => a + r[1], 0);
+    el.innerHTML = `<h3>${bi('EARNED THIS SESSION', '이번 플레이 수입')}: <b>$${total.toLocaleString('en-US')}</b></h3>` +
+      rows.map(([l, n]) => `<div class="erow"><span>${l}</span><b>$${n.toLocaleString('en-US')}</b></div>`).join('');
   }
 
   tf = tf;

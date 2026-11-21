@@ -1,3 +1,4 @@
+import { settings } from './settings';
 import * as THREE from 'three';
 
 /** Anything the chase camera can follow (a car or the on-foot avatar). */
@@ -78,7 +79,7 @@ export class CameraRig {
     const sh = this.shakeAmp * Math.sin(this.shakeTime * 60);
     this.camera.position.set(this.pos.x + sh * 0.12, this.pos.y + sh * 0.1, this.pos.z + sh * 0.12);
     this.camera.lookAt(this.look);
-    this.camera.fov += (58 - this.camera.fov) * (1 - Math.exp(-dt * 4));
+    this.camera.fov += (58 + settings.fov - this.camera.fov) * (1 - Math.exp(-dt * 4));
     this.camera.updateProjectionMatrix();
   }
 
@@ -93,7 +94,7 @@ export class CameraRig {
   }
 
   shake(amount: number): void {
-    this.shakeAmp = Math.min(1.2, this.shakeAmp + amount);
+    this.shakeAmp = Math.min(1.2, this.shakeAmp + amount * settings.shake);
     this.shakeTime = 0;
   }
 
@@ -145,7 +146,7 @@ export class CameraRig {
     this.camera.lookAt(this.look);
 
     const targetFov = 60 + 14 * speedT + (car.nitroActive ? 4 : 0);
-    this.camera.fov += (Math.min(78, targetFov) - this.camera.fov) * (1 - Math.exp(-dt * 4));
+    this.camera.fov += (Math.min(78, targetFov) + settings.fov - this.camera.fov) * (1 - Math.exp(-dt * 4));
     this.camera.updateProjectionMatrix();
   }
 }

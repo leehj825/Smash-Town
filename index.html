@@ -87,6 +87,7 @@
       <div class="panel">
         <h2 data-i18n="ui.paused">PAUSED</h2>
         <div class="row"><span data-i18n="ui.story">STORY</span><span id="story-progress"></span></div>
+        <div id="earnings"></div>
         <div class="row"><span data-i18n="ui.settings.language">Language</span>
           <div class="segs"><button class="seg lang" data-lang="en">English</button><button class="seg lang" data-lang="ko">한국어</button></div>
         </div>
@@ -115,6 +116,18 @@
             <button class="seg tod" data-t="sunset" data-i18n="ui.time.sunset"></button>
             <button class="seg tod" data-t="night" data-i18n="ui.time.night"></button>
           </div>
+        </div>
+        <div class="row"><span data-i18n="ui.settings.sens">Look sensitivity</span>
+          <div class="segs"><button class="seg sens" data-v="0.6">0.6x</button><button class="seg sens" data-v="1">1x</button><button class="seg sens" data-v="1.5">1.5x</button><button class="seg sens" data-v="2.2">2.2x</button></div>
+        </div>
+        <div class="row"><span data-i18n="ui.settings.fov">Field of view</span>
+          <div class="segs"><button class="seg fov" data-v="-6">-</button><button class="seg fov" data-v="0">0</button><button class="seg fov" data-v="8">+</button><button class="seg fov" data-v="16">++</button></div>
+        </div>
+        <div class="row"><span data-i18n="ui.settings.shake">Camera shake</span>
+          <div class="segs"><button class="seg shake" data-v="0" data-i18n="ui.off"></button><button class="seg shake" data-v="0.5">50%</button><button class="seg shake" data-v="1">100%</button><button class="seg shake" data-v="1.5">150%</button></div>
+        </div>
+        <div class="row"><span></span>
+          <div class="segs"><button id="btn-controls" class="seg" data-i18n="ui.settings.controls">Controls</button><button id="btn-howto" class="seg" data-i18n="ui.settings.howto">How to play</button><button id="btn-newgame" class="seg warn" data-i18n="ui.settings.newgame">New game</button></div>
         </div>
         <button id="btn-resume" class="big" data-i18n="ui.resume">RESUME</button>
       </div>

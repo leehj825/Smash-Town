@@ -9,9 +9,10 @@ import type { Environment } from './environment';
 import { MeshBuilder, makeRng, paletteMaterial } from './geo';
 import { GigManager } from './gigs';
 import { Navigator, type Route } from './nav';
-import type { Blip, Hud } from './hud';
+import { BODY_KEYS, BODY_PRICES, MAX_LEVEL, NEONS, NEON_PRICE, PAINTS, PAINT_PRICE, UP_KEYS, UP_PRICES, emptyBody, emptyCar, fineFor, resprayCost, type BodyProgress, type CarProgress } from './upgrades';
+import type { Blip, GarageModel, Hud } from './hud';
 import type { Input } from './input';
-import { t, tf } from './i18n';
+import { bi, t, tf } from './i18n';
 import { Humans, Role, type HumanCtx, type HumanHooks } from './humans';
 import { Popups, SlashTrail } from './effects';
 import type { Props } from './props';
@@ -20,8 +21,9 @@ import { GameVehicle, type AIMode, type VehicleEvents } from './vehicles';
 import type { Vfx } from './vfx';
 import type { CircleCollider, World } from './world';
 
-const SAVE_KEY = 'smashtown.save.v1';
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[] }
+export const SAVE_KEY = 'smashtown.save.v1';
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress }
+export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
 const STAR_HEAT = [30, 90, 170, 270, 400];
@@ -133,6 +135,7 @@ export class Game {
     this.save = this.loadSave();
     this.cash = this.save.cash;
     this.hud.setCash(this.cash);
+    this.applyBody();
 
     this.collectibles = new Collectibles(d.world.landmarks.collectibles, this.save.collected ?? []);
     this.scene.add(this.collectibles.group);
@@ -159,7 +162,7 @@ export class Game {
 
   // ------------------------------------------------------------------ persistence
   private loadSave(): SaveData {
-    const fallback: SaveData = { cash: 12450, unlocked: ['sports', 'sedan'], selected: 'sports' };
+    const fallback: SaveData = { cash: 2000, unlocked: ['sports', 'sedan'], selected: 'sports' };
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return fallback;
@@ -170,12 +173,25 @@ export class Game {
       const st = s.story;
       const story = st && Number.isFinite(st.ch) && Number.isFinite(st.step) && Number.isFinite(st.prog) ? { ch: st.ch, step: st.step, prog: st.prog } : undefined;
       const collected = Array.isArray(s.collected) ? s.collected.filter((n): n is number => Number.isInteger(n)) : [];
-      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected };
+      const cars: Record<string, CarProgress> = {};
+      for (const k of PLAYER_ROSTER) {
+        const c = s.cars?.[k];
+        if (!c) continue;
+        const up = Array.isArray(c.up) ? UP_KEYS.map((_, i) => Math.max(0, Math.min(MAX_LEVEL, Math.floor(Number(c.up[i]) || 0)))) : [0, 0, 0, 0];
+        cars[k] = { up, paint: PAINTS.includes(c.paint) ? c.paint : 0, neon: NEONS.includes(c.neon) ? c.neon : 0 };
+      }
+      const b = s.body;
+      const lv = (n: unknown) => Math.max(0, Math.min(MAX_LEVEL, Math.floor(Number(n) || 0)));
+      const body = b ? { health: lv(b.health), power: lv(b.power), speed: lv(b.speed) } : emptyBody();
+      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body };
     } catch {
       return fallback;
     }
   }
+  /** Set while the save is being erased so nothing rewrites it before the reload. */
+  noSave = false;
   private flushSave(): void {
+    if (this.noSave) return;
     this.save.cash = Math.round(this.cash);
     this.save.collected = this.collectibles.indices();
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch { /* ignore */ }
@@ -188,7 +204,11 @@ export class Game {
   get followable(): Followable { return this.onFoot || !this.driving ? this.foot : this.driving.ctrl; }
   get cashAmount(): number { return this.cash; }
 
-  addCash(n: number): void {
+  /** Money earned this session, by source (shown on the pause screen). */
+  readonly earned: Record<EarnSrc, number> = { props: 0, stars: 0, gigs: 0, story: 0, police: 0, other: 0 };
+
+  addCash(n: number, src: EarnSrc = 'other'): void {
+    if (n > 0) this.earned[src] += n;
     this.cash += n;
     this.saveDirty = true;
     this.hud.setCash(this.cash);
@@ -233,8 +253,9 @@ export class Game {
   }
 
   private spawnPlayer(kind: VehicleKind, x: number, z: number, heading: number): GameVehicle {
-    const v = this.spawnVehicle(kind, STATS[kind].color, x, z, heading, 'player', true);
+    const v = this.spawnVehicle(kind, this.paintOf(kind), x, z, heading, 'player', true);
     v.owned = true;
+    this.applyLook(v);
     this.driving = v;
     this.onFoot = false;
     this.humans.setPlayerActive(false, 0, 0, 0);
@@ -295,7 +316,9 @@ export class Game {
     this.comboCount++;
     this.comboTimer = 4;
     const mult = Math.min(10, 1 + Math.floor(this.comboCount / 2));
-    this.addCash(Math.round(value * 0.1 * mult));
+    const pay = Math.round(value * 0.1 * mult);
+    this.addCash(pay, 'props');
+    this.popups.spawn(c.x, 1.8, c.z, `+$${pay}`, '#3dff8a');
     this.addHeat(3);
     this.audio.smash();
     this.cameraRig.shake(Math.min(0.5, speed / 70));
@@ -497,45 +520,124 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ garage (Pay & Spray)
-  private garageModel() {
+  private carProg(k: VehicleKind): CarProgress {
+    this.save.cars ??= {};
+    return (this.save.cars[k] ??= emptyCar());
+  }
+  private paintOf(k: VehicleKind): number { return this.save.cars?.[k]?.paint || STATS[k].color; }
+  private applyLook(v: GameVehicle): void {
+    const p = this.carProg(v.kind);
+    v.ctrl.setUpgrades(p.up);
+    v.setNeon(p.neon);
+  }
+  private applyBody(): void {
+    const b = (this.save.body ??= emptyBody());
+    this.humans.setBody(b.health, b.power, b.speed);
+  }
+  /** Re-skin the car the player is driving after a paint change. */
+  private repaintCurrent(): void {
+    const old = this.driving;
+    if (!old) return;
+    const hp = old.ctrl.hp, nitro = old.ctrl.nitro;
+    const nv = this.spawnVehicle(old.kind, this.paintOf(old.kind), old.x, old.z, old.ctrl.heading, 'player', true);
+    nv.owned = true; nv.ctrl.hp = hp; nv.ctrl.nitro = nitro;
+    nv.ctrl.vx = old.ctrl.vx; nv.ctrl.vz = old.ctrl.vz;
+    this.applyLook(nv);
+    this.removeVehicle(old);
+    this.driving = nv;
+    this.cameraRig.snap();
+  }
+
+  private garageModel(): GarageModel {
     const d = this.driving;
+    const k = this.save.selected;
+    const cp = this.carProg(k);
+    let copNear = false;
+    for (const v of this.policeVehicles()) if (Math.hypot(v.x - this.focusX, v.z - this.focusZ) < 30) { copNear = true; break; }
     return {
       cash: this.cash,
-      repairCost: 100 + this.stars * 150 + Math.round((1 - (d?.ctrl.hp ?? 1)) * 400),
+      repairCost: 100 + Math.round((1 - (d?.ctrl.hp ?? 1)) * 400),
+      respray: { cost: resprayCost(this.stars), state: this.stars === 0 ? 'none' : copNear ? 'police' : 'ok' },
       unlocked: new Set(this.save.unlocked),
-      selected: this.save.selected,
+      selected: k,
+      car: cp,
+      body: this.save.body ?? emptyBody(),
     };
+  }
+
+  private pay(price: number): boolean {
+    if (this.cash < price) { this.hud.toast(t('ui.toast.notenough')); return false; }
+    this.cash -= price;
+    this.saveDirty = true;
+    this.hud.setCash(this.cash);
+    this.audio.cash();
+    return true;
   }
 
   private openGarage(): void {
     this.state = 'garage';
     const d = this.driving!;
     d.ctrl.vx = d.ctrl.vz = 0;
+    const refresh = () => this.hud.refreshGarage(this.garageModel());
     this.hud.openGarage(this.garageModel(), {
       onRepair: () => {
         const m = this.garageModel();
-        if (this.cash < m.repairCost) { this.hud.toast(t('ui.toast.notenough')); return; }
-        this.cash -= m.repairCost;
+        if (this.driving!.ctrl.hp >= 0.999) { this.hud.toast(bi('Already in perfect shape', '이미 완벽한 상태예요')); return; }
+        if (!this.pay(m.repairCost)) return;
         this.driving!.ctrl.hp = 1;
-        this.clearWanted();
-        this.saveDirty = true;
-        this.hud.setCash(this.cash);
         this.hud.toast(t('ui.toast.repaired'));
-        this.hud.refreshGarage(this.garageModel());
+        refresh();
+      },
+      onRespray: () => {
+        const m = this.garageModel();
+        if (m.respray.state === 'none') return;
+        if (m.respray.state === 'police') { this.hud.toast(bi('Police are too close - lose them first!', '경찰이 너무 가까워요 - 먼저 따돌리세요!')); return; }
+        if (!this.pay(m.respray.cost)) return;
+        this.clearWanted();
+        this.hud.toast(bi('Fresh paint - heat cleared!', '새 도색 - 수배 해제!'));
+        refresh();
       },
       onBuy: (k) => {
-        const price = STATS[k].price;
-        if (this.cash < price) { this.hud.toast(t('ui.toast.notenough')); return; }
-        this.cash -= price;
+        if (!this.pay(STATS[k].price)) return;
         this.save.unlocked.push(k);
-        this.saveDirty = true;
-        this.hud.setCash(this.cash);
         this.hud.toast(t('ui.toast.unlocked'));
-        this.audio.cash();
         this.selectVehicle(k);
-        this.hud.refreshGarage(this.garageModel());
+        refresh();
       },
-      onSelect: (k) => { this.selectVehicle(k); this.hud.refreshGarage(this.garageModel()); },
+      onSelect: (k) => { this.selectVehicle(k); refresh(); },
+      onUpgrade: (i) => {
+        const cp = this.carProg(this.save.selected);
+        const lv = cp.up[i];
+        if (lv >= MAX_LEVEL || !this.pay(UP_PRICES[UP_KEYS[i]][lv])) return;
+        cp.up[i] = lv + 1;
+        if (this.driving) this.applyLook(this.driving);
+        refresh();
+      },
+      onPaint: (color) => {
+        const cp = this.carProg(this.save.selected);
+        if (cp.paint === color) return;
+        if (color !== 0 && !this.pay(PAINT_PRICE)) return;
+        cp.paint = color;
+        this.repaintCurrent();
+        refresh();
+      },
+      onNeon: (color) => {
+        const cp = this.carProg(this.save.selected);
+        if (cp.neon === color) return;
+        if (color !== 0 && !this.pay(NEON_PRICE)) return;
+        cp.neon = color;
+        this.driving?.setNeon(color);
+        refresh();
+      },
+      onBody: (i) => {
+        const key = BODY_KEYS[i];
+        const b = (this.save.body ??= emptyBody());
+        const lv = b[key];
+        if (lv >= MAX_LEVEL || !this.pay(BODY_PRICES[key][lv])) return;
+        b[key] = lv + 1;
+        this.applyBody();
+        refresh();
+      },
       onClose: () => this.closeGarage(),
     });
   }
@@ -554,8 +656,9 @@ export class Game {
     const old = this.driving;
     if (!old) return;
     const hp = old.ctrl.hp;
-    const nv = this.spawnVehicle(k, STATS[k].color, old.x, old.z, old.ctrl.heading, 'player', true);
+    const nv = this.spawnVehicle(k, this.paintOf(k), old.x, old.z, old.ctrl.heading, 'player', true);
     nv.owned = true;
+    this.applyLook(nv);
     nv.ctrl.hp = hp;
     this.removeVehicle(old);
     this.driving = nv;
@@ -682,7 +785,8 @@ export class Game {
     if (this.state !== 'play') return;
     const i = this.collectibles.tryCollect(this.focusX, this.focusZ, this.onFoot ? 2.4 : 4);
     if (i < 0) return;
-    this.addCash(300);
+    this.addCash(300, 'stars');
+    this.popups.spawn(this.focusX, 3, this.focusZ, '+$300', '#ffe27a');
     this.saveDirty = true;
     this.hud.setCollectibles(this.collectibles.count, this.collectibles.total);
     this.hud.toast(`${t('ui.stars_found')} ${this.collectibles.count}/${this.collectibles.total}  +$300`, 2200);
@@ -793,7 +897,7 @@ export class Game {
       },
       onPlayerHurt: () => { this.cameraRig.shake(0.35); this.audio.thump(); this.input.rumble(0.9, 0.6, 180); },
       onCopDown: (h) => {
-        this.addCash(150);
+        this.addCash(150, 'police');
         this.addHeat(15);
         if (this.humans.kids) this.popups.spawn(h.x, h.y + 2.2, h.z, t('pop.ko'), '#8a5cd6'); // knocked out, not killed
         else this.vfx.emitFire(h.x, 1, h.z, 4, 0.3);
@@ -892,7 +996,7 @@ export class Game {
         this.vfx.explosion(v.x, v.z);
         if (this.nearPlayer(v.x, v.z, 70)) { this.audio.explosion(); this.cameraRig.shake(0.5); }
         if (v === this.driving) continue; // handled by the state machine
-        if (v.ai === 'police') { this.addCash(200); this.addHeat(30); }
+        if (v.ai === 'police') { this.addCash(200, 'police'); this.addHeat(30); }
         v.ai = 'wreck';
         v.wreckTimer = 8;
       }
@@ -975,7 +1079,7 @@ export class Game {
     // survival bonus at high heat
     if (this.stars >= 4) {
       this.survivalAcc += dt * this.stars * 8;
-      if (this.survivalAcc >= 50) { this.addCash(Math.floor(this.survivalAcc)); this.survivalAcc = 0; }
+      if (this.survivalAcc >= 50) { this.addCash(Math.floor(this.survivalAcc), 'police'); this.survivalAcc = 0; }
     }
     this.managePolice(dt);
 
@@ -992,14 +1096,16 @@ export class Game {
     }
   }
 
+  private fineText(n: number): string { return n > 0 ? tf('ui.toast.busted', { n }) : bi('Bail waived - you are nearly broke', '보석금 면제 - 거의 파산 상태예요'); }
+
   private busted(): void {
     this.state = 'busted';
     this.stateTimer = 2.8;
-    const fine = Math.min(Math.round(this.cash), 500);
+    const fine = fineFor(this.cash, 0.1, 2500); // bail: 10% of cash, free under $500
     this.cash -= fine;
     this.saveDirty = true;
     this.hud.setCash(this.cash);
-    this.hud.setOverlay('ui.busted', tf('ui.toast.busted', { n: fine }));
+    this.hud.setOverlay('ui.busted', this.fineText(fine));
     this.audio.thump();
   }
 
@@ -1032,17 +1138,19 @@ export class Game {
       if (d && d.ctrl.wrecked && !this.onFoot) {
         this.state = 'wrecked';
         this.stateTimer = 2.8;
-        const fine = Math.min(Math.round(this.cash), 300);
+        const fine = fineFor(this.cash, 0.06, 1500);
         this.cash -= fine;
+        this.saveDirty = true;
         this.hud.setCash(this.cash);
-        this.hud.setOverlay('ui.wrecked', tf('ui.toast.busted', { n: fine }));
+        this.hud.setOverlay('ui.wrecked', this.fineText(fine));
       } else if (this.onFoot && this.humans.player.hp <= 0) {
         this.state = 'wasted';
         this.stateTimer = 2.8;
-        const fine = Math.min(Math.round(this.cash), 300);
+        const fine = fineFor(this.cash, 0.06, 1500);
         this.cash -= fine;
+        this.saveDirty = true;
         this.hud.setCash(this.cash);
-        this.hud.setOverlay(this.humans.kids ? 'ui.knocked_out' : 'ui.wasted', tf('ui.toast.busted', { n: fine }));
+        this.hud.setOverlay(this.humans.kids ? 'ui.knocked_out' : 'ui.wasted', this.fineText(fine));
       }
     } else if (this.state === 'busted' || this.state === 'wrecked' || this.state === 'wasted') {
       this.stateTimer -= dt;

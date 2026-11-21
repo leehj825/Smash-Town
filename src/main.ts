@@ -4,7 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-import { applyDom, getLang, onLangChange, setLang, t, type Lang } from './i18n';
+import { applyDom, bi, getLang, onLangChange, setLang, t, type Lang } from './i18n';
 import { Input } from './input';
 import { buildWorld } from './world';
 import { buildProps } from './props';
@@ -14,6 +14,9 @@ import { CameraRig } from './cameraRig';
 import { Hud } from './hud';
 import { Game } from './game';
 import { BigMap } from './bigmap';
+import { ControlsPanel, HowToPlay, type Modal } from './overlays';
+import { settings, saveSettings } from './settings';
+import { SAVE_KEY } from './game';
 import { setupTouch } from './touch';
 
 type Quality = 'high' | 'medium' | 'low';
@@ -71,6 +74,10 @@ cameraRig.obstacles = world.boxes;
 const hud = new Hud(world);
 const game = new Game({ scene, world, props, vfx, hud, input, env, cameraRig });
 const bigmap = new BigMap(game);
+const controlsPanel = new ControlsPanel();
+const howto = new HowToPlay();
+const modals: Modal[] = [controlsPanel, howto, bigmap];
+const openModal = (): Modal | undefined => modals.find((m) => m.isOpen);
 
 // ---------------------------------------------------------------- post-processing / quality
 const composer = new EffectComposer(renderer);
@@ -151,6 +158,7 @@ function startGame(): void {
   state = 'playing';
   titleEl.hidden = true;
   hudEl.hidden = false;
+  if (!settings.tutorialDone) howto.open();
   try {
     game.audio.init(); // needs a user gesture
   } catch (err) {
@@ -161,7 +169,11 @@ function setPaused(p: boolean): void {
   if (state === 'title') return;
   state = p ? 'paused' : 'playing';
   pauseEl.hidden = !p;
-  if (p) input.releaseMouse();
+  if (p) {
+    input.releaseMouse();
+    const e = game.earned;
+    hud.setEarnings([[bi('Smashed props', '부순 물건'), e.props], [bi('Golden stars', '황금 별'), e.stars], [bi('Side jobs', '부업'), e.gigs], [bi('Story', '스토리'), e.story], [bi('Police & survival', '경찰·생존'), e.police], [bi('Other', '기타'), e.other]]);
+  }
 }
 document.getElementById('btn-play')!.addEventListener('click', startGame);
 document.getElementById('btn-pause')!.addEventListener('click', () => setPaused(true));
@@ -177,6 +189,31 @@ document.querySelectorAll<HTMLElement>('.quality').forEach((b) => b.addEventList
 document.querySelectorAll<HTMLElement>('.tod').forEach((b) => b.addEventListener('click', () => applyTime(b.dataset.t as TimeOfDay)));
 document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.addEventListener('click', () => applyAudio(b.dataset.a === '1')));
 document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.addEventListener('click', () => applyKids(b.dataset.k === '1')));
+const segSync = (cls: string, cur: number) =>
+  document.querySelectorAll<HTMLElement>('.seg.' + cls).forEach((b) => b.classList.toggle('sel', Math.abs(Number(b.dataset.v) - cur) < 0.01));
+function wireSeg(cls: 'sens' | 'fov' | 'shake'): void {
+  segSync(cls, settings[cls]);
+  document.querySelectorAll<HTMLElement>('.seg.' + cls).forEach((b) => b.addEventListener('click', () => {
+    settings[cls] = Number(b.dataset.v); saveSettings(); segSync(cls, settings[cls]);
+  }));
+}
+wireSeg('sens'); wireSeg('fov'); wireSeg('shake');
+document.getElementById('btn-controls')!.addEventListener('click', () => controlsPanel.open());
+document.getElementById('btn-howto')!.addEventListener('click', () => howto.open());
+const newGameBtn = document.getElementById('btn-newgame')!;
+let armedTimer = 0;
+newGameBtn.addEventListener('click', () => {
+  if (!newGameBtn.classList.contains('armed')) {
+    newGameBtn.classList.add('armed');
+    newGameBtn.textContent = t('ui.settings.newgame_confirm');
+    armedTimer = window.setTimeout(() => { newGameBtn.classList.remove('armed'); newGameBtn.textContent = t('ui.settings.newgame'); }, 4000);
+    return;
+  }
+  window.clearTimeout(armedTimer);
+  game.noSave = true;
+  try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ }
+  location.reload();
+});
 applyDom();
 document.documentElement.lang = getLang();
 const syncLangButtons = () =>
@@ -208,7 +245,7 @@ function frame(): void {
 let navIndex = -1;
 function menuNav(): void {
   const garageEl = document.getElementById('garage')!;
-  const overlay = !titleEl.hidden ? titleEl : !pauseEl.hidden ? pauseEl : !garageEl.hidden ? garageEl : bigmap.isOpen ? bigmap.el : null;
+  const overlay = openModal()?.el ?? (!titleEl.hidden ? titleEl : !pauseEl.hidden ? pauseEl : !garageEl.hidden ? garageEl : null);
   if (!overlay) { navIndex = -1; return; }
   const btns = Array.from(overlay.querySelectorAll<HTMLButtonElement>('button:not([disabled])'));
   if (!btns.length) return;
@@ -231,17 +268,20 @@ function tick(): void {
   let dt = Math.min(rawDt, 0.05);
 
   // gamepad: tell it what the buttons mean right now, then read it
-  input.menu = state !== 'playing' || game.state !== 'play' || bigmap.isOpen;
+  input.menu = state !== 'playing' || game.state !== 'play' || !!openModal();
   input.mode = game.onFoot ? 'foot' : 'car';
   input.pollGamepad(Math.min(rawDt, 0.1));
   if (input.padActive && state !== 'title') game.audio.ensureRunning();
   menuNav();
   if (state === 'title' && input.wasPressed('Enter')) startGame();
 
-  if (state === 'playing' && bigmap.isOpen) {
-    if (input.wasPressed('Escape') || input.wasPressed('KeyP') || input.wasPressed('KeyM')) bigmap.close();
+  const modal = openModal();
+  if (modal) {
+    if (!controlsPanel.isCapturing) {
+      if (input.wasPressed('Escape') || (modal === bigmap && (input.wasPressed('KeyP') || input.wasPressed('KeyM'))) || (modal === howto && (input.wasPressed('Enter') || input.wasPressed('Space')))) modal.close();
+    }
     dt = 0;
-    bigmap.draw(rawDt);
+    if (modal === bigmap) bigmap.draw(rawDt);
   } else if (state === 'playing') {
     if (input.wasPressed('KeyM')) toggleMap();
     else if (game.state !== 'garage' && game.state !== 'dialog' && (input.wasPressed('Escape') || input.wasPressed('KeyP'))) setPaused(true);

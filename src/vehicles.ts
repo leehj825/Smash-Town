@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CarController, type CarEvents } from './carController';
 import type { ControlState } from './input';
 import type { PoliceBrain, TrafficBrain } from './ai';
-import { VehicleFactory, type VehicleKind } from './vehicle';
+import { VehicleFactory, dimsOf, type VehicleKind } from './vehicle';
 import type { CircleCollider, World } from './world';
 
 export type AIMode = 'player' | 'traffic' | 'police' | 'parked' | 'wreck';
@@ -69,6 +69,25 @@ export class GameVehicle {
     if (this.wreckedLook) model.chassis.material = VehicleFactory.charred;
     VehicleFactory.dispose(old);
     this.ctrl.useRamps = true;
+    if (this.neonColor) this.applyNeon();
+  }
+
+  private neonColor = 0;
+  private neonMesh: THREE.Mesh | null = null;
+  /** Underglow for the player's car (0 = off). Re-applied whenever the model is swapped. */
+  setNeon(color: number): void {
+    this.neonColor = color;
+    this.applyNeon();
+  }
+  private applyNeon(): void {
+    if (this.neonMesh) { this.neonMesh.removeFromParent(); this.neonMesh.geometry.dispose(); (this.neonMesh.material as THREE.Material).dispose(); this.neonMesh = null; }
+    if (!this.neonColor) return;
+    const d = dimsOf(this.kind);
+    const geo = new THREE.PlaneGeometry(d.radius * 2 + 1.1, d.len + 0.9);
+    geo.rotateX(-Math.PI / 2);
+    this.neonMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: this.neonColor, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    this.neonMesh.position.y = 0.09;
+    this.ctrl.model.root.add(this.neonMesh);
   }
 
   private wreckedLook = false;
@@ -79,6 +98,7 @@ export class GameVehicle {
   }
 
   remove(): void {
+    this.neonColor = 0; this.applyNeon();
     VehicleFactory.dispose(this.ctrl.model);
   }
 }

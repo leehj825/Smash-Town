@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "postinstall": "node scripts/render-build.mjs"
+    "postinstall": "node scripts/render-build.mjs",
+    "test": "node tests/smoke.cjs && node tests/economy.cjs"
   },
   "dependencies": {
     "three": "^0.187.0"
