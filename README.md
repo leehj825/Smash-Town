@@ -25,6 +25,7 @@ npm run build    # typecheck + production bundle in dist/
 | On foot | `Space` | Dodge roll in combat (i-frames), otherwise jump; `Ctrl`/`Alt` always dodge, `C` always jumps |
 | On foot | `1`-`9` / wheel / `V` | Fists / bat / baton (dropped by defeated cops) / pistol / SMG / shotgun / rocket launcher / paintball gun / grenades (guns are bought in the garage or the Gun Shop) |
 | On foot | Left click (hold) / `R` | Fire a gun (automatic guns repeat) / reload |
+| On foot, gun out | Right mouse (hold) | Zoom: a closer over-the-shoulder camera and a tighter crosshair (right click kicks only with fists). `Shift` sprints and lowers the gun |
 | On foot | `F` at a ladder or shop door | Climb to a rooftop, or walk into a shop (doors are locked while the police are after you) |
 | On foot | Mouse (click to capture) / drag | Orbit camera; auto-aligns behind you while sprinting |
 | Always | `T` / `R` / `N` / `Esc` | Time of day / reset car (driving) or reload (on foot) / next radio station or off / pause & settings |
@@ -42,6 +43,7 @@ Plug in or pair a controller, then press any button; the on-screen hints switch 
 | Driving | A (hold) / RB (hold) | Handbrake drift / Nitro |
 | On foot | Left stick / Right stick | Move (camera-relative) / Orbit camera |
 | On foot | X / RB | Punch or weapon swing / Kick |
+| On foot, gun out | RT (hold) / LT (hold) | Fire / Zoom (L3 sprints) |
 | On foot | A / B | Jump (or dodge in a fight) / Dodge roll |
 | On foot | LT or L3 (hold) / LB | Sprint / Switch weapon (D-pad left / right also cycle) |
 | Always | Y | Enter / exit vehicle (also advances story conversations, as do A and Start) |
@@ -60,6 +62,7 @@ Plug in or pair a controller, then press any button; the on-screen hints switch 
 - **Wanted 1–5★** (1 / 3 / 5 / 8 / 10 police cars): patrol cruisers with PIT ramming, roadblocks, interceptors, SWAT vans with predictive steering, armored units, and foot cops that exit cruisers, surround you and melee with batons.
 - **Pay & Spray garages:** repair (also fixes shredded tyres), Quick Respray to clear the heat ($500 per star, not while police are close), a vehicle shop (eight cars including a stretch limo and a monster truck), per-car tuning (engine, nitro, armor, tyres), paint and neon, on-foot training and an Arms tab. Money, upgrades, guns and ammo persist in `localStorage`; bail is free under $500 so you can never be locked out.
 - **Guns:** pistol (unlimited spare ammo), SMG, shotgun, rocket launcher, a harmless paintball gun and grenades with magazines, real reload and throw animations, soft aim assist, tracers and blasts. Kids Play stays on: hits stun instead of kill. Firing adds heat; getting busted costs spare ammo.
+- **Crosshair:** with a gun out there is a crosshair in the middle of the screen; the camera tightens over the shoulder, the body keeps facing where you look, and shots go to the point under the crosshair (over low props and roofs, up at the helicopter). It turns red over cops, police cars and the helicopter, flashes on a hit, and shows a lock box for rockets.
 - **Pickups:** health packs, armor, cash, ammo and burger stands ($15, full health) on the pavements, plus drops from police.
 - **Tougher police:** riot cops with shields (4+ stars), a searchlight helicopter at 5 stars (a rocket brings it down for a bounty) and spike strips ahead of roadblocks.
 - **Rooftops and shops:** ladders to the roofs of eight old-town buildings, rooftop golden stars, the Rooftop Dash gig, and five walk-in shops (donuts, guns, clothes, arcade, motel); three of them can be bought for passive income.

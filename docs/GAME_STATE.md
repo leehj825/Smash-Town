@@ -66,6 +66,7 @@ A browser 3D arcade open-world sandbox: drive, smash street props, brawl on foot
 - Phase 8: district names on the big map, draw-call budget test (`tests/perf.cjs`), docs refreshed.
 - Phase 5: climbable old-town roofs (ladders, rooftop golden stars, Rooftop Dash gig, fall damage off in Kids Play) and five enterable shops built as hidden pockets (donuts, guns, clothes, arcade, motel).
 - Phase 6: arc two (3 more chapters, monster truck reward), festival decorations and a donut discount after the first arc, ownable shops with income, 12 achievements, 3 daily challenges, a stats panel, and two street quests (taxi fares, thief chase). Golden stars: 16 (4 on roofs).
+- Guns update: Basic Shooter Pack reload / hit reaction / grenade throw (key 9), gun animations from the Pistol, Shooter and Pro Rifle packs, and an aiming crosshair (over-the-shoulder aim camera, zoom, shots at the crosshair, bullets can down the helicopter).
 
 ## 10. Known gaps and risks
 - **Performance is unmeasured on real hardware.** About 76 draw calls main pass, ~101 with shadows at normal traffic; ~147 at 5 stars with 8 police cars in view. Never run on a physical phone, low-end laptop or real controller.

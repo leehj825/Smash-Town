@@ -92,6 +92,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       const G = g(); const pl = G.humans.player; const cam = window.__smash.camera; const gs = G.guns; const sp = G.world.spawn;
       const fx = Math.sin(sp.heading), fz = Math.cos(sp.heading), rx = Math.cos(sp.heading), rz = -Math.sin(sp.heading);
       G.humans.setPlayerActive(true, sp.x, sp.z, sp.heading); G.onFoot = true;
+      for (const v of G.vehicles) if (Math.hypot(v.x - sp.x, v.z - sp.z) < 70) v.ctrl.position.x += 900; // nothing parked around the shooter
       G.humans.equip(3); G.input.padActive = false; gs.cool = 0; gs.reloading = null; gs.mag.pistol = 12;
       const at = (f, r) => [pl.x + fx * f + rx * r, pl.z + fz * f + rz * r];
       const cop = G.humans.list.find((h) => h !== pl); cop.active = true; cop.role = 1; cop.state = 0; cop.ko = false; cop.hp = 100; cop.invuln = 0; cop.y = 0.1;
@@ -116,6 +117,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       const G = g(); const pl = G.humans.player; const cam = window.__smash.camera; const gs = G.guns; const h = G.heli; const sp = G.world.spawn;
       const fx = Math.sin(sp.heading), fz = Math.cos(sp.heading);
       G.humans.setPlayerActive(true, sp.x, sp.z, sp.heading);
+      for (const v of G.vehicles) if (Math.hypot(v.x - sp.x, v.z - sp.z) < 70) v.ctrl.position.x += 900;
       h.active = true; h.hp = 100; h.group.visible = true; h.x = pl.x + fx * 22; h.z = pl.z + fz * 22; h.y = 20;
       G.humans.equip(4); gs.cool = 0; gs.reloading = null; gs.mag.smg = 30; gs.reserve.smg = 60;
       cam.position.set(pl.x - fx * 2, 2.2, pl.z - fz * 2); cam.lookAt(h.x, h.y, h.z); cam.updateMatrixWorld(true);
