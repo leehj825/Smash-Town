@@ -24,7 +24,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     await p.waitForTimeout(800);
     const info = await S(() => { const list = []; g().pickups.forEach((t, x, z) => list.push([t, x, z])); const w = g().world; const inside = list.filter(([, x, z]) => w.boxes.some((b) => x > b.minX && x < b.maxX && z > b.minZ && z < b.maxZ)).length; return { n: list.length, inside, types: [...new Set(list.map((q) => q[0]))].sort().join(',') }; });
     ok(info.n >= 20 && info.inside === 0, 'pickups placed outside buildings', JSON.stringify(info));
-    ok(info.types === 'armor,burger,cash,health', 'all four pickup types exist');
+    ok(info.types === 'ammo,armor,burger,cash,health', 'all five pickup types exist');
     // exit the car, hurt the player, stand on a health pack
     await S(() => { g().enterExit(); });
     await p.waitForTimeout(600);
