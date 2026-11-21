@@ -93,7 +93,7 @@ export class TrafficBrain {
     this.setSegment(b, a, pick.d[0], pick.d[1]);
   }
 
-  update(dt: number, v: GameVehicle, others: GameVehicle[], rng: () => number): void {
+  update(dt: number, v: GameVehicle, others: GameVehicle[], rng: () => number, people: readonly { x: number; z: number; active: boolean }[]): void {
     const c = v.ctrl;
     const px = c.position.x, pz = c.position.z;
     const t = (px - this.ox) * this.dx + (pz - this.oz) * this.dz;
@@ -118,6 +118,16 @@ export class TrafficBrain {
       if (ahead < 0 || ahead > 16) continue;
       const lat = Math.abs(rx * fz - rz * fx);
       if (lat < 2.7) target = Math.min(target, Math.max(0, (ahead - 6.5) * 1.1));
+    }
+    // people standing or walking in the lane (the player on foot, civilians): stop for them
+    for (const p of people) {
+      if (!p.active) continue;
+      const rx = p.x - px, rz = p.z - pz;
+      if (rx > 20 || rx < -20 || rz > 20 || rz < -20) continue;
+      const ahead = rx * fx + rz * fz;
+      if (ahead < 0 || ahead > 16) continue;
+      const lat = Math.abs(rx * fz - rz * fx);
+      if (lat < 2.2) target = Math.min(target, Math.max(0, (ahead - 7.5) * 1.2));
     }
     const sp = c.forwardSpeed;
     if (this.rev > 0) {
@@ -191,11 +201,11 @@ export class PoliceBrain {
 
     // police drive at ~88 % of their top speed, so a fast car can outrun them
     let want = c.stats.maxSpeed * 0.88;
-    if (tg.onFoot) want = clamp(dist * 1.4, 0, 22);
+    if (tg.onFoot) want = clamp((dist - 6) * 1.2, 0, 22); // roll to a stop about 6 m in front of a player on foot
     else if (dist < 9) want = Math.min(tg.speed + 5, c.stats.maxSpeed * 0.92); // ram
     if (Math.abs(diff) > 0.9) want = Math.min(want, 16);
     ctl.throttle = c.forwardSpeed < want ? 1 : c.forwardSpeed > want + 4 ? -1 : 0;
-    if (tg.onFoot && dist < 5) { ctl.throttle = 0; ctl.handbrake = true; }
+    if (tg.onFoot && dist < 7) { ctl.throttle = 0; ctl.handbrake = true; }
 
     if (c.speed < 1.2 && dist > 7) {
       this.stuck += dt;

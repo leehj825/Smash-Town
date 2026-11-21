@@ -380,7 +380,7 @@ export class Game {
     rb.mesh.geometry.dispose();
     const i = this.world.boxes.indexOf(rb.box);
     if (i >= 0) this.world.boxes.splice(i, 1);
-    for (const c of rb.cars) this.removeVehicle(c);
+    for (const c of rb.cars) if (c.ai !== 'player' && c !== this.driving) this.removeVehicle(c); // never delete a cruiser the player took
     this.roadblocks.splice(this.roadblocks.indexOf(rb), 1);
   }
 
@@ -410,10 +410,16 @@ export class Game {
     } else {
       const v = this.nearestVehicle(3.2);
       if (!v) return;
+      // whoever was driving gets out: civilians run away, cops climb out too (also the empty roadblock cruisers)
+      const hadDriver = v.ai === 'traffic' || v.ai === 'police' || (v.isPolice && v.ai === 'parked' && !v.owned);
       if (v.police || v.traffic || v.ai === 'police' || v.ai === 'traffic') {
         this.addHeat(v.isPolice ? 45 : 20);
         v.traffic = null;
         v.police = null;
+      }
+      if (hadDriver) {
+        this.humans.ejectDriver(v.x, v.z, v.ctrl.heading, v.isPolice);
+        v.ctrl.vx *= 0.2; v.ctrl.vz *= 0.2; // the car rolls to a stop as the driver bails out
       }
       v.ai = 'player';
       v.ensureFull();
@@ -545,7 +551,7 @@ export class Game {
             v.control.throttle = 0; v.control.steer = 0; v.control.handbrake = true; v.control.nitro = false;
           }
           break;
-        case 'traffic': v.traffic?.update(dt, v, this.vehicles, this.rng); break;
+        case 'traffic': v.traffic?.update(dt, v, this.vehicles, this.rng, this.humans.list); break;
         case 'police': {
           const tg = this.chaseTarget();
           v.police?.update(dt, v, tg, this.world, this.stars);

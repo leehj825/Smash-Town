@@ -340,6 +340,8 @@ Playtesting showed that once wanted, too many police arrived and escaping was ne
 | Foot cops by stars (1→5) | 2 · 4 · 5 · 6 · 7 | 1 · 2 · 3 · 4 · 5 |
 | Player attack speed | GDD frame data | ~30 % slower (all wind-up / active / recovery times ×1.33); cops were already slower to telegraph |
 | Kids Play (new setting, **default ON**) | — | Nobody dies. Defeated cops are *knocked out* ("K.O.!" popup, still counted as defeated, can't be hit again, then get up and walk away); cars only bump people over gently; the player is "KNOCKED OUT" instead of WASTED. Toggle in Pause → Settings (saved in `localStorage`); turning it off restores the original behaviour (cops can be killed, player is WASTED). |
+| Cars and people | — | Traffic and patrol cars brake and stop (~5 m gap) for anyone standing or walking in their lane, the player on foot included, and drive on once the lane is clear. Police chasing a player on foot roll to a stop about 6 m away instead of driving into them. |
+| Hijacking | — | Taking a moving car makes it roll to a stop and its driver climb out on the driver's side (get-up animation). Civilians run away and rejoin the crowd elsewhere; police officers get out too (and fight you if you stay on foot, otherwise they walk off). This also applies to empty roadblock cruisers (a cop steps out). |
 | Unarmed locomotion | `walk` / `run` / `idle` | `walkCalm` / `runCalm` / `idleEase`; armed characters keep the combat stance clips |
 
 ## 10. Known Gaps & Technical Debt

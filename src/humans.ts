@@ -49,6 +49,8 @@ export class Human {
   prevWeapon = 0; equipT = 0;
   /** Knocked out (Kids Play): can't be hit again, gets up and walks away. */
   ko = false;
+  /** Seconds left of free-running (a driver who just got out of a hijacked car), instead of following a sidewalk loop. */
+  freeT = 0;
   lastStepSign = 1;
   // civilian path
   lot!: Lot; s = 0; dir = 1; pathSpeed = 1.6;
@@ -504,6 +506,41 @@ export class Humans {
     this.renderer.setLook(h.slot, h.look);
   }
 
+  /**
+   * The driver of a hijacked car climbs out on the driver's (left) side. Civilians run away; police officers get out too
+   * (and fight you if you stay on foot). Uses a free pooled slot, so no allocation.
+   */
+  ejectDriver(carX: number, carZ: number, carHeading: number, isCop: boolean): void {
+    const x = carX + Math.cos(carHeading) * 1.9;
+    const z = carZ - Math.sin(carHeading) * 1.9;
+    let h: Human | null = null;
+    if (isCop) {
+      for (let i = COP_FIRST; i <= COP_LAST; i++) if (!this.list[i].active) { h = this.list[i]; break; }
+      if (!h) return;
+      h.active = true; h.role = Role.Cop; h.ko = false; h.freeT = 0;
+      h.hp = h.maxHp = 60; h.weapon = 2; h.atkScale = 0.55; h.scale = 1.03; h.cd = 1.2 + this.rng();
+      h.slotAngle = this.rng() * TWO_PI;
+      h.look = { shirt: 0x1e3a8a, pants: 0x1a1a24, skin: this.pick(SKINS), shoe: 0x111111, hair: 0x222222, cap: true };
+    } else {
+      // the civilian farthest from the car takes the driver's place
+      let far = -1;
+      for (let i = COP_LAST + 1; i < N; i++) {
+        const c = this.list[i];
+        if (c.state === St.Down || c.state === St.Hit || c.freeT > 0) continue;
+        const d = Math.hypot(c.x - x, c.z - z);
+        if (d > far) { far = d; h = c; }
+      }
+      if (!h) return;
+      h.freeT = 5; h.fleeing = true; h.ko = false;
+      h.look = { shirt: this.pick(SHIRTS), pants: this.pick(PANTS), skin: this.pick(SKINS), shoe: 0x2a2a30, hair: this.pick(HAIRS), cap: false };
+    }
+    h.x = x; h.z = z; h.y = GROUND; h.vy = 0; h.vx = h.vz = h.mvx = h.mvz = 0; h.grounded = true;
+    h.heading = Math.atan2(Math.cos(carHeading), -Math.sin(carHeading)); // facing away from the car's side
+    h.attack = null; h.invuln = 0; h.leaving = false; h.speed = 0;
+    h.state = St.GetUp; h.stateDur = h.stateT = 0.7; // tumbles out of the car, then stands up
+    this.renderer.setLook(h.slot, h.look);
+  }
+
   private manageCops(dt: number): void {
     const want = this.ctx.playerActive ? this.ctx.wantCops : 0;
     let alive = 0;
@@ -636,7 +673,11 @@ export class Humans {
         if (h.stateT <= 0) {
           h.state = St.Idle;
           if (h.ko) { h.leaving = true; h.leaveT = 4; } // a knocked-out cop dusts themselves off and walks away
-          if (h.role === Role.Civ) { h.hp = h.maxHp; this.assign(h, this.ctx.playerCarX, this.ctx.playerCarZ); h.fleeing = true; }
+          if (h.role === Role.Civ) {
+            h.hp = h.maxHp;
+            if (h.freeT > 0) { h.state = St.Walk; h.fleeing = true; } // an ejected driver runs off the road
+            else { this.assign(h, this.ctx.playerCarX, this.ctx.playerCarZ); h.fleeing = true; }
+          }
         }
         break;
       case St.Dead:
@@ -650,6 +691,16 @@ export class Humans {
     h.flash = Math.max(0, h.flash - dt);
     if (h.state !== St.Walk) return;
     const ctx = this.ctx;
+    if (h.freeT > 0) {
+      // free-running: away from the hijacked car, then rejoin the crowd somewhere else
+      h.freeT -= dt;
+      const a = Math.atan2(h.x - ctx.playerCarX, h.z - ctx.playerCarZ);
+      h.heading += wrap(a - h.heading) * Math.min(1, dt * 8);
+      h.mvx = Math.sin(h.heading) * 5.2; h.mvz = Math.cos(h.heading) * 5.2;
+      h.speed = 5.2; h.fleeing = true;
+      if (h.freeT <= 0) { h.freeT = 0; this.assign(h, ctx.playerCarX, ctx.playerCarZ); }
+      return;
+    }
     const dxp = h.x - this.player.x, dzp = h.z - this.player.z;
     const near = (this.ctx.playerActive && dxp * dxp + dzp * dzp < 90 && this.combatTimer > 0)
       || ((h.x - ctx.playerCarX) ** 2 + (h.z - ctx.playerCarZ) ** 2 < 100 && ctx.playerCarSpeed > 9);
@@ -683,7 +734,7 @@ export class Humans {
       else this.updateCivilian(h, dt);
       this.updateTimedStates(h, dt);
       if (!h.active) continue;
-      const civWalking = h.role === Role.Civ && h.state === St.Walk;
+      const civWalking = h.role === Role.Civ && h.state === St.Walk && h.freeT <= 0;
       if (!civWalking) this.integrate(h, dt, true);
       this.animate(h, dt);
     }
