@@ -324,3 +324,12 @@ body.can-reload #touch .gunrow #btn-reload { visibility: visible; }
 @media (max-height: 460px) { #touch .gunrow { gap: 8px; } #touch .gunrow button { width: 46px; height: 46px; } }
 #ammo small { display: block; font-size: 10px; color: #ff9b9b; letter-spacing: .5px; }
 #ammo { white-space: nowrap; }
+/* very short screens (about 320 px high): smaller buttons and a smaller status block so the gun row fits */
+@media (max-height: 340px) {
+  #touch button { width: 42px; height: 42px; font-size: 10px; }
+  #touch button.hit, #touch button.gas { width: 54px; height: 54px; }
+  #touch .gunrow { gap: 6px; } #touch .gunrow button, #touch .gunrow #btn-aim, #touch .gunrow #btn-auto, #touch .gunrow #btn-reload { width: 38px; height: 38px; font-size: 9px; }
+  #touch .zone-right { gap: 6px; } #touch .grid3 { gap: 6px; }
+  #stick { width: 100px; height: 100px; }
+  #status { transform: scale(.66); }
+}

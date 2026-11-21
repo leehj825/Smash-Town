@@ -56,6 +56,8 @@ export class Human {
   peak = 0;
   /** Riot officer: carries a shield that blocks most hits from the front. */
   riot = false;
+  /** Fires at the player from a distance instead of closing in (decided when the cop appears, by wanted level). */
+  shooter = false;
   /** Gun handling (player): seconds the weapon stays raised after a shot, where it points, how raised it is now, and shot / reload kicks. */
   aimT = 0; aimYaw = 0; aimBlend = 0; recoil = 0; reloadK = 0;
   /** Reload progress 0..1 while the rifle reload clip is driving the arms (-1 = not reloading) and the grenade throw timer. */
@@ -91,6 +93,8 @@ export interface HumanCtx {
   wantCops: number;
   /** How many of the foot cops should be riot officers. */
   wantRiot: number;
+  /** How many of the foot cops stand off and shoot. */
+  wantShooters?: number;
   playerActive: boolean;
   playerCarX: number; playerCarZ: number; playerCarSpeed: number;
   policeCars: { x: number; z: number }[];
@@ -215,6 +219,18 @@ export class Humans {
     this.player.hp = Math.min(this.player.hp, this.player.maxHp);
     this.bodyPower = 1 + 0.15 * power;
     this.bodySpeed = 1 + 0.05 * speed;
+  }
+
+  /** A bullet from the police: armor first, then health; a short grace period after each hit. */
+  hurtPlayer(dmg: number): void {
+    const p = this.player;
+    if (p.invuln > 0 || p.state === St.Dead || p.hp <= 0) return;
+    let take = dmg;
+    if (this.armor > 0) { const a = Math.min(this.armor, take); this.armor -= a; take -= a; }
+    p.hp -= take;
+    p.flash = 0.14;
+    p.invuln = 0.25;
+    this.hooks.onPlayerHurt(dmg);
   }
 
   healPlayer(): void { this.player.hp = this.player.maxHp; }
@@ -571,6 +587,7 @@ export class Humans {
     h.active = true; h.role = Role.Cop; h.ko = false;
     h.x = x; h.z = z; h.y = GROUND; h.vy = 0; h.vx = h.vz = h.mvx = h.mvz = 0; h.grounded = true;
     h.riot = count < this.ctx.wantRiot;
+    h.shooter = !h.riot && count % 2 === 0 && count < (this.ctx.wantShooters ?? 0) * 2; // every other cop, up to the wanted level's share
     h.state = St.Idle; h.hp = h.maxHp = h.riot ? 110 : 60; h.weapon = 2; h.leaving = false; h.cd = 0.6 + this.rng();
     h.atkScale = 0.55; h.scale = h.riot ? 1.12 : 1.03; h.attack = null; h.invuln = 0;
     h.heading = Math.atan2(px - x, pz - z);
@@ -590,7 +607,7 @@ export class Humans {
     if (isCop) {
       for (let i = COP_FIRST; i <= COP_LAST; i++) if (!this.list[i].active) { h = this.list[i]; break; }
       if (!h) return;
-      h.active = true; h.role = Role.Cop; h.ko = false; h.freeT = 0; h.riot = false;
+      h.active = true; h.role = Role.Cop; h.ko = false; h.freeT = 0; h.riot = false; h.shooter = false;
       h.hp = h.maxHp = 60; h.weapon = 2; h.atkScale = 0.55; h.scale = 1.03; h.cd = 1.2 + this.rng();
       h.slotAngle = this.rng() * TWO_PI;
       h.look = { shirt: 0x1e3a8a, pants: 0x1a1a24, skin: this.pick(SKINS), shoe: 0x111111, hair: 0x222222, cap: true };
@@ -653,6 +670,12 @@ export class Humans {
       return;
     }
     h.heading += wrap(Math.atan2(dx, dz) - h.heading) * Math.min(1, dt * 9);
+    if (h.shooter && dist > 3.5 && dist < 12) {
+      // a shooter keeps its distance and fires (see policefire.ts)
+      h.mvx *= Math.exp(-6 * dt); h.mvz *= Math.exp(-6 * dt);
+      h.speed = Math.hypot(h.mvx, h.mvz); h.state = h.speed > 0.4 ? St.Walk : St.Idle;
+      return;
+    }
     const gx = p.x + Math.sin(h.slotAngle) * 1.6, gz = p.z + Math.cos(h.slotAngle) * 1.6;
     if (dist > 2.2) {
       const tx = gx - h.x, tz = gz - h.z;

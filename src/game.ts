@@ -13,6 +13,7 @@ import { Pickups } from './pickups';
 import { Helicopter } from './heli';
 import { Interiors, type Room } from './interiors';
 import { RoofDash } from './roofdash';
+import { PoliceFire } from './policefire';
 import { SideQuests } from './sidequests';
 import { Progress, type ProgressSave } from './tracker';
 import { OWNABLE, type OwnableShop } from './progress';
@@ -85,6 +86,7 @@ export class Game {
   readonly guns: Guns;
   readonly interiors: Interiors;
   readonly roofDash: RoofDash;
+  readonly policeFire: PoliceFire;
   readonly sideQuests: SideQuests;
   readonly progress: Progress;
   readonly mood: Mood;
@@ -177,6 +179,7 @@ export class Game {
     this.heli.attach(this.scene);
     this.interiors = new Interiors(d.world, this.scene);
     this.roofDash = new RoofDash(this);
+    this.policeFire = new PoliceFire(this);
     this.sideQuests = new SideQuests(this);
     this.progress = new Progress(this.save.progress, (m) => this.hud.toast(m, 3600), (n) => { this.cash += n; this.hud.setCash(this.cash); this.saveDirty = true; this.audio.cash(); }, () => { this.saveDirty = true; });
     this.mood = new Mood(this);
@@ -1278,6 +1281,7 @@ export class Game {
       vehicles: this.vehicles,
       wantCops: want,
       wantRiot: want > 0 ? (this.stars >= 5 ? 3 : this.stars >= 4 ? 2 : 0) : 0,
+      wantShooters: want > 0 ? (this.stars >= 4 ? 3 : this.stars >= 2 ? 2 : 0) : 0,
       playerActive: this.onFoot,
       playerCarX: d ? d.x : pl.x, playerCarZ: d ? d.z : pl.z, playerCarSpeed: d ? d.ctrl.speed : 0,
       policeCars: this.copCars,
@@ -1285,6 +1289,7 @@ export class Game {
     };
     this.humans.update(dt, ctx);
     this.applyClimb(dt);
+    this.policeFire.update(dt);
     this.cameraRig.ignore = this.onFoot && this.humans.player.roof ? this.humans.player.roof.box : null;
     this.marker.visible = this.onFoot && pl.state !== 8;
     if (this.onFoot) {
