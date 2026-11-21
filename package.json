@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "postinstall": "node scripts/render-build.mjs",
-    "test": "node tests/smoke.cjs && node tests/economy.cjs && node tests/pickups.cjs"
+    "test": "node tests/smoke.cjs && node tests/economy.cjs && node tests/pickups.cjs && node tests/guns.cjs"
   },
   "dependencies": {
     "three": "^0.187.0"

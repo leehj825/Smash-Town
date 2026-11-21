@@ -26,6 +26,8 @@ export class GameVehicle {
   wreckTimer = 0;
   smokeAcc = 0;
   isGigTarget = false;
+  /** A tyre was shot out: slower and loose. */
+  flat = false;
   owned = false;
   ramCooldown = 0;
   /** Seconds until this car is removed once out of sight (cops that stood down after a chase). 0 = never. */

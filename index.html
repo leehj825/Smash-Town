@@ -21,6 +21,7 @@
           <span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span>
         </div>
         <div id="cash">$0</div>
+        <div id="ammo" hidden></div>
         <div id="stars-count" title="Golden stars">★ 0/12</div>
         <div id="phealth"><span data-i18n="ui.hp">HP</span><div class="track"><div id="phealth-fill" class="fill hp"></div><div id="parmor-fill"></div></div></div>
         <div id="combo"><span data-i18n="ui.smash_combo">SMASH COMBO</span> <b id="combo-mult"></b><div id="combo-bar"><div id="combo-fill"></div></div></div>
@@ -62,6 +63,11 @@
             <div class="slot sel"><b>1</b><i>&#9994;</i><span data-i18n="ui.weapon.fist">Fist</span></div>
             <div class="slot"><b>2</b><i>&#9918;</i><span data-i18n="ui.weapon.bat">Bat</span></div>
             <div class="slot locked"><b>3</b><i>&#128738;</i><span data-i18n="ui.weapon.baton">Baton</span></div>
+            <div class="slot gun" hidden><b>4</b><i></i><span></span></div>
+            <div class="slot gun" hidden><b>5</b><i></i><span></span></div>
+            <div class="slot gun" hidden><b>6</b><i></i><span></span></div>
+            <div class="slot gun" hidden><b>7</b><i></i><span></span></div>
+            <div class="slot gun" hidden><b>8</b><i></i><span></span></div>
           </div>
           <ul class="hints-foot">
             <li data-i18n="ui.hint.attack"></li>
@@ -155,9 +161,10 @@
         </div>
         <div class="grid3 only-foot">
           <button data-tap="KeyK">KICK</button><button data-tap="Space">DODGE</button><button data-tap="KeyC">JUMP</button>
-          <button data-tap="KeyV">WPN</button><button data-tap="KeyF">F</button><button data-tap="KeyJ" class="hit">HIT</button>
+          <button data-tap="KeyV">WPN</button><button data-tap="KeyF">F</button><button data-vbtn="fire" data-tap="KeyJ" class="hit">HIT</button>
         </div>
       </div>
+      <button id="btn-reload" data-tap="KeyR">R</button>
     </div>
 
     <script type="module" src="./src/main.ts"></script>

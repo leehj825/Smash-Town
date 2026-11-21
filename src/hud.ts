@@ -2,6 +2,7 @@ import { BODY_DESC, BODY_KEYS, BODY_NAMES, BODY_PRICES, MAX_LEVEL, NEONS, NEON_P
 import type { World } from './world';
 import type { Followable } from './cameraRig';
 import { bi, t, tf, type I18nKey } from './i18n';
+import { GUNS, GUN_ORDER, type GunId } from './guns';
 import { PLAYER_ROSTER, STATS, type VehicleKind } from './vehicle';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -16,6 +17,7 @@ export interface GarageModel {
   selected: VehicleKind;
   car: CarProgress;
   body: BodyProgress;
+  arms: { owned: GunId[]; reserve: Record<GunId, number> };
 }
 export interface GarageHandlers {
   onRepair: () => void;
@@ -26,9 +28,11 @@ export interface GarageHandlers {
   onPaint: (color: number) => void;
   onNeon: (color: number) => void;
   onBody: (i: number) => void;
+  onBuyGun: (g: GunId) => void;
+  onBuyAmmo: (g: GunId) => void;
   onClose: () => void;
 }
-type GarageTab = 'cars' | 'tune' | 'look' | 'body';
+type GarageTab = 'cars' | 'tune' | 'look' | 'body' | 'arms';
 
 /** DOM/canvas HUD: wanted stars, cash, combo, minimap, speedometer, nitro/HP, gigs, toasts, garage. */
 export class Hud {
@@ -181,7 +185,7 @@ export class Hud {
   setTelemetryVisible(_v: boolean): void { /* superseded by setFootMode */ }
 
   /** Bottom-right context: speedometer/nitro when driving, weapon slots + combat hints on foot. */
-  setFootMode(foot: boolean, weapon: number, batonUnlocked: boolean): void {
+  setFootMode(foot: boolean, weapon: number, owned: boolean[]): void {
     if (foot !== this.lastFoot) {
       this.lastFoot = foot;
       this.telemetry.classList.toggle('foot', foot);
@@ -189,9 +193,20 @@ export class Hud {
     }
     this.slots.forEach((el, i) => {
       el.classList.toggle('sel', i === weapon);
-      el.classList.toggle('locked', i === 2 && !batonUnlocked);
+      el.classList.toggle('locked', i === 2 && !owned[2]);
+      if (i >= 3) {
+        el.hidden = !owned[i];
+        if (owned[i] && !el.dataset.set) { const g = GUNS[GUN_ORDER[i - 3]]; el.querySelector('i')!.textContent = g.icon; el.querySelector('span')!.textContent = bi(g.en, g.ko); el.dataset.set = '1'; }
+      }
     });
   }
+
+  setAmmo(text: string | null): void {
+    const el = document.getElementById('ammo')!;
+    el.hidden = !text;
+    if (text && el.textContent !== text) el.textContent = text;
+  }
+  setReloadButton(on: boolean): void { document.body.classList.toggle('can-reload', on); }
 
   setPlayerArmor(frac: number): void { this.pArmor.style.width = `${Math.round(frac * 100)}%`; }
 
@@ -327,7 +342,7 @@ export class Hud {
     const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
     const stars = (lv: number) => '●'.repeat(lv) + '○'.repeat(MAX_LEVEL - lv);
     const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
-    const tabs: [GarageTab, string][] = [['cars', bi('Cars', '차량')], ['tune', bi('Tune-up', '튜닝')], ['look', bi('Paint & neon', '도색·네온')], ['body', bi('Training', '훈련')]];
+    const tabs: [GarageTab, string][] = [['cars', bi('Cars', '차량')], ['tune', bi('Tune-up', '튜닝')], ['look', bi('Paint & neon', '도색·네온')], ['body', bi('Training', '훈련')], ['arms', bi('Arms', '무기')]];
     let body = '';
     if (this.garageTab === 'cars') {
       body = '<div class="vgrid">' + PLAYER_ROSTER.map((k) => {
@@ -356,6 +371,15 @@ export class Hud {
         <div class="swatches">${sw(0, 'paint', m.car.paint === 0)}${PAINTS.map((c) => sw(c, 'paint', m.car.paint === c)).join('')}</div>
         <h3>${bi('Neon underglow', '네온 언더글로우')} - ${money(NEON_PRICE)}</h3>
         <div class="swatches">${sw(0, 'neon', m.car.neon === 0)}${NEONS.map((c) => sw(c, 'neon', m.car.neon === c)).join('')}</div>`;
+    } else if (this.garageTab === 'arms') {
+      body = '<div class="ulist">' + GUN_ORDER.map((id) => {
+        const g = GUNS[id];
+        const has = m.arms.owned.includes(id);
+        const res = g.infinite ? '\u221E' : String(m.arms.reserve[id]);
+        const buyBtn = has ? `<button class="seg" disabled>${bi('Owned', '보유')}</button>` : `<button class="seg gbuy" data-g="${id}">${money(g.price)}</button>`;
+        const ammoBtn = has && !g.infinite ? `<button class="seg gammo" data-g="${id}">+${g.pack} ${bi('ammo', '탄약')} ${money(g.packPrice)}</button>` : '';
+        return `<div class="urow"><div><b>${g.icon} ${bi(g.en, g.ko)}</b> <span class="lv">${has ? `${bi('ammo', '탄약')} ${res}` : ''}</span><small>${bi('Magazine', '탄창')} ${g.mag} \u00B7 ${g.dmg ? bi('damage', '피해') + ' ' + g.dmg + (g.pellets > 1 ? 'x' + g.pellets : '') : bi('harmless fun', '무해한 장난감')}</small></div><div class="gbtns">${buyBtn}${ammoBtn}</div></div>`;
+      }).join('') + '</div>';
     } else {
       body = '<div class="ulist">' + BODY_KEYS.map((k, i) => {
         const lv = m.body[k];
@@ -388,6 +412,8 @@ export class Hud {
       if (m.unlocked.has(k)) h.onSelect(k); else h.onBuy(k);
     }));
     q('button.up').forEach((b) => b.addEventListener('click', () => h.onUpgrade(Number(b.dataset.i))));
+    q('button.gbuy').forEach((b) => b.addEventListener('click', () => h.onBuyGun(b.dataset.g as GunId)));
+    q('button.gammo').forEach((b) => b.addEventListener('click', () => h.onBuyAmmo(b.dataset.g as GunId)));
     q('button.bup').forEach((b) => b.addEventListener('click', () => h.onBody(Number(b.dataset.i))));
     q('.swatch.paint').forEach((b) => b.addEventListener('click', () => h.onPaint(Number(b.dataset.c))));
     q('.swatch.neon').forEach((b) => b.addEventListener('click', () => h.onNeon(Number(b.dataset.c))));

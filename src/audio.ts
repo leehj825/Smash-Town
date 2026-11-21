@@ -141,6 +141,16 @@ export class AudioEngine {
   thump(): void {
     this.thud(120, 0.25, 0.5);
   }
+  /** Gunshots: a noise crack plus a body thump, tuned per gun. */
+  gun(kind: 'pistol' | 'smg' | 'shotgun' | 'rocket' | 'paint'): void {
+    if (kind === 'pistol') { this.burst(0.09, 2600, 0.5); this.thud(180, 0.12, 0.5); }
+    else if (kind === 'smg') { this.burst(0.06, 3200, 0.38); this.thud(210, 0.08, 0.35); }
+    else if (kind === 'shotgun') { this.burst(0.2, 1500, 0.8); this.thud(110, 0.22, 0.75); }
+    else if (kind === 'rocket') { this.burst(0.35, 700, 0.6); this.thud(80, 0.3, 0.6); }
+    else { this.burst(0.04, 4200, 0.2); }
+  }
+  click(): void { this.burst(0.03, 5200, 0.25); }
+  reload(): void { this.burst(0.05, 4000, 0.25); window.setTimeout(() => this.burst(0.05, 3000, 0.3), 280); }
   explosion(): void {
     this.burst(0.9, 900, 0.7);
     this.thud(90, 0.7, 0.7);

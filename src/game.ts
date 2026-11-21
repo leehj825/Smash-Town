@@ -10,6 +10,7 @@ import { MeshBuilder, makeRng, paletteMaterial } from './geo';
 import { GigManager } from './gigs';
 import { Navigator, type Route } from './nav';
 import { Pickups } from './pickups';
+import { GUN_ORDER, GUNS, Guns, type GunId } from './guns';
 import { BODY_KEYS, BODY_PRICES, MAX_LEVEL, NEONS, NEON_PRICE, PAINTS, PAINT_PRICE, UP_KEYS, UP_PRICES, emptyBody, emptyCar, fineFor, resprayCost, type BodyProgress, type CarProgress } from './upgrades';
 import type { Blip, GarageModel, Hud } from './hud';
 import type { Input } from './input';
@@ -23,7 +24,7 @@ import type { Vfx } from './vfx';
 import type { CircleCollider, World } from './world';
 
 export const SAVE_KEY = 'smashtown.save.v1';
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>> }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -68,6 +69,7 @@ export class Game {
   readonly gigs: GigManager;
   readonly story: StoryManager;
   readonly pickups: Pickups;
+  readonly guns: Guns;
   /** Road route to the story goal (refreshed a few times a second) and the goal itself. */
   route: Route | null = null;
   goal: { x: number; z: number; label: string; prop?: boolean } | null = null;
@@ -145,6 +147,9 @@ export class Game {
     this.story = new StoryManager(this, this.scene, this.save.story);
     this.pickups = new Pickups(d.world, makeRng(2024));
     this.scene.add(this.pickups.group);
+    this.guns = new Guns(this, this.save.guns ?? [], this.save.ammo ?? {});
+    this.scene.add(this.guns.group);
+    this.humans.guns = this.guns.flags();
 
     for (const g of this.world.garages) {
       const b = new Beacon(0x3dff8a, 6);
@@ -187,7 +192,10 @@ export class Game {
       const b = s.body;
       const lv = (n: unknown) => Math.max(0, Math.min(MAX_LEVEL, Math.floor(Number(n) || 0)));
       const body = b ? { health: lv(b.health), power: lv(b.power), speed: lv(b.speed) } : emptyBody();
-      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body };
+      const guns = Array.isArray(s.guns) ? s.guns.filter((g): g is GunId => GUN_ORDER.includes(g as GunId)) : [];
+      const ammo: Partial<Record<GunId, number>> = {};
+      for (const g of GUN_ORDER) { const n = Number(s.ammo?.[g]); if (Number.isFinite(n) && n > 0) ammo[g] = Math.floor(n); }
+      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo };
     } catch {
       return fallback;
     }
@@ -198,6 +206,8 @@ export class Game {
     if (this.noSave) return;
     this.save.cash = Math.round(this.cash);
     this.save.collected = this.collectibles.indices();
+    this.save.guns = [...this.guns.owned];
+    this.save.ammo = { ...this.guns.reserve };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch { /* ignore */ }
     this.saveDirty = false;
   }
@@ -566,6 +576,7 @@ export class Game {
       selected: k,
       car: cp,
       body: this.save.body ?? emptyBody(),
+      arms: { owned: [...this.guns.owned], reserve: { ...this.guns.reserve } },
     };
   }
 
@@ -642,6 +653,21 @@ export class Game {
         this.applyBody();
         refresh();
       },
+      onBuyGun: (id) => {
+        if (this.guns.has(id) || !this.pay(GUNS[id].price)) return;
+        this.guns.buyGun(id);
+        this.humans.guns = this.guns.flags();
+        this.hud.toast(bi('New weapon! Press its number key on foot.', '새 무기! 도보에서 숫자 키로 선택하세요.'));
+        refresh();
+      },
+      onBuyAmmo: (id) => {
+        const d = GUNS[id];
+        if (!this.guns.has(id) || d.infinite) return;
+        if (this.guns.reserve[id] >= d.pack * 6) { this.hud.toast(bi('Ammo is full', '탄약이 가득 찼어요')); return; }
+        if (!this.pay(d.packPrice)) return;
+        this.guns.addAmmo(id, d.pack);
+        refresh();
+      },
       onClose: () => this.closeGarage(),
     });
   }
@@ -681,7 +707,7 @@ export class Game {
 
     if (this.state === 'play') {
       if (input.wasPressed('KeyF') || input.wasPressed('KeyE')) this.enterExit();
-      if (input.wasPressed('KeyR')) this.resetCar();
+      if (input.wasPressed('KeyR')) { if (this.onFoot) this.guns.reload(); else this.resetCar(); }
     }
 
     // ---- player control
@@ -734,6 +760,8 @@ export class Game {
     this.collectibles.update(dt);
     this.collectStars();
     this.updatePickups(dt);
+    if (this.state === 'play' && this.onFoot) this.guns.update(dt, this.input.fireHeld, this.input.wasPressed('Attack') || this.input.wasPressed('KeyJ'));
+    else this.guns.tick(dt);
     this.updateStateMachine(dt);
 
     // ---- presentation
@@ -748,7 +776,9 @@ export class Game {
     this.hud.setStory(this.story.hudInfo());
     this.hud.setStoryProgress(this.story.progressText());
     this.hud.setTelemetryVisible(!!d);
-    this.hud.setFootMode(this.onFoot, pl.weapon, this.humans.unlockedBaton);
+    this.hud.setFootMode(this.onFoot, pl.weapon, this.humans.ownedFlags());
+    this.hud.setAmmo(this.onFoot ? this.guns.hudText() : null);
+    this.hud.setReloadButton(this.onFoot && this.guns.needsReload());
     this.hud.setPlayerHp(Math.max(0, pl.hp / pl.maxHp));
     this.hud.setWantedBanner(this.stars > 0);
 
@@ -794,6 +824,7 @@ export class Game {
       if (type === 'health') return this.onFoot ? pl.hp < pl.maxHp : !!d && d.ctrl.hp < 0.999;
       if (type === 'burger') return this.onFoot && pl.hp < pl.maxHp && this.cash >= 15;
       if (type === 'armor') return this.humans.armor < 50;
+      if (type === 'ammo') return this.guns.owned.some((g) => !GUNS[g].infinite);
       return true;
     }, (type, value) => {
       const x = this.focusX, z = this.focusZ;
@@ -803,6 +834,10 @@ export class Game {
       } else if (type === 'burger') {
         this.cash -= 15; this.hud.setCash(this.cash); this.saveDirty = true;
         pl.hp = pl.maxHp; this.popups.spawn(x, 3, z, bi('Burger! -$15, full HP', '버거! -$15, 체력 회복'), '#ffb23d');
+      } else if (type === 'ammo') {
+        for (const g of this.guns.owned) if (!GUNS[g].infinite) this.guns.addAmmo(g, Math.ceil(GUNS[g].pack / 2));
+        this.popups.spawn(x, 3, z, bi('+AMMO', '+탄약'), '#ff9a3d');
+        this.saveDirty = true;
       } else if (type === 'armor') {
         this.humans.armor = Math.min(50, this.humans.armor + 25); this.popups.spawn(x, 3, z, '+25 ARMOR', '#4da3ff');
       } else {
@@ -931,7 +966,7 @@ export class Game {
       onPlayerHurt: () => { this.cameraRig.shake(0.35); this.audio.thump(); this.input.rumble(0.9, 0.6, 180); },
       onCopDown: (h) => {
         this.addCash(150, 'police');
-        if (Math.random() < 0.55) this.pickups.drop(h.x, h.z, Math.random() < 0.5 ? 'cash' : 'health', 120);
+        if (Math.random() < 0.55) this.pickups.drop(h.x, h.z, (['cash', 'health', 'ammo'] as const)[Math.floor(Math.random() * 3)], 120);
         this.addHeat(15);
         if (this.humans.kids) this.popups.spawn(h.x, h.y + 2.2, h.z, t('pop.ko'), '#8a5cd6'); // knocked out, not killed
         else this.vfx.emitFire(h.x, 1, h.z, 4, 0.3);
@@ -1196,6 +1231,7 @@ export class Game {
         if (!wasWreck) for (const v of this.policeVehicles()) this.removeVehicle(v);
         this.humans.healPlayer();
     this.humans.armor = 0;
+    this.guns.loseAmmo();
         this.humans.setPlayerActive(false, 0, 0, 0);
         this.respawnAtGarage();
       }

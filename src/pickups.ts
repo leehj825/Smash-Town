@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import { MeshBuilder, paletteMaterial } from './geo';
 import type { World } from './world';
 
-export type PickupType = 'health' | 'armor' | 'cash' | 'burger';
+export type PickupType = 'health' | 'armor' | 'cash' | 'burger' | 'ammo';
 interface Pickup { type: PickupType; x: number; z: number; active: boolean; timer: number; value: number; temp: boolean }
 
-const RESPAWN: Record<PickupType, number> = { health: 70, armor: 120, cash: 45, burger: 25 };
-const COUNT: Record<PickupType, number> = { health: 8, armor: 4, cash: 14, burger: 6 };
-const COLOR: Record<PickupType, string> = { health: '#ff5f7a', armor: '#4da3ff', cash: '#3dff8a', burger: '#ffb23d' };
+const RESPAWN: Record<PickupType, number> = { health: 70, armor: 120, cash: 45, burger: 25, ammo: 90 };
+const COUNT: Record<PickupType, number> = { health: 8, armor: 4, cash: 14, burger: 6, ammo: 8 };
+const COLOR: Record<PickupType, string> = { health: '#ff5f7a', armor: '#4da3ff', cash: '#3dff8a', burger: '#ffb23d', ammo: '#ff9a3d' };
 
 function shape(type: PickupType): THREE.BufferGeometry {
   const b = new MeshBuilder();
@@ -17,6 +17,7 @@ function shape(type: PickupType): THREE.BufferGeometry {
   if (type === 'health') { box(0.9, 0.7, 0.55, 0, 0, 0, 0xf4f4f4); box(0.55, 0.18, 0.58, 0, 0, 0, 0xe0243c); box(0.18, 0.55, 0.58, 0, 0, 0, 0xe0243c); }
   else if (type === 'armor') { cyl(0.55, 0.38, 0.9, 0, 0, 0, 0x3b82f6); cyl(0.3, 0.2, 0.95, 0, 0, 0, 0xb8dcff); }
   else if (type === 'cash') { box(0.9, 0.22, 0.5, 0, -0.12, 0, 0x2fb87a); box(0.9, 0.22, 0.5, 0, 0.12, 0, 0x3dff8a); box(0.25, 0.5, 0.52, 0, 0, 0, 0xf2e6a0); }
+  else if (type === 'ammo') { box(0.9, 0.5, 0.6, 0, -0.1, 0, 0x4b5a3a); box(0.92, 0.1, 0.62, 0, 0.17, 0, 0x2b3320); cyl(0.07, 0.07, 0.3, 0, 0.3, 0.1, 0xffd23a); cyl(0.07, 0.07, 0.3, 0.2, 0.3, 0.1, 0xffd23a); cyl(0.07, 0.07, 0.3, -0.2, 0.3, 0.1, 0xffd23a); }
   else { cyl(0.55, 0.55, 0.16, 0, -0.35, 0, 0xd9a05b); cyl(0.5, 0.5, 0.12, 0, -0.18, 0, 0x6b8f3a); cyl(0.52, 0.52, 0.2, 0, 0, 0, 0x7a3b1d); cyl(0.55, 0.5, 0.2, 0, 0.22, 0, 0xe8b46b); }
   return b.build();
 }
@@ -34,7 +35,7 @@ export class Pickups {
   private s = new THREE.Vector3();
 
   constructor(private world: World, rng: () => number) {
-    const types: PickupType[] = ['health', 'armor', 'cash', 'burger'];
+    const types: PickupType[] = ['health', 'armor', 'cash', 'burger', 'ammo'];
     for (const type of types) {
       for (let i = 0; i < COUNT[type]; i++) {
         const pt = this.place(rng);

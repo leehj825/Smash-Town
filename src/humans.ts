@@ -91,6 +91,8 @@ export class Humans {
   readonly list: Human[] = [];
   readonly player: Human;
   unlockedBaton = false;
+  /** Which guns the player owns (pistol, SMG, shotgun, rocket, paintball). */
+  guns: boolean[] = [true, false, false, false, false];
   /** Kids Play: nobody dies. Defeated cops and the player are only knocked out. */
   kids = true;
   copsDefeated = 0;
@@ -201,8 +203,27 @@ export class Humans {
 
   healPlayer(): void { this.player.hp = this.player.maxHp; }
 
+  ownedFlags(): boolean[] { return [0, 1, 2, 3, 4, 5, 6, 7].map((s) => this.weaponOwned(s)); }
+
+  weaponOwned(slot: number): boolean {
+    if (slot === 2) return this.unlockedBaton;
+    if (slot >= 3) return !!this.guns[slot - 3];
+    return true;
+  }
+
+  /** A bullet or blast hit: reuses the melee hit pipeline (knock-back, Kids Play knock-outs, popups) with a synthetic attack. */
+  gunHit(att: Human, t: Human, dmg: number, nx: number, nz: number, heavy: boolean): boolean {
+    if (!t.active || t.state === St.Dead) return false;
+    const a: Attack = { ...ATTACKS.cross, dmg, push: heavy ? 7 : 3, up: heavy ? 2 : 0, heavy, popup: heavy ? 'wham' : 'pow' };
+    const bp = this.bodyPower;
+    this.bodyPower = 1;
+    const r = this.applyHit(att, t, a, nx, nz);
+    this.bodyPower = bp;
+    return r;
+  }
+
   equip(slot: number): void {
-    if (slot === 2 && !this.unlockedBaton) return;
+    if (!this.weaponOwned(slot)) return;
     this.player.weapon = slot;
   }
 
@@ -221,14 +242,16 @@ export class Humans {
     if (inp.wasPressed('Digit1')) this.equip(0);
     if (inp.wasPressed('Digit2')) this.equip(1);
     if (inp.wasPressed('Digit3')) this.equip(2);
+    for (let k = 4; k <= 8; k++) if (inp.wasPressed('Digit' + k)) this.equip(k - 1);
     const cycle = (d: number) => {
-      const slots = this.unlockedBaton ? [0, 1, 2] : [0, 1];
+      const slots = [0, 1, 2, 3, 4, 5, 6, 7].filter((s) => this.weaponOwned(s));
       this.player.weapon = slots[(slots.indexOf(this.player.weapon) + d + slots.length) % slots.length];
     };
     if (inp.wasPressed('WheelUp')) cycle(1);
     if (inp.wasPressed('WheelDown') || inp.wasPressed('KeyV')) cycle(-1 + (inp.wasPressed('KeyV') ? 2 : 0));
 
-    const wantAttack = inp.wasPressed('Attack') || inp.wasPressed('KeyJ');
+    // with a gun in hand the attack button fires (handled by the gun system) instead of starting a melee combo
+    const wantAttack = h.weapon < 3 && (inp.wasPressed('Attack') || inp.wasPressed('KeyJ'));
     const wantKick = inp.wasPressed('Kick') || inp.wasPressed('KeyK') || inp.wasPressed('KeyQ');
     const space = inp.wasPressed('Space');
     const wantJump = inp.wasPressed('KeyC') || (space && !this.combatContext());

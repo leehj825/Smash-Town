@@ -69,6 +69,18 @@ function partGeometry(spec: MeshSpec): THREE.BufferGeometry {
 }
 
 /** Weapons have the grip at the origin and their length along +y, like model_check's hand items. */
+function gunGeometry(kind: number): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  const dark = 0x23252b, metal = 0x6b7080;
+  // barrel points along +y from the grip, so the socket's tilt aims it forward
+  if (kind === 0) { b.box(0.05, 0.2, 0.06, 0, 0.08, 0, dark); b.box(0.04, 0.2, 0.05, 0, 0.26, 0.01, metal); }
+  else if (kind === 1) { b.box(0.06, 0.26, 0.08, 0, 0.1, 0, dark); b.box(0.035, 0.3, 0.04, 0, 0.36, 0.01, metal); b.box(0.04, 0.12, 0.05, 0.05, 0.02, 0, dark); }
+  else if (kind === 2) { b.box(0.06, 0.3, 0.07, 0, 0.14, 0, 0x6b3d1d); b.box(0.045, 0.5, 0.045, 0, 0.55, 0.01, metal); }
+  else if (kind === 3) { b.cylinder(0.075, 0.075, 0.7, 8, 0, 0.35, 0.02, 0x4b5a3a); b.cylinder(0.1, 0.1, 0.12, 8, 0, 0.72, 0.02, 0x2b3320); b.box(0.04, 0.14, 0.05, 0, 0.0, -0.06, dark); }
+  else { b.box(0.07, 0.24, 0.07, 0, 0.1, 0, 0xff4dd2); b.box(0.04, 0.22, 0.045, 0, 0.3, 0.01, 0x4dd2ff); b.cylinder(0.05, 0.05, 0.1, 8, 0, 0.18, 0.08, 0xffd23a); }
+  return b.build();
+}
+
 function weaponGeometry(kind: 'bat' | 'baton'): THREE.BufferGeometry {
   const b = new MeshBuilder();
   if (kind === 'bat') {
@@ -88,6 +100,7 @@ export class CharacterRenderer {
   readonly group = new THREE.Group();
   private meshes: THREE.InstancedMesh[] = [];
   private weapons: Record<'bat' | 'baton', THREE.InstancedMesh>;
+  private gunMeshes: THREE.InstancedMesh[] = [];
   private partLocal: THREE.Matrix4[][] = [];
   private world: THREE.Matrix4[] = BONES.map(() => new THREE.Matrix4());
   private localM = new THREE.Matrix4();
@@ -126,7 +139,8 @@ export class CharacterRenderer {
       bat: new THREE.InstancedMesh(weaponGeometry('bat'), wmat, count),
       baton: new THREE.InstancedMesh(weaponGeometry('baton'), wmat, count),
     };
-    for (const w of Object.values(this.weapons)) {
+    for (let k = 0; k < 5; k++) this.gunMeshes.push(new THREE.InstancedMesh(gunGeometry(k), wmat, count));
+    for (const w of [...Object.values(this.weapons), ...this.gunMeshes]) {
       w.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       w.frustumCulled = false;
       w.castShadow = true;
@@ -165,6 +179,7 @@ export class CharacterRenderer {
     }
     this.weapons.bat.setMatrixAt(slot, this.zero);
     this.weapons.baton.setMatrixAt(slot, this.zero);
+    for (const g of this.gunMeshes) g.setMatrixAt(slot, this.zero);
   }
 
   /**
@@ -202,7 +217,12 @@ export class CharacterRenderer {
       for (let k = 0; k < per; k++) mesh.setMatrixAt(slot * per + k, this.world[spec.joints[k]]);
     }
     const wb = this.weapons.bat, wt = this.weapons.baton;
-    if (weapon > 0) {
+    for (let k = 0; k < 5; k++) this.gunMeshes[k].setMatrixAt(slot, this.zero);
+    if (weapon >= 3) {
+      this.tmp.copy(this.world[J.wrR]).multiply(this.grip);
+      this.gunMeshes[weapon - 3].setMatrixAt(slot, this.tmp);
+      wb.setMatrixAt(slot, this.zero); wt.setMatrixAt(slot, this.zero);
+    } else if (weapon > 0) {
       this.tmp.copy(this.world[J.wrR]).multiply(this.grip);
       if (weaponScale !== 1) this.tmp.scale(this.s.setScalar(weaponScale));
       (weapon === 1 ? wb : wt).setMatrixAt(slot, this.tmp);
@@ -223,6 +243,7 @@ export class CharacterRenderer {
     }
     this.weapons.bat.instanceMatrix.needsUpdate = true;
     this.weapons.baton.instanceMatrix.needsUpdate = true;
+    for (const g of this.gunMeshes) g.instanceMatrix.needsUpdate = true;
     this.colorsDirty = false;
   }
 }

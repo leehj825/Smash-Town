@@ -7,7 +7,7 @@ export interface ControlState {
   nitro: boolean;
 }
 
-export type VirtualButton = 'up' | 'down' | 'left' | 'right' | 'hand' | 'nitro';
+export type VirtualButton = 'up' | 'down' | 'left' | 'right' | 'hand' | 'nitro' | 'fire';
 
 /** Keyboard + on-screen (touch) input with arcade-friendly axes. */
 export class Input implements ControlState {
@@ -24,7 +24,8 @@ export class Input implements ControlState {
   /** True while the last input came from a gamepad (the HUD then shows controller hints). */
   padActive = false;
   onPadChange: ((active: boolean) => void) | null = null;
-  private pad = { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, a: false, rb: false, lb: false, lsClick: false };
+  private pad = { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, a: false, x: false, rb: false, lb: false, lsClick: false };
+  private mouseDown = false;
   private prevBtn: boolean[] = [];
   private gpRef: Gamepad | null = null;
   private lastRumble = 0;
@@ -38,13 +39,14 @@ export class Input implements ControlState {
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('mousedown', (e) => {
       this.setPadActive(false);
-      if (e.button === 0) this.pressed.add('Attack');
+      if (e.button === 0) { this.pressed.add('Attack'); this.mouseDown = true; }
       if (e.button === 2) this.pressed.add('Kick');
       // capture the mouse on first click for orbiting (Esc releases it)
       if (e.button === 0 && !document.pointerLockElement && !document.body.classList.contains('is-touch')) {
         try { void canvas.requestPointerLock?.(); } catch { /* optional */ }
       }
     });
+    window.addEventListener('mouseup', (e) => { if (e.button === 0) this.mouseDown = false; });
     window.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement === canvas) { this.lookX += e.movementX; this.lookY += e.movementY; }
       else if (e.buttons & 4) { this.lookX += e.movementX; this.lookY += e.movementY; } // middle-drag orbit
@@ -85,7 +87,7 @@ export class Input implements ControlState {
       this.down.add(code);
     });
     window.addEventListener('keyup', (e) => this.down.delete(canonical(e.code)));
-    window.addEventListener('blur', () => this.down.clear());
+    window.addEventListener('blur', () => { this.down.clear(); this.mouseDown = false; });
   }
 
   private any(...codes: string[]): boolean {
@@ -135,6 +137,10 @@ export class Input implements ControlState {
     // gamepad: RB boosts the car; on foot LT or a left-stick click sprints
     return this.mode === 'car' ? this.pad.rb : this.pad.lt > 0.5 || this.pad.lsClick;
   }
+  /** Fire button held: left mouse, the touch HIT button, RT or X on a gamepad (used by automatic guns). */
+  get fireHeld(): boolean {
+    return this.mouseDown || this.virtual.has('fire') || (this.mode === 'foot' && !this.menu && (this.pad.rt > 0.5 || this.pad.x));
+  }
   /** True once per key press. */
   wasPressed(code: string): boolean {
     return this.pressed.delete(code);
@@ -176,7 +182,7 @@ export class Input implements ControlState {
     const P = this.pad;
     if (!gp) {
       P.lx = P.ly = P.rx = P.ry = P.lt = P.rt = 0;
-      P.a = P.rb = P.lb = P.lsClick = false;
+      P.a = P.rb = P.lb = P.lsClick = P.x = false;
       this.prevBtn = [];
       return;
     }
@@ -193,7 +199,7 @@ export class Input implements ControlState {
     const val = (i: number) => gp!.buttons[i]?.value ?? 0;
     const held = (i: number) => !!gp!.buttons[i]?.pressed || val(i) > 0.5;
     P.lt = val(6); P.rt = val(7);
-    P.a = held(0); P.rb = held(5); P.lb = held(4); P.lsClick = held(10);
+    P.a = held(0); P.x = held(2); P.rb = held(5); P.lb = held(4); P.lsClick = held(10);
 
     const foot = this.mode === 'foot' && !this.menu;
     const now: boolean[] = [];

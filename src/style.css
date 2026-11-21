@@ -258,3 +258,13 @@ button.big:disabled { filter: grayscale(.8); opacity: .55; cursor: default; }
 
 #phealth .track { position: relative; }
 #parmor-fill { position: absolute; left: 0; top: 0; height: 45%; width: 0; background: linear-gradient(90deg, #4da3ff, #bfe0ff); transition: width .12s; }
+
+/* guns */
+#ammo { font-size: 16px; font-weight: 800; color: #ffd23a; text-align: right; }
+.slot.gun[hidden] { display: none; }
+#weapon-slots { flex-wrap: wrap; justify-content: flex-end; max-width: 440px; }
+#btn-reload { position: absolute; right: 18px; bottom: 178px; width: 54px; height: 54px; border-radius: 50%; border: 2px solid #ffd23a; background: rgba(14,18,28,.75); color: #ffd23a; font-weight: 800; pointer-events: auto; display: none; }
+body.foot-mode.can-reload #btn-reload { display: block; }
+@media (max-height: 460px) { #btn-reload { bottom: 132px; width: 46px; height: 46px; right: 20px; } }
+
+.gbtns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
