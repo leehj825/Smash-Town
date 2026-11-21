@@ -62,6 +62,8 @@ A browser 3D arcade open-world sandbox: drive, smash street props, brawl on foot
 
 - Phase 3: guns (pistol, SMG, shotgun, rocket launcher, paintball), ammo, Arms garage tab, ammo pickups.
 - Phase 4: riot cops with shields (4+ stars), a police helicopter at 5 stars (brought down by a rocket), spike strips with roadblocks at 4+ stars.
+- Phase 7: three radio stations (`N`) and weather (auto/clear/rain/fog/storm) with thunder, fog, dimmer skies and lower grip.
+- Phase 8: district names on the big map, draw-call budget test (`tests/perf.cjs`), docs refreshed.
 - Phase 5: climbable old-town roofs (ladders, rooftop golden stars, Rooftop Dash gig, fall damage off in Kids Play) and five enterable shops built as hidden pockets (donuts, guns, clothes, arcade, motel).
 - Phase 6: arc two (3 more chapters, monster truck reward), festival decorations and a donut discount after the first arc, ownable shops with income, 12 achievements, 3 daily challenges, a stats panel, and two street quests (taxi fares, thief chase). Golden stars: 16 (4 on roofs).
 

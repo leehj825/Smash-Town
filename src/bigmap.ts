@@ -11,6 +11,7 @@ export class BigMap {
   private ctx: CanvasRenderingContext2D;
   private side: HTMLElement;
   private t = 0;
+  private labels: { en: string; ko: string; x: number; z: number }[] = [];
 
   constructor(private game: Game) {
     this.el = document.createElement('div');
@@ -23,9 +24,34 @@ export class BigMap {
     this.canvas = this.el.querySelector('#bigmap-canvas')!;
     this.ctx = this.canvas.getContext('2d')!;
     this.side = this.el.querySelector('#bigmap-side')!;
+    this.labels = this.districtLabels();
     const mm = game.world.minimap.canvas;
     this.canvas.width = mm.width;
     this.canvas.height = mm.height;
+  }
+
+  /** One name per district, placed at the middle of its biggest cluster of lots. */
+  private districtLabels(): { en: string; ko: string; x: number; z: number }[] {
+    const names: Record<string, [string, string]> = {
+      beach: ['SUNSET BEACH', '선셋 비치'], oldtown: ['OLD TOWN', '올드타운'], downtown: ['DOWNTOWN', '시내'], harbor: ['HARBOR', '항구'],
+      suburb: ['SUBURBS', '교외'], park: ['PARK', '공원'], plaza: ['PLAZA', '광장'], forest: ['FOREST', '숲'],
+    };
+    const out: { en: string; ko: string; x: number; z: number }[] = [];
+    for (const [d, [en, ko]] of Object.entries(names)) {
+      const lots = this.game.world.lots.filter((l) => l.district === d);
+      if (!lots.length) continue;
+      const mid = (l: { x0: number; x1: number; z0: number; z1: number }) => ({ x: (l.x0 + l.x1) / 2, z: (l.z0 + l.z1) / 2 });
+      let best = lots[0], bn = -1;
+      for (const a of lots) {
+        const ma = mid(a);
+        const n = lots.filter((b) => { const mb = mid(b); return Math.hypot(mb.x - ma.x, mb.z - ma.z) < 130; }).length;
+        if (n > bn) { bn = n; best = a; }
+      }
+      const mb = mid(best);
+      const near = lots.filter((l) => { const m = mid(l); return Math.hypot(m.x - mb.x, m.z - mb.z) < 130; });
+      out.push({ en, ko, x: near.reduce((s, l) => s + mid(l).x, 0) / near.length, z: near.reduce((s, l) => s + mid(l).z, 0) / near.length });
+    }
+    return out;
   }
 
   get isOpen(): boolean { return !this.el.hidden; }
@@ -70,6 +96,10 @@ export class BigMap {
       c.fillStyle = color; c.strokeStyle = '#000'; c.lineWidth = 3;
       c.beginPath(); c.arc(X(x), Z(z), r, 0, Math.PI * 2); c.fill(); c.stroke();
     };
+    c.save();
+    c.textAlign = 'center'; c.font = '800 30px sans-serif'; c.lineWidth = 5; c.strokeStyle = 'rgba(0,0,0,.35)'; c.fillStyle = 'rgba(255,255,255,.6)';
+    for (const l of this.labels) { const text = bi(l.en, l.ko); c.strokeText(text, X(l.x), Z(l.z)); c.fillText(text, X(l.x), Z(l.z)); }
+    c.restore();
     const R = 9;
     for (const s of w.garages) dot(s.x, s.z, R, '#3dff8a');
     for (const m of g.roofDash.markers()) dot(m.x, m.z, R, '#4dd2ff');

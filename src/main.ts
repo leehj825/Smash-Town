@@ -350,5 +350,5 @@ frame();
 
 // Debug handle for tests and tinkering from the console.
 (window as unknown as { __smash: unknown }).__smash = {
-  game, env, hud, renderer, scene, camera, applyQuality, applyTime, startGame, bigmap, radio, statsPanel, weather, get quality() { return quality; },
+  game, env, hud, renderer, scene, camera, applyQuality, applyTime, startGame, bigmap, radio, statsPanel, weather, composer, get quality() { return quality; },
 };

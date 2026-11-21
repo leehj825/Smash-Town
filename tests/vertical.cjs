@@ -79,6 +79,19 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     });
     ok(kidsFall.hp === 100, 'Kids Play: falls do not hurt', JSON.stringify(kidsFall));
 
+    // rooftop dash: start on the first roof, then reach three more
+    const dash = await S(() => {
+      const G = g(); const D = G.roofDash; const pl = G.humans.player; const start = G.world.roofs[0];
+      G.stars = 0; G.state = 'play'; G.onFoot = true;
+      const at = (r) => { pl.roof = r; pl.x = (r.minX + r.maxX) / 2; pl.z = (r.minZ + r.maxZ) / 2; pl.y = r.h; };
+      D.cooldown = 0; at(start); D.update(0.1);
+      const started = D.active; const cash0 = G.cashAmount;
+      for (const r of D.chain.slice()) { at(r); D.update(0.1); }
+      return { started, done: !D.active, gain: G.cashAmount - cash0, chain: D.chain.length };
+    });
+    ok(dash.started && dash.done && dash.gain === 2750 && dash.chain === 3, 'Rooftop Dash: three roofs for $2,750 in total', JSON.stringify(dash));
+    await S(() => { const pl = g().humans.player; pl.roof = null; pl.y = 0.1; });
+
     // shops
     const shops = await S(() => { const G = g(); const R = G.interiors.rooms; const bad = R.filter((r) => G.world.boxes.some((b) => r.door.x > b.minX && r.door.x < b.maxX && r.door.z > b.minZ && r.door.z < b.maxZ)).length; return { n: R.length, bad, ids: R.map((r) => r.id).join(',') }; });
     ok(shops.n === 5 && shops.bad === 0, 'five shop doors on open pavement', JSON.stringify(shops));
