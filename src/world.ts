@@ -4,7 +4,8 @@ import { MeshBuilder, makeRng, paletteMaterial } from './geo';
 
 export type District = 'beach' | 'oldtown' | 'downtown' | 'harbor' | 'suburb' | 'park' | 'plaza' | 'water' | 'forest';
 
-export interface BoxCollider { minX: number; maxX: number; minZ: number; maxZ: number }
+/** A 2D footprint the player and cars cannot enter. `h` (when known) is the building's height, so a shot or the camera can pass over a low roof. */
+export interface BoxCollider { minX: number; maxX: number; minZ: number; maxZ: number; h?: number }
 export interface SmashRef { type: 'hydrant' | 'lamp' | 'palm' | 'bench' | 'newsstand' | 'trash'; index: number; value: number }
 export interface CircleCollider { x: number; z: number; r: number; smash?: SmashRef; dead?: boolean }
 /** Climbable wedge (no longer placed in the city; kept so the physics code stays generic). */
@@ -586,8 +587,11 @@ export function buildWorld(): World {
     const uv = g.attributes.uv as THREE.BufferAttribute;
     for (let n = 0; n < uv.count; n++) uv.setXY(n, WALL_UV, WALL_UV);
   };
-  const addBoxCollider = (x: number, z: number, w: number, d: number) =>
-    boxes.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
+  const addBoxCollider = (x: number, z: number, w: number, d: number): BoxCollider => {
+    const bx = { minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 };
+    boxes.push(bx);
+    return bx;
+  };
 
   const signs: { x: number; z: number; dirX: number; dirZ: number; w: number; idx: number }[] = [];
   let signCount = 0;
@@ -622,7 +626,7 @@ export function buildWorld(): World {
     });
     plain(1.1, 2.1, 0.2, x + rand(-w / 4, w / 4), 2.1, z + dirZ * (d / 2 + 0.05), 0x6b4a2e); // front door
     plain(0.5, 2.6, 0.5, x + w / 2 - 1, h + 3.1, z, 0xb08968);                                  // chimney
-    addBoxCollider(x, z, w, d);
+    addBoxCollider(x, z, w, d).h = h + rh + 1;
   };
 
   const roofCands: { box: BoxCollider; h: number; x: number; z: number; w: number; d: number; nx: number; nz: number; off: number }[] = [];
@@ -648,7 +652,7 @@ export function buildWorld(): World {
           let y = 0;
           const h1 = rand(14, 26) * heightScale;
           building(t.w, h1, t.d, t.x, y, t.z, color);
-          addBoxCollider(t.x, t.z, t.w, t.d);
+          const towerBox = addBoxCollider(t.x, t.z, t.w, t.d);
           y += h1;
           const h2 = rand(12, 34) * heightScale;
           building(t.w * 0.8, h2, t.d * 0.8, t.x, y, t.z, color);
@@ -659,6 +663,7 @@ export function buildWorld(): World {
             y += h3;
           }
           plain(t.w * 0.3, 2.2, t.d * 0.3, t.x, y + 2.2, t.z, 0x9aa0ad);
+          towerBox.h = y + 4.4;
         }
         break;
       }
@@ -673,8 +678,8 @@ export function buildWorld(): World {
           const z = alongX ? cz : fz0 + d / 2 + s * (d + gap);
           const h = rand(7, 11);
           building(w, h, d, x, 0, z, pick(PASTELS));
-          addBoxCollider(x, z, w, d);
-          const colBox = boxes[boxes.length - 1];
+          const colBox = addBoxCollider(x, z, w, d);
+          colBox.h = h + 1.2;
           roofExtras(x, z, w, d, h);
           if (alongX) {
             const dirZ = rng() < 0.5 ? -1 : 1;
@@ -697,7 +702,7 @@ export function buildWorld(): World {
           bld.box(fw + 0.6, 2.2, fd * 0.55, cx, h + 1.1, cz, 0x7d8696, (p) => {
             for (let n = 0; n < p.count; n++) if (p.getY(n) > 0) p.setX(n, p.getX(n) * 0.55);
           });
-          addBoxCollider(cx, cz, fw, fd);
+          addBoxCollider(cx, cz, fw, fd).h = h + 2.2;
         } else {
           const cw = 6, ch = 2.4, cd = 2.6, gap = 1.6;
           const nx = Math.max(1, Math.floor((fw + gap) / (cw + gap)));
@@ -712,7 +717,7 @@ export function buildWorld(): World {
               bld.box(cw, ch, cd, px, ch / 2 + s * ch, pz, pick(CONTAINER_COLORS));
               bld.box(cw + 0.05, 0.12, cd + 0.05, px, ch * (s + 1) - 0.06, pz, 0x555a66);
             }
-            addBoxCollider(px, pz, cw, cd);
+            addBoxCollider(px, pz, cw, cd).h = ch * 2;
           }
         }
         break;
@@ -747,7 +752,7 @@ export function buildWorld(): World {
           const z = lot.z0 + inset + d / 2 + 0.5;
           const h = rand(4, 6);
           building(w, h, d, x, 0, z, pick(PASTELS));
-          addBoxCollider(x, z, w, d);
+          addBoxCollider(x, z, w, d).h = h + 1.2;
           roofExtras(x, z, w, d, h);
           awning(x, z + d / 2, 0, 1, w * 0.8);
         }

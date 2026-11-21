@@ -252,7 +252,7 @@ export class Guns {
         t0 = Math.max(t0, a); t1 = Math.min(t1, c2);
         if (t0 > t1) { ok = false; break; }
       }
-      if (ok && o.y + d.y * t0 < 40) near(t0, false);
+      if (ok && o.y + d.y * t0 < (b.h ?? 25)) near(t0, false); // a ray that clears the roof goes on
     }
     if (d.y < -0.001) near((0.1 - o.y) / d.y, false);
     const hc = G.heli;
@@ -345,10 +345,13 @@ export class Guns {
       return;
     }
     const base = Math.atan2(aim.dx, aim.dz);
+    // the bullet climbs or falls from the gun to the point under the crosshair
+    const apt = this.aimPoint;
+    const slope = apt && !G.input.padActive && !document.body.classList.contains('is-touch') ? (apt.y - 1.4) / Math.max(2, Math.hypot(apt.x - ox, apt.z - oz)) : 0;
     for (let i = 0; i < g.pellets; i++) {
       const a = base + (Math.random() - 0.5) * 2 * g.spread;
       const dx = Math.sin(a), dz = Math.cos(a);
-      const hit = this.trace(ox, oz, dx, dz, g.range, G.driving);
+      const hit = this.trace(ox, oz, dx, dz, g.range, G.driving, 1.4, slope);
       let len = hit ? hit.t : g.range;
       // the helicopter is above the flat shot: the crosshair ray decides whether a bullet reaches it
       const ap = this.aimPoint;
@@ -390,9 +393,11 @@ export class Guns {
   }
 
   /** Nearest thing along a flat ray: humans, vehicles, buildings and props. */
-  private trace(ox: number, oz: number, dx: number, dz: number, range: number, ignore: GameVehicle | null): Hit | null {
+  /** `y0` and `slope` give the shot's height along the ray (a bullet fired from the chest at the crosshair rises or falls), so it can pass over low props and roofs. */
+  private trace(ox: number, oz: number, dx: number, dz: number, range: number, ignore: GameVehicle | null, y0 = 1.3, slope = 0): Hit | null {
     const G = this.game;
     let best: Hit | null = null;
+    const yAt = (t: number) => y0 + slope * t;
     const take = (t: number, h: Omit<Hit, 't'>) => { if (t >= 0 && t < range && (!best || t < best.t)) best = { t, ...h }; };
     const circle = (cx: number, cz: number, r: number): number => {
       const px = cx - ox, pz = cz - oz;
@@ -404,16 +409,19 @@ export class Guns {
     };
     for (const h of G.humans.list) {
       if (!h.active || h.role === Role.Player || h.state === St.Dead || h.state === St.Down || h.ko) continue;
-      take(circle(h.x, h.z, 0.5), { kind: 'human', human: h });
+      const t = circle(h.x, h.z, 0.5);
+      if (t >= 0 && yAt(t) >= h.y - 0.2 && yAt(t) <= h.y + 1.9) take(t, { kind: 'human', human: h });
     }
     for (const v of G.vehicles) {
       if (v === ignore || v.ctrl.wrecked) continue;
-      take(circle(v.x, v.z, 1.8), { kind: 'vehicle', vehicle: v });
+      const t = circle(v.x, v.z, 1.8);
+      if (t >= 0 && yAt(t) <= 1.8) take(t, { kind: 'vehicle', vehicle: v });
     }
     for (const c of G.world.circles) {
       if (c.dead) continue;
       if (Math.abs(c.x - ox) > range + 2 || Math.abs(c.z - oz) > range + 2) continue;
-      take(circle(c.x, c.z, c.r), { kind: 'circle', circle: c });
+      const t = circle(c.x, c.z, c.r);
+      if (t >= 0 && yAt(t) <= (c.smash ? 1.3 : 7)) take(t, { kind: 'circle', circle: c });
     }
     for (const b of G.world.boxes) {
       if (b.maxX < Math.min(ox, ox + dx * range) - 1 || b.minX > Math.max(ox, ox + dx * range) + 1) continue;
@@ -427,7 +435,7 @@ export class Guns {
         t0 = Math.max(t0, a); t1 = Math.min(t1, c);
         if (t0 > t1) { okk = false; break; }
       }
-      if (okk) take(t0, { kind: 'box' });
+      if (okk && yAt(t0) <= (b.h ?? 25)) take(t0, { kind: 'box' });
     }
     return best;
   }

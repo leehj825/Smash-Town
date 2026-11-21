@@ -87,36 +87,44 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     ok(look.cop && !look.civ && look.car, 'red over cops and police cars, not over civilians', JSON.stringify(look));
     ok(look.groundT > 25 && look.groundT < 40, 'the crosshair ray ends on the ground when nothing is in the way', String(look.groundT));
 
-    // bullets go where the crosshair points: a cop off to the side, found by the crosshair, is the one that gets hit
+    // bullets go where the crosshair points: a cop beside the road, found by the crosshair, is the one that gets hit
     const shot = await S(() => {
-      const G = g(); const pl = G.humans.player; const cam = window.__smash.camera; const gs = G.guns;
+      const G = g(); const pl = G.humans.player; const cam = window.__smash.camera; const gs = G.guns; const sp = G.world.spawn;
+      const fx = Math.sin(sp.heading), fz = Math.cos(sp.heading), rx = Math.cos(sp.heading), rz = -Math.sin(sp.heading);
+      G.humans.setPlayerActive(true, sp.x, sp.z, sp.heading); G.onFoot = true;
       G.humans.equip(3); G.input.padActive = false; gs.cool = 0; gs.reloading = null; gs.mag.pistol = 12;
-      const cop = G.humans.list.find((h) => h !== pl); cop.active = true; cop.role = 1; cop.state = 0; cop.ko = false; cop.hp = 100; cop.invuln = 0;
-      const ang = 0.35; cop.x = pl.x + Math.sin(ang) * 16; cop.z = pl.z + Math.cos(ang) * 16; cop.y = 0.1;
+      const at = (f, r) => [pl.x + fx * f + rx * r, pl.z + fz * f + rz * r];
+      const cop = G.humans.list.find((h) => h !== pl); cop.active = true; cop.role = 1; cop.state = 0; cop.ko = false; cop.hp = 100; cop.invuln = 0; cop.y = 0.1;
+      [cop.x, cop.z] = at(16, 2);
       // a decoy straight ahead of the player, not under the crosshair
-      const decoy = G.humans.list.find((h) => h !== pl && h !== cop && h.role === 0); decoy.active = true; decoy.state = 0; decoy.hp = 100; decoy.x = pl.x; decoy.z = pl.z + 9; decoy.y = 0.1;
-      cam.position.set(pl.x - 1, 2.2, pl.z - 3); cam.lookAt(cop.x, 1.0, cop.z); cam.updateMatrixWorld(true);
+      const decoy = G.humans.list.find((h) => h !== pl && h !== cop && h.role === 0); decoy.active = true; decoy.state = 0; decoy.hp = 100; decoy.y = 0.1;
+      [decoy.x, decoy.z] = at(9, 0);
+      const c = at(-3, -0.8);
+      cam.position.set(c[0], 2.2, c[1]); cam.lookAt(cop.x, 1.0, cop.z); cam.updateMatrixWorld(true);
       gs.updateAim();
       const before = cop.hp, decoyBefore = decoy.hp;
+      const seen = gs.aimPoint.hostile;
       gs.update(0.016, false, true);
-      const res = { copHit: cop.hp < before, decoyHit: decoy.hp < decoyBefore, heading: Math.round(pl.heading * 100) / 100 };
+      const res = { seen, copHit: cop.hp < before, decoyHit: decoy.hp < decoyBefore };
       decoy.x += 600; cop.x += 600;
       return res;
     });
-    ok(shot.copHit && !shot.decoyHit, 'the shot goes to the crosshair, not straight ahead', JSON.stringify(shot));
+    ok(shot.seen && shot.copHit && !shot.decoyHit, 'the shot goes to the crosshair, not straight ahead', JSON.stringify(shot));
 
     // the helicopter is shot where the crosshair is on it, and rockets lock on
     const heli = await S(() => {
-      const G = g(); const pl = G.humans.player; const cam = window.__smash.camera; const gs = G.guns; const h = G.heli;
-      h.active = true; h.hp = 100; h.group.visible = true; h.x = pl.x + 25; h.z = pl.z + 10; h.y = 22;
+      const G = g(); const pl = G.humans.player; const cam = window.__smash.camera; const gs = G.guns; const h = G.heli; const sp = G.world.spawn;
+      const fx = Math.sin(sp.heading), fz = Math.cos(sp.heading);
+      G.humans.setPlayerActive(true, sp.x, sp.z, sp.heading);
+      h.active = true; h.hp = 100; h.group.visible = true; h.x = pl.x + fx * 22; h.z = pl.z + fz * 22; h.y = 20;
       G.humans.equip(4); gs.cool = 0; gs.reloading = null; gs.mag.smg = 30; gs.reserve.smg = 60;
-      cam.position.set(pl.x - 2, 2.2, pl.z - 2); cam.lookAt(h.x, h.y, h.z); cam.updateMatrixWorld(true);
+      cam.position.set(pl.x - fx * 2, 2.2, pl.z - fz * 2); cam.lookAt(h.x, h.y, h.z); cam.updateMatrixWorld(true);
       gs.updateAim();
       const seen = gs.aimPoint.heli;
       for (let i = 0; i < 6; i++) { gs.cool = 0; gs.update(0.016, true, true); }
       const hp = h.hp;
       // aim off the helicopter: bullets pass under it
-      cam.lookAt(pl.x + 40, 1.0, pl.z - 20); cam.updateMatrixWorld(true); gs.updateAim();
+      cam.lookAt(pl.x + fx * 40, 1.0, pl.z + fz * 40); cam.updateMatrixWorld(true); gs.updateAim();
       const off = gs.aimPoint.heli;
       h.remove();
       return { seen, hp, off };
@@ -126,13 +134,14 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     // right mouse zooms with a gun out and kicks with fists
     const kick = [];
     for (const w of [4, 0]) {
-      await S((w) => { const G = g(); G.humans.equip(w); G.input.gunOut = w >= 3; }, w);
+      await S((w) => { const G = g(); G.humans.equip(w); window.__kicks = 0; const set = G.input.pressed; if (!set.__spy) { const add = set.add.bind(set); set.add = (c) => { if (c === 'Kick') window.__kicks++; return add(c); }; set.__spy = true; } }, w);
+      await p.waitForTimeout(150);
       await p.mouse.move(400, 240);
       await p.mouse.down({ button: 'right' });
-      kick.push(await S(() => g().input.wasPressed('Kick')));
       await p.mouse.up({ button: 'right' });
+      kick.push(await S(() => window.__kicks));
     }
-    ok(kick[0] === false && kick[1] === true, 'right mouse kicks with fists but is the zoom button with a gun', kick.join(','));
+    ok(kick[0] === 0 && kick[1] === 1, 'right mouse kicks with fists but is the zoom button with a gun', kick.join(','));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();
