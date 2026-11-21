@@ -77,6 +77,7 @@ function gunGeometry(kind: number): THREE.BufferGeometry {
   else if (kind === 1) { b.box(0.06, 0.26, 0.08, 0, 0.1, 0, dark); b.box(0.035, 0.3, 0.04, 0, 0.36, 0.01, metal); b.box(0.04, 0.12, 0.05, 0.05, 0.02, 0, dark); }
   else if (kind === 2) { b.box(0.06, 0.3, 0.07, 0, 0.14, 0, 0x6b3d1d); b.box(0.045, 0.5, 0.045, 0, 0.55, 0.01, metal); }
   else if (kind === 3) { b.cylinder(0.075, 0.075, 0.7, 8, 0, 0.35, 0.02, 0x4b5a3a); b.cylinder(0.1, 0.1, 0.12, 8, 0, 0.72, 0.02, 0x2b3320); b.box(0.04, 0.14, 0.05, 0, 0.0, -0.06, dark); }
+  else if (kind === 5) { b.cylinder(0.055, 0.055, 0.12, 8, 0, 0.06, 0, 0x3f5a2a); b.cylinder(0.03, 0.03, 0.04, 8, 0, 0.14, 0, 0x7c8590); b.box(0.02, 0.03, 0.1, 0, 0.17, 0.02, 0xc9ccd6); }
   else { b.box(0.07, 0.24, 0.07, 0, 0.1, 0, 0xff4dd2); b.box(0.04, 0.22, 0.045, 0, 0.3, 0.01, 0x4dd2ff); b.cylinder(0.05, 0.05, 0.1, 8, 0, 0.18, 0.08, 0xffd23a); }
   return b.build();
 }
@@ -153,7 +154,7 @@ export class CharacterRenderer {
       for (let i = 0; i < count; i++) this.shields.setMatrixAt(i, this.zero);
       this.group.add(this.shields);
     }
-    for (let k = 0; k < 5; k++) this.gunMeshes.push(new THREE.InstancedMesh(gunGeometry(k), wmat, count));
+    for (let k = 0; k < 6; k++) this.gunMeshes.push(new THREE.InstancedMesh(gunGeometry(k), wmat, count));
     for (const w of [...Object.values(this.weapons), ...this.gunMeshes]) {
       w.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       w.frustumCulled = false;
@@ -234,7 +235,7 @@ export class CharacterRenderer {
     if (shield) { this.tmp.copy(this.world[J.wrL]).multiply(this.shieldOff); this.shields.setMatrixAt(slot, this.tmp); }
     else this.shields.setMatrixAt(slot, this.zero);
     const wb = this.weapons.bat, wt = this.weapons.baton;
-    for (let k = 0; k < 5; k++) this.gunMeshes[k].setMatrixAt(slot, this.zero);
+    for (let k = 0; k < 6; k++) this.gunMeshes[k].setMatrixAt(slot, this.zero);
     if (weapon >= 3) {
       this.tmp.copy(this.world[J.wrR]).multiply(this.gunGrip);
       this.gunMeshes[weapon - 3].setMatrixAt(slot, this.tmp);

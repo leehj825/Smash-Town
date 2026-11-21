@@ -2,13 +2,14 @@ import * as THREE from 'three';
 import type { Game } from './game';
 import { St } from './combat';
 import { Role, type Human } from './humans';
+import { CLIPS } from './mocap';
 import { bi } from './i18n';
 import type { GameVehicle } from './vehicles';
 
 // Guns: hitscan pistol / SMG / shotgun, a rocket launcher and a harmless paintball gun.
 // Every gun stuns instead of killing while Kids Play is on (that is handled by the melee hit code they share).
 
-export type GunId = 'pistol' | 'smg' | 'shotgun' | 'rocket' | 'paint';
+export type GunId = 'pistol' | 'smg' | 'shotgun' | 'rocket' | 'paint' | 'grenade';
 export interface GunDef {
   id: GunId;
   en: string; ko: string; icon: string;
@@ -25,17 +26,19 @@ export interface GunDef {
   infinite?: boolean;
 }
 
-export const GUN_ORDER: GunId[] = ['pistol', 'smg', 'shotgun', 'rocket', 'paint'];
+export const GUN_ORDER: GunId[] = ['pistol', 'smg', 'shotgun', 'rocket', 'paint', 'grenade'];
 export const GUNS: Record<GunId, GunDef> = {
   pistol:  { id: 'pistol',  en: 'Pistol', ko: '권총', icon: '\u{1F52B}', mag: 12, rate: 0.28, auto: false, dmg: 26, pellets: 1, spread: 0.02, range: 60, reload: 1.1, price: 0, pack: 24, packPrice: 0, heat: 1.2, kick: 0.05, infinite: true },
   smg:     { id: 'smg',     en: 'SMG', ko: '기관단총', icon: '\u{1F4A5}', mag: 30, rate: 0.085, auto: true, dmg: 12, pellets: 1, spread: 0.07, range: 55, reload: 1.5, price: 2500, pack: 60, packPrice: 180, heat: 0.7, kick: 0.04 },
   shotgun: { id: 'shotgun', en: 'Shotgun', ko: '샷건', icon: '\u{1F4A2}', mag: 6, rate: 0.85, auto: false, dmg: 9, pellets: 8, spread: 0.16, range: 22, reload: 2.1, price: 3000, pack: 12, packPrice: 160, heat: 3, kick: 0.22 },
   rocket:  { id: 'rocket',  en: 'Rocket launcher', ko: '로켓 발사기', icon: '\u{1F680}', mag: 1, rate: 1.2, auto: false, dmg: 110, pellets: 1, spread: 0, range: 90, reload: 2.4, price: 8000, pack: 3, packPrice: 450, heat: 8, kick: 0.5 },
+  grenade: { id: 'grenade', en: 'Grenades', ko: '수류탄', icon: '\u{1F4A3}', mag: 1, rate: 1.8, auto: false, dmg: 100, pellets: 1, spread: 0, range: 30, reload: 0.9, price: 1500, pack: 3, packPrice: 120, heat: 6, kick: 0.1 },
   paint:   { id: 'paint',   en: 'Paintball gun', ko: '페인트볼 총', icon: '\u{1F3A8}', mag: 30, rate: 0.12, auto: true, dmg: 0, pellets: 1, spread: 0.05, range: 40, reload: 1.2, price: 150, pack: 0, packPrice: 0, heat: 0, kick: 0.01, infinite: true },
 };
 export const SLOT_OF = (id: GunId): number => 3 + GUN_ORDER.indexOf(id);
 
 interface Tracer { mesh: THREE.Mesh; life: number }
+interface Grenade { mesh: THREE.Mesh; x: number; z: number; y: number; vx: number; vz: number; vy: number; life: number }
 interface Rocket { mesh: THREE.Mesh; x: number; z: number; dx: number; dz: number; life: number; homing: boolean; d0: number }
 interface Hit { t: number; kind: 'human' | 'vehicle' | 'box' | 'circle'; human?: Human; vehicle?: GameVehicle; circle?: { x: number; z: number; r: number; smash?: unknown } }
 
@@ -51,13 +54,16 @@ export class Guns {
   private reloading: GunId | null = null;
   private tracers: Tracer[] = [];
   private rockets: Rocket[] = [];
+  private grenades: Grenade[] = [];
+  /** A thrown grenade leaves the hand part-way into the throw clip. */
+  private pendingThrow: { t: number; dx: number; dz: number } | null = null;
   private flash: THREE.PointLight;
   private flashT = 0;
 
   constructor(private game: Game, owned: GunId[], reserve: Partial<Record<GunId, number>>) {
     this.owned = Array.from(new Set<GunId>(['pistol', ...owned])).filter((g) => GUN_ORDER.includes(g));
-    this.reserve = { pistol: 0, smg: 0, shotgun: 0, rocket: 0, paint: 0, ...reserve };
-    this.mag = { pistol: GUNS.pistol.mag, smg: GUNS.smg.mag, shotgun: GUNS.shotgun.mag, rocket: GUNS.rocket.mag, paint: GUNS.paint.mag };
+    this.reserve = { pistol: 0, smg: 0, shotgun: 0, rocket: 0, paint: 0, grenade: 0, ...reserve };
+    this.mag = { pistol: GUNS.pistol.mag, smg: GUNS.smg.mag, shotgun: GUNS.shotgun.mag, rocket: GUNS.rocket.mag, paint: GUNS.paint.mag, grenade: GUNS.grenade.mag };
     const tm = new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.9, fog: false });
     const tg = new THREE.BoxGeometry(0.035, 0.035, 1);
     for (let i = 0; i < 14; i++) {
@@ -76,7 +82,7 @@ export class Guns {
   /** The gun currently in the player's hand (weapon slot 3..7), or null. */
   current(): GunDef | null {
     const w = this.game.humans.player.weapon;
-    return w >= 3 && w <= 7 ? GUNS[GUN_ORDER[w - 3]] : null;
+    return w >= 3 && w <= 8 ? GUNS[GUN_ORDER[w - 3]] : null;
   }
 
   hudText(): string | null {
@@ -116,7 +122,11 @@ export class Guns {
     const g = this.current();
     this.cool = Math.max(0, this.cool - dt);
     const pl = this.game.humans.player;
-    pl.reloadK = this.reloading ? Math.sin(Math.PI * Math.min(1, Math.max(0, 1 - this.reloadT / GUNS[this.reloading].reload))) : 0;
+    // reloading: the rifle reload clip drives the arms of the long guns (reloadU = progress); a short dip does it for handguns
+    const prog = this.reloading ? Math.min(1, Math.max(0, 1 - this.reloadT / GUNS[this.reloading].reload)) : -1;
+    const clipReload = this.reloading === 'smg' || this.reloading === 'shotgun' || this.reloading === 'rocket';
+    pl.reloadU = clipReload ? prog : -1;
+    pl.reloadK = this.reloading && !clipReload && this.reloading !== 'grenade' ? Math.sin(Math.PI * prog) : 0;
     if (this.reloading) {
       this.reloadT -= dt;
       if (this.reloadT <= 0) {
@@ -138,6 +148,25 @@ export class Guns {
     for (const t of this.tracers) { if (t.life > 0) { t.life -= dt; if (t.life <= 0) t.mesh.visible = false; } }
     this.flashT = Math.max(0, this.flashT - dt);
     this.flash.intensity = this.flashT > 0 ? 6 * (this.flashT / 0.06) : 0;
+    if (this.pendingThrow) {
+      this.pendingThrow.t -= dt;
+      if (this.pendingThrow.t <= 0) { this.release(this.pendingThrow.dx, this.pendingThrow.dz); this.pendingThrow = null; }
+    }
+    for (let i = this.grenades.length - 1; i >= 0; i--) {
+      const gr = this.grenades[i];
+      gr.life -= dt;
+      const hx = gr.vx * dt, hz = gr.vz * dt, hl = Math.hypot(hx, hz) || 1e-6;
+      const hit = gr.y < 3 ? this.trace(gr.x, gr.z, hx / hl, hz / hl, hl + 0.3, this.game.driving) : null;
+      gr.vy -= 18 * dt;
+      gr.x += hx; gr.z += hz; gr.y += gr.vy * dt;
+      gr.mesh.position.set(gr.x, Math.max(0.12, gr.y), gr.z);
+      gr.mesh.rotation.x += dt * 9;
+      if (hit || gr.y <= 0.12 || gr.life <= 0) {
+        this.explode(gr.x, gr.z, 7, 0.85);
+        gr.mesh.removeFromParent();
+        this.grenades.splice(i, 1);
+      }
+    }
     for (let i = this.rockets.length - 1; i >= 0; i--) {
       const r = this.rockets[i];
       const step = 46 * dt;
@@ -207,15 +236,23 @@ export class Guns {
     const aim = this.aim();
     pl.heading = Math.atan2(aim.dx, aim.dz);
     pl.aimYaw = pl.heading; pl.aimT = 1.6; pl.recoil = 1;
+    if (g.heat) G.addHeat(g.heat);
+    if (g.id === 'grenade') {
+      // the throw clip plays and the grenade leaves the hand at its release frame
+      const c = CLIPS.rifleGrenade;
+      pl.throwDur = 1.5; pl.throwT = 1.5;
+      this.pendingThrow = { t: (c.hit / c.d) * pl.throwDur, dx: aim.dx, dz: aim.dz };
+      G.audio.click();
+      return;
+    }
     const ox = pl.x + aim.dx * 0.7, oz = pl.z + aim.dz * 0.7;
     this.curX = ox; this.curZ = oz;
-    G.audio.gun(g.id);
+    G.audio.gun(g.id as 'pistol' | 'smg' | 'shotgun' | 'rocket' | 'paint');
     G.cameraRig.shake(g.kick);
     G.input.rumble(0.4, 0.6, 70);
     this.flash.position.set(ox, 1.4, oz);
     this.flashT = 0.06;
     G.vfx.emitSparks(ox, 1.3, oz, 3);
-    if (g.heat) G.addHeat(g.heat);
 
     if (g.id === 'rocket') {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.7), new THREE.MeshBasicMaterial({ color: 0xff7a1a }));
@@ -242,6 +279,16 @@ export class Guns {
       this.tracer(ox, oz, dx, dz, len, g.id === 'paint' ? 0xff4dd2 : 0xffe9a0);
       if (hit) this.impact(hit, dx, dz, g);
     }
+  }
+
+  /** The grenade leaves the hand: a short arc, then a blast where it lands or hits something. */
+  private release(dx: number, dz: number): void {
+    const pl = this.game.humans.player;
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), new THREE.MeshBasicMaterial({ color: 0x3f5a2a }));
+    mesh.position.set(pl.x + dx * 0.6, 1.6, pl.z + dz * 0.6);
+    this.group.add(mesh);
+    this.grenades.push({ mesh, x: pl.x + dx * 0.6, z: pl.z + dz * 0.6, y: 1.6, vx: dx * 20, vz: dz * 20, vy: 7, life: 3 });
+    this.game.audio.whoosh(false);
   }
 
   private tracer(ox: number, oz: number, dx: number, dz: number, len: number, color: number): void {
@@ -337,9 +384,8 @@ export class Guns {
   private curX = 0;
   private curZ = 0;
 
-  private explode(x: number, z: number): void {
+  private explode(x: number, z: number, R = 8, power = 1): void {
     const G = this.game;
-    const R = 8;
     G.vfx.explosion(x, z);
     G.audio.explosion();
     G.cameraRig.shake(0.9);
@@ -349,7 +395,7 @@ export class Guns {
       const d = Math.hypot(v.x - x, v.z - z);
       if (d > R) continue;
       const k = 1 - d / R;
-      v.ctrl.damage(0.9 * k + 0.1);
+      v.ctrl.damage((0.9 * k + 0.1) * power);
       const nx = (v.x - x) / (d || 1), nz = (v.z - z) / (d || 1);
       v.ctrl.vx += nx * 14 * k; v.ctrl.vz += nz * 14 * k;
       if (v.isPolice) G.addHeat(4);
@@ -360,7 +406,7 @@ export class Guns {
       if (d > R) continue;
       const k = 1 - d / R;
       G.humans.ignoreShield = true;
-      G.humans.gunHit(G.humans.player, h, 110 * k + 10, (h.x - x) / (d || 1), (h.z - z) / (d || 1), true);
+      G.humans.gunHit(G.humans.player, h, (110 * k + 10) * power, (h.x - x) / (d || 1), (h.z - z) / (d || 1), true);
       G.humans.ignoreShield = false;
     }
     for (const c of G.world.circles) {

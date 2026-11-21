@@ -58,6 +58,8 @@ export class Human {
   riot = false;
   /** Gun handling (player): seconds the weapon stays raised after a shot, where it points, how raised it is now, and shot / reload kicks. */
   aimT = 0; aimYaw = 0; aimBlend = 0; recoil = 0; reloadK = 0;
+  /** Reload progress 0..1 while the rifle reload clip is driving the arms (-1 = not reloading) and the grenade throw timer. */
+  reloadU = -1; throwT = 0; throwDur = 1;
   /** Which knock-out clip a bullet hit picked (empty = the ordinary fall). */
   fallClip = '';
   /** Seconds left of free-running (a driver who just got out of a hijacked car), instead of following a sidewalk loop. */
@@ -105,7 +107,7 @@ export class Humans {
   readonly player: Human;
   unlockedBaton = false;
   /** Which guns the player owns (pistol, SMG, shotgun, rocket, paintball). */
-  guns: boolean[] = [true, false, false, false, false];
+  guns: boolean[] = [true, false, false, false, false, false];
   /** Kids Play: nobody dies. Defeated cops and the player are only knocked out. */
   kids = true;
   copsDefeated = 0;
@@ -217,7 +219,7 @@ export class Humans {
 
   healPlayer(): void { this.player.hp = this.player.maxHp; }
 
-  ownedFlags(): boolean[] { return [0, 1, 2, 3, 4, 5, 6, 7].map((s) => this.weaponOwned(s)); }
+  ownedFlags(): boolean[] { return [0, 1, 2, 3, 4, 5, 6, 7, 8].map((s) => this.weaponOwned(s)); }
 
   weaponOwned(slot: number): boolean {
     if (slot === 2) return this.unlockedBaton;
@@ -253,6 +255,7 @@ export class Humans {
     h.dodgeCd = Math.max(0, h.dodgeCd - dt);
     h.flash = Math.max(0, h.flash - dt);
     h.aimT = Math.max(0, h.aimT - dt);
+    h.throwT = Math.max(0, h.throwT - dt);
     h.recoil = Math.max(0, h.recoil - dt * 7);
     this.combatTimer = Math.max(0, this.combatTimer - dt);
 
@@ -260,9 +263,9 @@ export class Humans {
     if (inp.wasPressed('Digit1')) this.equip(0);
     if (inp.wasPressed('Digit2')) this.equip(1);
     if (inp.wasPressed('Digit3')) this.equip(2);
-    for (let k = 4; k <= 8; k++) if (inp.wasPressed('Digit' + k)) this.equip(k - 1);
+    for (let k = 4; k <= 9; k++) if (inp.wasPressed('Digit' + k)) this.equip(k - 1);
     const cycle = (d: number) => {
-      const slots = [0, 1, 2, 3, 4, 5, 6, 7].filter((s) => this.weaponOwned(s));
+      const slots = [0, 1, 2, 3, 4, 5, 6, 7, 8].filter((s) => this.weaponOwned(s));
       this.player.weapon = slots[(slots.indexOf(this.player.weapon) + d + slots.length) % slots.length];
     };
     if (inp.wasPressed('WheelUp')) cycle(1);
@@ -903,7 +906,8 @@ export class Humans {
         return;
       }
       case St.Hit:
-        this.selName = h.slot % 2 ? 'impact2' : 'impact'; this.selU = 1 - h.stateT / h.stateDur; this.selFade = 0.03;
+        // hurt with a gun in hand: the rifle flinch
+        this.selName = h.role === Role.Player && h.weapon >= 3 ? 'rifleHit' : h.slot % 2 ? 'impact2' : 'impact'; this.selU = 1 - h.stateT / h.stateDur; this.selFade = 0.03;
         return;
       case St.Down:
       case St.Dead:
@@ -949,6 +953,11 @@ export class Humans {
   private chooseGunClip(h: Human, dt: number): boolean {
     const pistol = h.weapon === 3 || h.weapon === 7;
     const rocket = h.weapon === 6;
+    if (h.throwT > 0) {
+      // the grenade throw: the whole clip (pull the pin, wind up, throw), sped up to fit
+      this.selName = 'rifleGrenade'; this.selU = 1 - h.throwT / h.throwDur; this.selFade = 0.06;
+      return true;
+    }
     if (!h.grounded) {
       // the three-part jump: take-off, a held loop in the air, then the landing pose as the fall ends
       const t = h.airT;
@@ -997,7 +1006,8 @@ export class Humans {
     const out = h.anim.out;
     const pistol = h.weapon === 3 || h.weapon === 7;
     const moving = h.speed >= 0.4 && h.grounded;
-    const target = !pistol && h.aimT > 0 && moving ? 1 : 0;
+    const grenade = h.weapon === 8;
+    const target = !pistol && !grenade && h.aimT > 0 && moving ? 1 : 0;
     h.aimBlend += (target - h.aimBlend) * Math.min(1, dt * 14);
     if (h.aimBlend > 0.02) {
       sampleClip(CLIPS[h.weapon === 6 ? 'rifleAimIdle' : 'proIdleAim'], 0, this.aimPose);
@@ -1005,6 +1015,16 @@ export class Humans {
         this.qa.fromArray(out, j * 4);
         this.qb.fromArray(this.aimPose, j * 4);
         this.qa.slerp(this.qb, h.aimBlend).toArray(out, j * 4);
+      }
+    }
+    if (h.reloadU >= 0 && !pistol && !grenade && h.throwT <= 0) {
+      // the rifle reload: its arms (and back and head) over whatever the legs are doing, faded in and out at the ends
+      sampleClip(CLIPS.rifleReload, h.reloadU, this.aimPose);
+      const w = Math.min(1, h.reloadU * 8, (1 - h.reloadU) * 8);
+      for (const j of Humans.UPPER) {
+        this.qa.fromArray(out, j * 4);
+        this.qb.fromArray(this.aimPose, j * 4);
+        this.qa.slerp(this.qb, Math.max(0, w)).toArray(out, j * 4);
       }
     }
     if (h.recoil > 0.01) {

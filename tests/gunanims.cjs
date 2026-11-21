@@ -94,6 +94,50 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { ...shot, reload: pl.reloadK > 0.3 };
     });
     ok(kick.recoil && kick.aim && kick.reload, 'a shot kicks and raises the gun; reloading dips it', JSON.stringify(kick));
+
+    // the rifle reload clip drives the arms of long guns; handguns keep the short dip
+    const rel = await S(() => {
+      const G = g(); const pl = G.humans.player; const out = {};
+      for (const [name, w] of [['smg', 4], ['pistol', 3]]) {
+        G.humans.equip(w); G.guns.cool = 0; G.guns.reloading = null; G.guns.mag[name] = 1; G.guns.reserve[name] = 50;
+        G.guns.reload(); G.guns.update(0.01, false, false); G.guns.update(0.3, false, false);
+        G.update(1 / 60);
+        out[name] = { u: Math.round(pl.reloadU * 100) / 100, k: Math.round(pl.reloadK * 100) / 100 };
+        G.guns.reloading = null; pl.reloadU = -1; pl.reloadK = 0;
+      }
+      return out;
+    });
+    ok(rel.smg.u > 0.05 && rel.smg.u < 0.5 && rel.smg.k === 0 && rel.pistol.u === -1 && rel.pistol.k > 0.3, 'long guns use the reload clip, handguns the dip', JSON.stringify(rel));
+
+    // a gun in hand: the flinch when hit
+    const hit = await S(() => {
+      const G = g(); const pl = G.humans.player; G.humans.equip(4); pl.invuln = 0;
+      pl.state = 5; pl.stateDur = pl.stateT = 0.28; pl.speed = 0;
+      G.update(1 / 60);
+      const withGun = pl.anim.clipName;
+      G.humans.equip(0); pl.state = 5; pl.stateDur = pl.stateT = 0.28; G.update(1 / 60);
+      return [withGun, pl.anim.clipName];
+    });
+    ok(hit[0] === 'rifleHit' && hit[1] !== 'rifleHit', 'hit with a gun: the rifle flinch; with fists: the ordinary one', hit.join(','));
+    await S(() => { g().humans.player.state = 0; });
+
+    // grenades: the throw clip plays, the grenade leaves the hand part-way in, and it blows up
+    const gren = await S(() => {
+      const G = g(); const pl = G.humans.player; const gs = G.guns;
+      gs.buyGun('grenade'); G.humans.guns = gs.flags(); G.humans.equip(8);
+      gs.cool = 0; gs.reloading = null; gs.mag.grenade = 1; gs.reserve.grenade = 3;
+      let blasts = 0; const orig = G.vfx.explosion.bind(G.vfx); G.vfx.explosion = (x, z) => { blasts++; orig(x, z); };
+      G.state = 'play';
+      gs.update(1 / 60, false, true);
+      const thrown = { throwT: pl.throwT > 1.3, pending: !!gs.pendingThrow, mag: gs.mag.grenade };
+      G.update(1 / 60);
+      const clip = pl.anim.clipName;
+      let released = -1, t = 0;
+      for (let i = 0; i < 200; i++) { gs.tick(0.02); t += 0.02; if (released < 0 && gs.grenades.length) released = Math.round(t * 100) / 100; if (released >= 0 && !gs.grenades.length) break; }
+      return { ...thrown, clip, released, blasts, left: gs.grenades.length };
+    });
+    ok(gren.throwT && gren.pending && gren.mag === 0 && gren.clip === 'rifleGrenade', 'a grenade throw starts the throw clip', JSON.stringify(gren));
+    ok(gren.released > 0.7 && gren.released < 1.1 && gren.blasts === 1 && gren.left === 0, 'the grenade leaves the hand at the release frame and explodes once', JSON.stringify(gren));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();

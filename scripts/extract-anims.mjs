@@ -19,6 +19,7 @@ const GUN_KEEP = [
   'proIdle', 'proIdleAim', 'rifleAimIdle', 'rifleFire',
   ...['F', 'FL', 'FR', 'L', 'R', 'B', 'BL', 'BR'].flatMap((d) => ['proRun' + d, 'proSprint' + d]),
   'proJumpUp', 'proJumpLoop', 'proJumpDown', 'proDieFront', 'proDieBack', 'proDieRight',
+  'rifleReload', 'rifleHit', 'rifleGrenade', // Basic Shooter Pack
 ];
 const mod = await import(pathToFileURL(join(root, 'data/anims.js')).href);
 const gunMod = await import(pathToFileURL(join(root, 'data/anims_guns.js')).href);
