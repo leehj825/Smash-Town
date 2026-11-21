@@ -27,6 +27,8 @@ export class CameraRig {
   private initialised = false;
   /** Building footprints the camera must not enter. */
   obstacles: { minX: number; maxX: number; minZ: number; maxZ: number }[] = [];
+  /** A building the camera may enter (the roof the player stands on). */
+  ignore: { minX: number; maxX: number; minZ: number; maxZ: number } | null = null;
   private target = new THREE.Vector3();
   /** On-foot orbit angles (mouse / touch drag). */
   footYaw = Math.PI;
@@ -88,6 +90,7 @@ export class CameraRig {
 
   private blocked(x: number, z: number): boolean {
     for (const b of this.obstacles) {
+      if (b === this.ignore) continue;
       if (x > b.minX - 0.8 && x < b.maxX + 0.8 && z > b.minZ - 0.8 && z < b.maxZ + 0.8) return true;
     }
     return false;

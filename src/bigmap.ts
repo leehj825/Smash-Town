@@ -48,6 +48,7 @@ export class BigMap {
         ${DOT('#ffd23a', bi('Story goal (gold line = road route)', '스토리 목표 (금색 선 = 길)'))}
         ${DOT('#3dff8a', bi('Garage', '차고'))}
         ${DOT('#ff9a3d', bi('Side jobs', '부업'))}
+        ${DOT('#b084ff', bi('Shops (walk in on foot)', '상점 (도보로 입장)'))}
         ${DOT('#ffe27a', bi('Golden star', '황금 별'))}
         ${DOT('#ffb23d', bi('Burger stand / health / armor', '버거 가게 / 체력 / 방탄'))}
       </div>`;
@@ -70,6 +71,7 @@ export class BigMap {
     };
     const R = 9;
     for (const s of w.garages) dot(s.x, s.z, R, '#3dff8a');
+    for (const r of g.interiors.rooms) { dot(r.door.x, r.door.z, R - 1, r.css); c.fillStyle = '#fff'; c.font = '700 15px sans-serif'; c.textAlign = 'center'; c.strokeStyle = '#000'; c.lineWidth = 3; c.strokeText(bi(r.en, r.ko), X(r.door.x), Z(r.door.z) - 12); c.fillText(bi(r.en, r.ko), X(r.door.x), Z(r.door.z) - 12); }
     for (const m of g.gigs.markers) if (m.cooldown <= 0) dot(m.x, m.z, R - 1, '#ff9a3d');
     g.pickups.forEach((type, x, z) => { if (type !== 'cash') dot(x, z, R - 4, Pickups.color(type)); });
     for (let i = 0; i < g.collectibles.total; i++) if (!g.collectibles.isCollected(i)) { const s = g.collectibles.spot(i); dot(s.x, s.z, R - 3, '#ffe27a'); }

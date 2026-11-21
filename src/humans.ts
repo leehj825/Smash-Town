@@ -1,3 +1,4 @@
+import type { Roof } from './world';
 import * as THREE from 'three';
 import { CharacterRenderer, type Look } from './characters';
 import { AnimPlayer, CLIPS } from './mocap';
@@ -49,6 +50,9 @@ export class Human {
   prevWeapon = 0; equipT = 0;
   /** Knocked out (Kids Play): can't be hit again, gets up and walks away. */
   ko = false;
+  /** The roof this human stands on (null at street level) and the highest point of the current fall. */
+  roof: Roof | null = null;
+  peak = 0;
   /** Riot officer: carries a shield that blocks most hits from the front. */
   riot = false;
   /** Seconds left of free-running (a driver who just got out of a hijacked car), instead of following a sidewalk loop. */
@@ -188,6 +192,7 @@ export class Humans {
     const p = this.player;
     p.active = active;
     if (!active) { this.hide(p); return; }
+    p.roof = null; p.peak = GROUND;
     p.x = x; p.z = z; p.heading = heading; p.y = GROUND; p.vy = 0; p.vx = p.vz = p.mvx = p.mvz = 0;
     p.state = St.Idle; p.attack = null; p.grounded = true; p.invuln = 0.4;
     if (p.hp <= 0) p.hp = p.maxHp * 0.5;
@@ -647,6 +652,7 @@ export class Humans {
   // ------------------------------------------------------------------ shared update
   private resolveStatics(h: Human, r: number): void {
     for (const box of this.world.boxes) {
+      if (h.roof && box === h.roof.box && h.y >= h.roof.h - 0.35) continue; // on the roof you walk over your own building
       if (h.x < box.minX - r || h.x > box.maxX + r || h.z < box.minZ - r || h.z > box.maxZ + r) continue;
       const nx = Math.max(box.minX, Math.min(h.x, box.maxX));
       const nz = Math.max(box.minZ, Math.min(h.z, box.maxZ));
@@ -683,14 +689,34 @@ export class Humans {
     }
   }
 
+  /** Height of the floor under a human: a roof when standing over one, otherwise the street. */
+  private groundY(h: Human): number {
+    const r = h.roof;
+    if (r && h.x > r.minX && h.x < r.maxX && h.z > r.minZ && h.z < r.maxZ && h.y >= r.h - 0.35) return r.h;
+    return GROUND;
+  }
+
   private integrate(h: Human, dt: number, collide: boolean): void {
     h.x += (h.mvx + h.vx) * dt;
     h.z += (h.mvz + h.vz) * dt;
-    if (!h.grounded || h.y > GROUND + 0.001) {
+    const gy = this.groundY(h);
+    if (h.y > gy + 0.05) h.grounded = false;
+    if (!h.grounded || h.y > gy + 0.001) {
+      h.peak = Math.max(h.peak, h.y);
       h.vy -= GRAVITY * dt;
       h.y += h.vy * dt;
-      if (h.y <= GROUND) { h.y = GROUND; h.vy = 0; h.grounded = true; }
-    }
+      if (h.y <= gy) {
+        h.y = gy; h.vy = 0; h.grounded = true;
+        if (gy === GROUND) h.roof = null;
+        const fall = h.peak - gy;
+        h.peak = gy;
+        if (h.role === Role.Player && fall > 5) {
+          const dmg = (fall - 5) * 6;
+          if (!this.kids) h.hp = Math.max(10, h.hp - dmg);
+          this.hooks.onPlayerHurt(dmg);
+        }
+      }
+    } else h.peak = h.y;
     if (h.state !== St.Dodge && !(h.state === St.Attack && h.atkPhase === 1)) h.vx *= Math.exp(-(h.grounded ? 7 : 1.2) * dt), h.vz *= Math.exp(-(h.grounded ? 7 : 1.2) * dt);
     if (collide) {
       this.resolveStatics(h, 0.4);

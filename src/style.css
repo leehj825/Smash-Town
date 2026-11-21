@@ -268,3 +268,7 @@ body.foot-mode.can-reload #btn-reload { display: block; }
 @media (max-height: 460px) { #btn-reload { bottom: 132px; width: 46px; height: 46px; right: 20px; } }
 
 .gbtns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+/* screen fade for doors */
+#fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 20; }
+#fade.on { opacity: 1; }

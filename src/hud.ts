@@ -206,6 +206,13 @@ export class Hud {
     el.hidden = !text;
     if (text && el.textContent !== text) el.textContent = text;
   }
+  /** Touch: the F button reads CLIMB or ENTER next to a ladder or a shop door. */
+  private lastAction = 'F';
+  setActionLabel(text: string): void {
+    if (text === this.lastAction) return;
+    this.lastAction = text;
+    document.querySelectorAll<HTMLElement>('#touch button[data-tap="KeyF"]').forEach((b) => { b.textContent = text; });
+  }
   setReloadButton(on: boolean): void { document.body.classList.toggle('can-reload', on); }
 
   setPlayerArmor(frac: number): void { this.pArmor.style.width = `${Math.round(frac * 100)}%`; }
@@ -319,7 +326,17 @@ export class Hud {
   // ---------------------------------------------------------------- garage (Pay & Spray)
   get garageOpen(): boolean { return !this.garageEl.hidden; }
 
-  openGarage(model: GarageModel, handlers: GarageHandlers): void {
+  /** Fade to black, run `cb` while the screen is dark, then fade back in. */
+  fade(cb: () => void): void {
+    const el = document.getElementById('fade')!;
+    el.classList.add('on');
+    window.setTimeout(() => { cb(); window.setTimeout(() => el.classList.remove('on'), 90); }, 270);
+  }
+
+  private garageOnly: GarageTab[] | null = null;
+  openGarage(model: GarageModel, handlers: GarageHandlers, only?: GarageTab[]): void {
+    this.garageOnly = only ?? null;
+    if (only) this.garageTab = only[0];
     this.garageModel = model;
     this.garageHandlers = handlers;
     this.garageEl.hidden = false;
@@ -342,7 +359,8 @@ export class Hud {
     const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
     const stars = (lv: number) => '●'.repeat(lv) + '○'.repeat(MAX_LEVEL - lv);
     const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
-    const tabs: [GarageTab, string][] = [['cars', bi('Cars', '차량')], ['tune', bi('Tune-up', '튜닝')], ['look', bi('Paint & neon', '도색·네온')], ['body', bi('Training', '훈련')], ['arms', bi('Arms', '무기')]];
+    const allTabs: [GarageTab, string][] = [['cars', bi('Cars', '차량')], ['tune', bi('Tune-up', '튜닝')], ['look', bi('Paint & neon', '도색·네온')], ['body', bi('Training', '훈련')], ['arms', bi('Arms', '무기')]];
+    const tabs = this.garageOnly ? allTabs.filter(([id]) => this.garageOnly!.includes(id)) : allTabs;
     let body = '';
     if (this.garageTab === 'cars') {
       body = '<div class="vgrid">' + PLAYER_ROSTER.map((k) => {
@@ -394,17 +412,17 @@ export class Hud {
     this.garageEl.innerHTML = `<div class="panel garage-panel">
       <h2>${t('ui.garage.title')}</h2>
       <div class="gcash">${t('ui.garage.cash')}: <b>${money(m.cash)}</b></div>
-      <div class="gactions">
+      ${this.garageOnly ? '' : `<div class="gactions">
         <button class="big small" id="g-repair">${t('ui.garage.repair')} - ${money(m.repairCost)}</button>
         <button class="big small warnbtn" id="g-respray" ${rs.state === 'none' ? 'disabled' : ''}>${resprayLabel}</button>
-      </div>
+      </div>`}
       <div class="gtabs">${tabs.map(([id, label]) => `<button class="seg gtab ${this.garageTab === id ? 'sel' : ''}" data-tab="${id}">${label}</button>`).join('')}</div>
       <div class="gbody">${body}</div>
       <button class="big small ghost" id="g-close">${t('ui.garage.close')}</button>
     </div>`;
     const q = (sel: string) => this.garageEl.querySelectorAll<HTMLElement>(sel);
-    this.garageEl.querySelector('#g-repair')!.addEventListener('click', () => h.onRepair());
-    this.garageEl.querySelector('#g-respray')!.addEventListener('click', () => h.onRespray());
+    this.garageEl.querySelector('#g-repair')?.addEventListener('click', () => h.onRepair());
+    this.garageEl.querySelector('#g-respray')?.addEventListener('click', () => h.onRespray());
     this.garageEl.querySelector('#g-close')!.addEventListener('click', () => h.onClose());
     q('.gtab').forEach((b) => b.addEventListener('click', () => { this.garageTab = b.dataset.tab as GarageTab; this.renderGarage(); }));
     q('.vbtn').forEach((b) => b.addEventListener('click', () => {

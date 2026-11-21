@@ -11,6 +11,8 @@ import { GigManager } from './gigs';
 import { Navigator, type Route } from './nav';
 import { Pickups } from './pickups';
 import { Helicopter } from './heli';
+import { Interiors, type Room } from './interiors';
+import type { Roof } from './world';
 import { GUN_ORDER, GUNS, Guns, type GunId } from './guns';
 import { BODY_KEYS, BODY_PRICES, MAX_LEVEL, NEONS, NEON_PRICE, PAINTS, PAINT_PRICE, UP_KEYS, UP_PRICES, emptyBody, emptyCar, fineFor, resprayCost, type BodyProgress, type CarProgress } from './upgrades';
 import type { Blip, GarageModel, Hud } from './hud';
@@ -25,7 +27,7 @@ import type { Vfx } from './vfx';
 import type { CircleCollider, World } from './world';
 
 export const SAVE_KEY = 'smashtown.save.v1';
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>> }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; outfit?: number }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -75,6 +77,12 @@ export class Game {
   readonly story: StoryManager;
   readonly pickups: Pickups;
   readonly guns: Guns;
+  readonly interiors: Interiors;
+  /** The shop the player is inside (null on the street). While inside, the city is frozen and unseen. */
+  inside: Room | null = null;
+  private ret = { x: 0, z: 0, h: 0 };
+  private fading = false;
+  private climb: { t: number; dur: number; fx: number; fz: number; fy: number; tx: number; tz: number; ty: number; roof: Roof; up: boolean } | null = null;
   readonly heli = new Helicopter();
   private heliTimer = 0;
   /** Road route to the story goal (refreshed a few times a second) and the goal itself. */
@@ -157,6 +165,8 @@ export class Game {
     this.guns = new Guns(this, this.save.guns ?? [], this.save.ammo ?? {});
     this.scene.add(this.guns.group);
     this.heli.attach(this.scene);
+    this.interiors = new Interiors(d.world, this.scene);
+    this.applyOutfit(this.save.outfit ?? 0);
     this.humans.guns = this.guns.flags();
 
     for (const g of this.world.garages) {
@@ -203,7 +213,8 @@ export class Game {
       const guns = Array.isArray(s.guns) ? s.guns.filter((g): g is GunId => GUN_ORDER.includes(g as GunId)) : [];
       const ammo: Partial<Record<GunId, number>> = {};
       for (const g of GUN_ORDER) { const n = Number(s.ammo?.[g]); if (Number.isFinite(n) && n > 0) ammo[g] = Math.floor(n); }
-      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo };
+      const outfit = Number.isInteger(s.outfit) ? Number(s.outfit) : 0;
+      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, outfit };
     } catch {
       return fallback;
     }
@@ -214,6 +225,7 @@ export class Game {
     if (this.noSave) return;
     this.save.cash = Math.round(this.cash);
     this.save.collected = this.collectibles.indices();
+    this.save.outfit = this.save.outfit ?? 0;
     this.save.guns = [...this.guns.owned];
     this.save.ammo = { ...this.guns.reserve };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch { /* ignore */ }
@@ -221,8 +233,8 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ accessors
-  get focusX(): number { return this.onFoot || !this.driving ? this.humans.player.x : this.driving.x; }
-  get focusZ(): number { return this.onFoot || !this.driving ? this.humans.player.z : this.driving.z; }
+  get focusX(): number { if (this.inside) return this.ret.x; return this.onFoot || !this.driving ? this.humans.player.x : this.driving.x; }
+  get focusZ(): number { if (this.inside) return this.ret.z; return this.onFoot || !this.driving ? this.humans.player.z : this.driving.z; }
   get followable(): Followable { return this.onFoot || !this.driving ? this.foot : this.driving.ctrl; }
   get cashAmount(): number { return this.cash; }
 
@@ -442,6 +454,166 @@ export class Game {
         }
       }
     }
+  }
+
+  // ------------------------------------------------------------------ ladders and rooftops
+  private ladderOption(): { roof: Roof; up: boolean } | null {
+    if (!this.onFoot || this.climb || this.inside || this.state !== 'play') return null;
+    const pl = this.humans.player;
+    if (pl.roof && pl.y >= pl.roof.h - 0.5) {
+      const r = pl.roof;
+      const tx = r.ladder.x - r.ladder.nx * 0.55, tz = r.ladder.z - r.ladder.nz * 0.55;
+      return Math.hypot(pl.x - tx, pl.z - tz) < 2.7 ? { roof: r, up: false } : null;
+    }
+    if (pl.y > 1) return null;
+    for (const r of this.world.roofs) if (Math.hypot(pl.x - r.ladder.x, pl.z - r.ladder.z) < 1.9) return { roof: r, up: true };
+    return null;
+  }
+
+  private startClimb(o: { roof: Roof; up: boolean }): void {
+    const pl = this.humans.player;
+    const r = o.roof, L = r.ladder;
+    this.climb = o.up
+      ? { t: 0, dur: 0.35 + r.h * 0.13, fx: pl.x, fz: pl.z, fy: pl.y, tx: L.x - L.nx * 1.7, tz: L.z - L.nz * 1.7, ty: r.h, roof: r, up: true }
+      : { t: 0, dur: 0.35 + r.h * 0.11, fx: pl.x, fz: pl.z, fy: pl.y, tx: L.x, tz: L.z, ty: 0.1, roof: r, up: false };
+    pl.roof = r;
+    this.audio.step();
+  }
+
+  private applyClimb(dt: number): void {
+    const c = this.climb;
+    if (!c) return;
+    const pl = this.humans.player;
+    c.t += dt;
+    const k = Math.min(1, c.t / c.dur);
+    pl.x = c.fx + (c.tx - c.fx) * k; pl.z = c.fz + (c.tz - c.fz) * k; pl.y = c.fy + (c.ty - c.fy) * k;
+    pl.vy = 0; pl.grounded = true; pl.mvx = pl.mvz = pl.vx = pl.vz = 0; pl.invuln = 0.3; pl.peak = pl.y;
+    pl.heading = Math.atan2(-c.roof.ladder.nx, -c.roof.ladder.nz);
+    if (k >= 1) {
+      this.climb = null;
+      pl.roof = c.up ? c.roof : null;
+      pl.y = c.ty;
+      if (c.up) this.hud.toast(bi('Rooftop! Golden stars shine from up here.', '옥상이에요! 위에는 황금 별이 빛나요.'), 2200);
+    }
+  }
+
+  // ------------------------------------------------------------------ shops (hidden-pocket interiors)
+  private static OUTFITS: [number, number][] = [[0xd93636, 0x2a4a8a], [0x2fb87a, 0x23262f], [0xf2a73b, 0x3b3b52], [0x8a5cd6, 0x1a1a24], [0x3b82f6, 0xe8e8ee], [0xf4a7b9, 0x445566], [0x111111, 0x111111], [0xffffff, 0x33415c]];
+  private applyOutfit(i: number): void {
+    const o = Game.OUTFITS[((i % Game.OUTFITS.length) + Game.OUTFITS.length) % Game.OUTFITS.length];
+    const pl = this.humans.player;
+    pl.look = { ...pl.look, shirt: o[0], pants: o[1] };
+    this.humans.renderer.setLook(pl.slot, pl.look);
+  }
+
+  private fadeThen(cb: () => void): void {
+    if (this.fading) return;
+    this.fading = true;
+    this.hud.fade(() => { cb(); this.fading = false; });
+  }
+
+  private enterBuilding(room: Room): void {
+    if (this.fading || this.state !== 'play') return;
+    if (this.stars > 0) { this.hud.toast(bi('The door is locked - the police are watching!', '문이 잠겨 있어요 - 경찰이 지켜보고 있어요!'), 2400); return; }
+    const pl = this.humans.player;
+    this.ret = { x: pl.x, z: pl.z, h: pl.heading };
+    this.fadeThen(() => {
+      this.inside = room;
+      this.humans.setPlayerActive(true, room.exit.x, room.exit.z - 2.2, Math.PI);
+      this.cameraRig.ignore = null;
+      this.cameraRig.snap();
+      this.hud.toast(`${bi(room.en, room.ko)}`, 1800);
+    });
+  }
+
+  private leaveBuilding(): void {
+    this.fadeThen(() => {
+      const r = this.ret;
+      this.inside = null;
+      this.humans.setPlayerActive(true, r.x, r.z, r.h);
+      this.cameraRig.snap();
+    });
+  }
+
+  private shopAction(room: Room): void {
+    const pl = this.humans.player;
+    switch (room.id) {
+      case 'donut':
+        if (pl.hp >= pl.maxHp) { this.hud.toast(bi('You are not hungry!', '배고프지 않아요!')); return; }
+        if (!this.pay(10)) return;
+        pl.hp = pl.maxHp; this.popups.spawn(pl.x, 3, pl.z, bi('Yum! Full HP', '냠! 체력 회복'), '#ff8fb8');
+        break;
+      case 'motel':
+        if (!this.pay(40)) return;
+        pl.hp = pl.maxHp; this.humans.armor = Math.max(this.humans.armor, 0);
+        this.flushSave();
+        this.hud.toast(bi('Rested and saved', '쉬었고 저장했어요'), 2000);
+        break;
+      case 'arcade': {
+        if (!this.pay(50)) return;
+        const roll = Math.random();
+        const prize = roll < 0.45 ? 0 : roll < 0.75 ? 25 : roll < 0.92 ? 100 : roll < 0.985 ? 250 : 1000;
+        if (prize > 0) { this.addCash(prize, 'other'); this.popups.spawn(pl.x, 3, pl.z, `+$${prize}`, '#35e0ff'); }
+        else this.popups.spawn(pl.x, 3, pl.z, bi('Try again!', '다시 도전!'), '#9aa0ad');
+        break;
+      }
+      case 'clothes': {
+        if (!this.pay(100)) return;
+        this.save.outfit = ((this.save.outfit ?? 0) + 1) % Game.OUTFITS.length;
+        this.applyOutfit(this.save.outfit);
+        this.popups.spawn(pl.x, 3, pl.z, bi('New look!', '새 옷!'), '#b084ff');
+        break;
+      }
+      case 'gun': this.openGarage('arms'); break;
+    }
+  }
+
+  private insidePrompt(room: Room): string | null {
+    const pl = this.humans.player;
+    if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) return bi('[F] Leave', '[F] 나가기');
+    if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) {
+      switch (room.id) {
+        case 'donut': return bi('[F] Buy a donut - $10 (full HP)', '[F] 도넛 구매 - $10 (체력 회복)');
+        case 'motel': return bi('[F] Rest and save - $40', '[F] 휴식 및 저장 - $40');
+        case 'arcade': return bi('[F] Play a game - $50', '[F] 게임하기 - $50');
+        case 'clothes': return bi('[F] Try a new outfit - $100', '[F] 새 옷 입어보기 - $100');
+        case 'gun': return bi('[F] Browse weapons', '[F] 무기 보기');
+      }
+    }
+    return null;
+  }
+
+  /** Inside a shop only you move: the street is frozen far away. */
+  private updateInside(dt: number): void {
+    const room = this.inside!;
+    const input = this.input;
+    const pl = this.humans.player;
+    const look = input.takeLook();
+    this.cameraRig.applyLook(look.x, look.y);
+    const playing = this.state === 'play' && !this.fading;
+    this.humans.update(dt, {
+      input: playing ? input : this.idleInput, camYaw: this.cameraRig.moveYaw, vehicles: [], wantCops: 0, wantRiot: 0, playerActive: true,
+      playerCarX: pl.x, playerCarZ: pl.z, playerCarSpeed: 0, policeCars: [], time: this.time,
+    });
+    this.popups.update(dt);
+    this.slash.update(dt);
+    this.guns.tick(dt);
+    this.interiors.update(dt);
+    if (playing && (input.wasPressed('KeyF') || input.wasPressed('KeyE'))) {
+      if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) this.leaveBuilding();
+      else if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shopAction(room);
+    }
+    this.hud.setPrompt(this.state === 'play' ? this.insidePrompt(room) : null);
+    this.updateLights();
+    this.hud.update(this.followable, 1, 1, false, [], dt);
+    this.hud.setNav(null, ''); this.hud.setRoute(null);
+    this.hud.setFootMode(true, pl.weapon, this.humans.ownedFlags());
+    this.hud.setAmmo(this.guns.hudText());
+    this.hud.setReloadButton(false);
+    this.hud.setPlayerHp(Math.max(0, pl.hp / pl.maxHp));
+    this.hud.setPlayerArmor(this.humans.armor / 50);
+    this.hud.setWantedBanner(false);
+    if (this.saveDirty) { this.saveTimer -= dt; if (this.saveTimer <= 0) { this.flushSave(); this.saveTimer = 3; } }
   }
 
   /** The police helicopter was hit by a rocket. */
@@ -668,10 +840,10 @@ export class Game {
     return true;
   }
 
-  private openGarage(): void {
+  private openGarage(mode: 'garage' | 'arms' = 'garage'): void {
     this.state = 'garage';
-    const d = this.driving!;
-    d.ctrl.vx = d.ctrl.vz = 0;
+    const d = this.driving;
+    if (d && mode === 'garage') d.ctrl.vx = d.ctrl.vz = 0;
     const refresh = () => this.hud.refreshGarage(this.garageModel());
     this.hud.openGarage(this.garageModel(), {
       onRepair: () => {
@@ -749,7 +921,7 @@ export class Game {
         refresh();
       },
       onClose: () => this.closeGarage(),
-    });
+    }, mode === 'arms' ? ['arms'] : undefined);
   }
 
   closeGarage(): void {
@@ -785,8 +957,16 @@ export class Game {
     if (input.wasPressed('Escape') && this.state === 'garage') this.closeGarage();
     if (this.state === 'dialog' && (input.wasPressed('KeyF') || input.wasPressed('Enter') || input.wasPressed('Space'))) this.story.advanceDialog();
 
+    if (this.inside) { this.updateInside(dt); return; }
+
     if (this.state === 'play') {
-      if (input.wasPressed('KeyF') || input.wasPressed('KeyE')) this.enterExit();
+      if (input.wasPressed('KeyF') || input.wasPressed('KeyE')) {
+        const lo = this.ladderOption();
+        const door = this.onFoot && !this.climb ? this.interiors.roomAt(this.humans.player.x, this.humans.player.z, 2.6) : null;
+        if (lo) this.startClimb(lo);
+        else if (door && !this.humans.player.roof) this.enterBuilding(door);
+        else this.enterExit();
+      }
       if (input.wasPressed('KeyR')) { if (this.onFoot) this.guns.reload(); else this.resetCar(); }
     }
 
@@ -932,7 +1112,7 @@ export class Game {
   /** Pick up golden stars by touching them (in a car or on foot). */
   private collectStars(): void {
     if (this.state !== 'play') return;
-    const i = this.collectibles.tryCollect(this.focusX, this.focusZ, this.onFoot ? 2.4 : 4);
+    const i = this.collectibles.tryCollect(this.focusX, this.focusZ, this.onFoot ? 2.4 : 4, this.onFoot ? this.humans.player.y : 0);
     if (i < 0) return;
     this.addCash(300, 'stars');
     this.popups.spawn(this.focusX, 3, this.focusZ, '+$300', '#ffe27a');
@@ -964,7 +1144,7 @@ export class Game {
     let want = this.onFoot && playing ? [0, 1, 2, 3, 4, 5][this.stars] : 0;
     if (this.onFoot && playing && this.gigs.active?.id === 'brawl') want = Math.max(want, 4);
     const ctx: HumanCtx = {
-      input: playing ? this.input : this.idleInput,
+      input: playing && !this.climb ? this.input : this.idleInput,
       camYaw: this.cameraRig.moveYaw,
       vehicles: this.vehicles,
       wantCops: want,
@@ -975,6 +1155,8 @@ export class Game {
       time: this.time,
     };
     this.humans.update(dt, ctx);
+    this.applyClimb(dt);
+    this.cameraRig.ignore = this.onFoot && this.humans.player.roof ? this.humans.player.roof.box : null;
     this.marker.visible = this.onFoot && pl.state !== 8;
     if (this.onFoot) {
       this.marker.position.set(pl.x, pl.y + 2.55 + Math.sin(this.time * 4) * 0.08, pl.z);
@@ -1345,7 +1527,15 @@ export class Game {
 
   private updatePrompt(): void {
     if (this.state !== 'play') { this.hud.setPrompt(null); return; }
-    if (this.onFoot) this.hud.setPrompt(this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
+    if (!this.onFoot) this.hud.setActionLabel('F');
+    if (this.onFoot) {
+      const lo = this.ladderOption();
+      const door = this.climb ? null : this.interiors.roomAt(this.humans.player.x, this.humans.player.z, 2.6);
+      this.hud.setActionLabel(lo ? bi('CLIMB', '오르기') : door && !this.humans.player.roof ? bi('ENTER', '입장') : 'F');
+      if (lo) this.hud.setPrompt(lo.up ? bi('[F] Climb the ladder', '[F] 사다리 오르기') : bi('[F] Climb down', '[F] 내려가기'));
+      else if (door && !this.humans.player.roof) this.hud.setPrompt(`${bi('[F] Enter', '[F] 들어가기')} ${bi(door.en, door.ko)}`);
+      else this.hud.setPrompt(this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
+    }
     else if (this.driving && this.driving.ctrl.speed < 2.5 && this.stars === 0) this.hud.setPrompt(t('ui.hint.exit_car'));
     else this.hud.setPrompt(null);
   }
@@ -1384,6 +1574,7 @@ export class Game {
     this.blipCount = 0;
     for (const g of this.world.garages) this.pushBlip(g.x, g.z, '#3dff8a', false, 5);
     this.gigs.blips(this.pushBlip);
+    for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
     this.pickups.forEach((type, x, z) => { if (Math.hypot(x - this.focusX, z - this.focusZ) < 90 && type !== 'cash') this.pushBlip(x, z, Pickups.color(type), false, 3); });
     this.story.blips(this.pushBlip);
     for (let i = 0; i < this.collectibles.total; i++) {

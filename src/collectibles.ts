@@ -46,9 +46,9 @@ export class Collectibles {
         return;
       }
       this.q.setFromEuler(this.e.set(0, this.t * 2 + i, 0));
-      this.p.set(sp.x, 1.6 + Math.sin(this.t * 3 + i) * 0.25, sp.z);
+      this.p.set(sp.x, (sp.y ?? 0) + 1.6 + Math.sin(this.t * 3 + i) * 0.25, sp.z);
       this.stars.setMatrixAt(i, this.m.compose(this.p, this.q, this.s.set(1, 1, 1)));
-      this.p.set(sp.x, 8, sp.z);
+      this.p.set(sp.x, (sp.y ?? 0) + 8, sp.z);
       this.q.identity();
       this.columns.setMatrixAt(i, this.m.compose(this.p, this.q, this.s.set(1, 1, 1)));
     });
@@ -57,9 +57,10 @@ export class Collectibles {
   }
 
   /** Collect the star within `r` metres of (x, z). Returns its index or -1. */
-  tryCollect(x: number, z: number, r: number): number {
+  tryCollect(x: number, z: number, r: number, y = 0): number {
     for (let i = 0; i < this.spots.length; i++) {
       if (this.got[i]) continue;
+      if (Math.abs((this.spots[i].y ?? 0) - y) > 4) continue;
       if (Math.hypot(this.spots[i].x - x, this.spots[i].z - z) < r) { this.got[i] = true; return i; }
     }
     return -1;
