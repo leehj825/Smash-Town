@@ -172,11 +172,12 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       // police on duty never wander off during the check
       const step = (n) => { for (let i = 0; i < n; i++) { for (const c of cops) { c.leaving = false; c.state = c.state === 1 ? 0 : c.state; } G.update(1 / 60); G.cameraRig.update(1 / 60, G.followable); window.__smash.camera.updateMatrixWorld(true); } };
       G.cameraRig.footYaw = sp.heading; pl.heading = sp.heading; G.cameraRig.snap();
-      step(60);
-      const ap = gs.aimPoint;
+      step(3);
       const chEl = document.getElementById('crosshair');
       // the target is behind the camera: the crosshair is on the screen edge with the arrow
       out.edge = !chEl.hidden && chEl.classList.contains('edge') && chEl.classList.contains('hostile');
+      step(57);
+      const ap = gs.aimPoint;
       out.locked = !!ap && ap.auto === true;
       out.closest = !!ap && Math.hypot(ap.x - cops[0].x, ap.z - cops[0].z) < 1;
       let d = Math.abs(Math.atan2(Math.sin(pl.heading - (sp.heading + Math.PI)), Math.cos(pl.heading - (sp.heading + Math.PI))));
