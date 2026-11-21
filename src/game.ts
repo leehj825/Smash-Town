@@ -16,6 +16,7 @@ import { RoofDash } from './roofdash';
 import { SideQuests } from './sidequests';
 import { Progress, type ProgressSave } from './tracker';
 import { OWNABLE, type OwnableShop } from './progress';
+import { settings } from './settings';
 import { Mood } from './mood';
 import type { Roof } from './world';
 import { GUN_ORDER, GUNS, Guns, type GunDef, type GunId } from './guns';
@@ -1026,17 +1027,13 @@ export class Game {
     input.gunOut = this.onFoot && !!this.guns.current();
     if (gun) {
       if (input.wasPressed('KeyX') || input.wasPressed('AimToggle')) { this.aimOn = !this.aimOn; this.hud.toast(this.aimOn ? bi('Aim on', '조준 켜짐') : bi('Aim off', '조준 꺼짐'), 900); }
-      if (input.wasPressed('KeyB') || input.wasPressed('AutoToggle')) {
-        this.autoAim = !this.autoAim;
-        try { localStorage.setItem('smashtown.autoaim', this.autoAim ? '1' : '0'); } catch { /* ignore */ }
-        this.hud.toast(this.autoAim ? bi('Auto-aim on', '자동 조준 켜짐') : bi('Auto-aim off', '자동 조준 꺼짐'), 900);
-      }
+      if (input.wasPressed('KeyB') || input.wasPressed('AutoToggle')) this.setAutoAim(!this.autoAim, true);
     }
     const lowered = input.nitro || pl0.hp <= 0;
     const manual = !!gun && this.aimOn && !lowered;
     const auto = !!gun && this.autoAim && !manual && !lowered;
     this.cameraRig.aimMode = manual ? 1 : 0;
-    if (this.onFoot) this.cameraRig.applyLook(look.x * (manual ? 0.85 : 1), look.y * (manual ? 0.85 : 1));
+    if (this.onFoot) this.cameraRig.applyLook(look.x * (manual ? settings.aimSens : 1), look.y * (manual ? settings.aimSens : 1));
     if (manual) { pl0.aimT = Math.max(pl0.aimT, 0.3); pl0.aimYaw = this.cameraRig.moveYaw; }
     else if (gun && input.nitro) pl0.aimT = 0;
     this.updateCrosshair(gun, manual, auto);
@@ -1106,7 +1103,7 @@ export class Game {
     this.hud.setStoryProgress(this.story.progressText());
     this.hud.setTelemetryVisible(!!d);
     this.hud.setFootMode(this.onFoot, pl.weapon, this.humans.ownedFlags());
-    this.hud.setAmmo(this.onFoot && this.guns.hudText() ? `${this.guns.hudText()}${this.aimOn ? ' \u00B7 AIM' : ''}${this.autoAim ? ' \u00B7 AUTO' : ''}` : null);
+    this.hud.setAmmo(this.onFoot ? this.guns.hudText() : null, `${this.aimOn ? 'AIM' : ''}${this.aimOn && this.autoAim ? ' \u00B7 ' : ''}${this.autoAim ? 'AUTO' : ''}`);
     this.hud.setReloadButton(this.onFoot && this.guns.needsReload());
     this.hud.setPlayerHp(Math.max(0, pl.hp / pl.maxHp));
     this.hud.setWantedBanner(this.stars > 0);
@@ -1193,6 +1190,15 @@ export class Game {
     this.hud.setLockOn(false);
   }
   private autoV = new THREE.Vector3();
+
+  /** Auto-aim on or off (remembered between sessions); the settings menu and the B key both use this. */
+  setAutoAim(on: boolean, toast: boolean): void {
+    this.autoAim = on;
+    try { localStorage.setItem('smashtown.autoaim', on ? '1' : '0'); } catch { /* ignore */ }
+    if (toast) this.hud.toast(on ? bi('Auto-aim on', '자동 조준 켜짐') : bi('Auto-aim off', '자동 조준 꺼짐'), 900);
+    this.onAutoAimChange?.();
+  }
+  onAutoAimChange: (() => void) | null = null;
 
   /** Aim switches (see update): manual aim starts off each session, auto-aim is remembered. */
   aimOn = false;

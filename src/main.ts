@@ -223,13 +223,17 @@ document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.addEventListen
 document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.addEventListener('click', () => applyKids(b.dataset.k === '1')));
 const segSync = (cls: string, cur: number) =>
   document.querySelectorAll<HTMLElement>('.seg.' + cls).forEach((b) => b.classList.toggle('sel', Math.abs(Number(b.dataset.v) - cur) < 0.01));
-function wireSeg(cls: 'sens' | 'fov' | 'shake'): void {
+function wireSeg(cls: 'sens' | 'aimSens' | 'fov' | 'shake'): void {
   segSync(cls, settings[cls]);
   document.querySelectorAll<HTMLElement>('.seg.' + cls).forEach((b) => b.addEventListener('click', () => {
     settings[cls] = Number(b.dataset.v); saveSettings(); segSync(cls, settings[cls]);
   }));
 }
-wireSeg('sens'); wireSeg('fov'); wireSeg('shake');
+wireSeg('sens'); wireSeg('aimSens'); wireSeg('fov'); wireSeg('shake');
+const syncAuto = () => document.querySelectorAll<HTMLElement>('.autoaim').forEach((b) => b.classList.toggle('sel', (b.dataset.a === '1') === game.autoAim));
+document.querySelectorAll<HTMLElement>('.autoaim').forEach((b) => b.addEventListener('click', () => { game.setAutoAim(b.dataset.a === '1', false); syncAuto(); }));
+syncAuto();
+game.onAutoAimChange = syncAuto;
 document.getElementById('btn-controls')!.addEventListener('click', () => controlsPanel.open());
 document.getElementById('btn-stats')!.addEventListener('click', () => statsPanel.open());
 document.getElementById('btn-howto')!.addEventListener('click', () => howto.open());

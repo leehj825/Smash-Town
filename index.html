@@ -74,6 +74,7 @@
           </div>
           <ul class="hints-foot">
             <li data-i18n="ui.hint.attack"></li>
+            <li data-i18n="ui.hint.aim"></li>
             <li data-i18n="ui.hint.kick"></li>
             <li data-i18n="ui.hint.dodge"></li>
             <li data-i18n="ui.hint.jump"></li>
@@ -146,6 +147,12 @@
         <div class="row"><span data-i18n="ui.settings.sens">Look sensitivity</span>
           <div class="segs"><button class="seg sens" data-v="0.6">0.6x</button><button class="seg sens" data-v="1">1x</button><button class="seg sens" data-v="1.5">1.5x</button><button class="seg sens" data-v="2.2">2.2x</button></div>
         </div>
+        <div class="row"><span data-i18n="ui.settings.aimsens">Aim sensitivity</span>
+          <div class="segs"><button class="seg aimSens" data-v="0.5">0.5x</button><button class="seg aimSens" data-v="0.85">0.85x</button><button class="seg aimSens" data-v="1">1x</button></div>
+        </div>
+        <div class="row"><span data-i18n="ui.settings.autoaim">Auto-aim (B)</span>
+          <div class="segs"><button class="seg autoaim" data-a="1" data-i18n="ui.on"></button><button class="seg autoaim" data-a="0" data-i18n="ui.off"></button></div>
+        </div>
         <div class="row"><span data-i18n="ui.settings.fov">Field of view</span>
           <div class="segs"><button class="seg fov" data-v="-6">-</button><button class="seg fov" data-v="0">0</button><button class="seg fov" data-v="8">+</button><button class="seg fov" data-v="16">++</button></div>
         </div>
@@ -171,6 +178,7 @@
       </div>
       <!-- right zone: action buttons -->
       <div class="zone-right">
+        <div class="gunrow"><button id="btn-aim" data-tap="AimToggle">AIM</button><button id="btn-auto" data-tap="AutoToggle">AUTO</button><button id="btn-reload" data-tap="KeyR">R</button></div>
         <div class="grid3 only-car">
           <button data-vbtn="nitro">N2O</button><button data-vbtn="hand">DRIFT</button><button data-tap="KeyF">F</button>
           <button data-vbtn="down">&#9660;</button><span></span><button data-vbtn="up" class="gas">&#9650;</button>
@@ -180,9 +188,6 @@
           <button data-tap="KeyV">WPN</button><button data-tap="KeyF">F</button><button data-vbtn="fire" data-tap="KeyJ" class="hit">HIT</button>
         </div>
       </div>
-      <button id="btn-reload" data-tap="KeyR">R</button>
-      <button id="btn-aim" data-tap="AimToggle">AIM</button>
-      <button id="btn-auto" data-tap="AutoToggle">AUTO</button>
     </div>
 
     <script type="module" src="./src/main.ts"></script>

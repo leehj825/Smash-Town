@@ -203,10 +203,11 @@ export class Hud {
 
   /** Whether a gun is out (shows the touch AIM / AUTO buttons). */
   setGunOut(on: boolean): void { document.body.classList.toggle('gun-out', on); }
-  setAmmo(text: string | null): void {
+  setAmmo(text: string | null, badges = ''): void {
     const el = document.getElementById('ammo')!;
     el.hidden = !text;
-    if (text && el.textContent !== text) el.textContent = text;
+    const html = text ? `${text}${badges ? `<small>${badges}</small>` : ''}` : '';
+    if (text && el.innerHTML !== html) el.innerHTML = html;
   }
   /** Touch: the F button reads CLIMB or ENTER next to a ladder or a shop door. */
   private lastAction = 'F';

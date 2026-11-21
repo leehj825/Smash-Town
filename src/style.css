@@ -314,3 +314,13 @@ body.foot-mode.gun-out #btn-auto { display: block; }
 /* auto-aim: the crosshair sits on its target; off screen it rides the edge with an arrow */
 #crosshair .arrow { display: none; width: 0; height: 0; background: none; box-shadow: none; left: 0; top: 0; border-left: 14px solid #ff3b3b; border-top: 8px solid transparent; border-bottom: 8px solid transparent; transform: rotate(var(--ang, 0deg)) translateX(32px) translateY(-8px); transform-origin: 0 8px; filter: drop-shadow(0 0 2px #000); }
 #crosshair.edge .arrow { display: block; }
+
+/* touch gun controls: one row above the action buttons, so nothing overlaps; RELOAD keeps its slot (hidden until the magazine is not full) */
+#touch .gunrow { display: none; gap: 10px; justify-content: flex-end; }
+body.foot-mode.gun-out #touch .gunrow { display: flex; }
+#touch .gunrow #btn-aim, #touch .gunrow #btn-auto, #touch .gunrow #btn-reload { position: static; display: block; right: auto; bottom: auto; width: 52px; height: 52px; font-size: 11px; }
+#touch .gunrow #btn-reload { visibility: hidden; }
+body.can-reload #touch .gunrow #btn-reload { visibility: visible; }
+@media (max-height: 460px) { #touch .gunrow { gap: 8px; } #touch .gunrow button { width: 46px; height: 46px; } }
+#ammo small { display: block; font-size: 10px; color: #ff9b9b; letter-spacing: .5px; }
+#ammo { white-space: nowrap; }
