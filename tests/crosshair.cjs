@@ -169,8 +169,10 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       const put = (c, f, r) => { c.x = pl.x + fx * f + rx * r; c.z = pl.z + fz * f + rz * r; };
       put(cops[0], -10, 0.5); put(cops[1], 22, 0); put(cops[2], 70, 0);   // behind and close, ahead and further, far away
       const out = {};
+      // police on duty never wander off during the check
+      const step = (n) => { for (let i = 0; i < n; i++) { for (const c of cops) { c.leaving = false; c.state = c.state === 1 ? 0 : c.state; } G.update(1 / 60); } };
       G.cameraRig.footYaw = sp.heading; pl.heading = sp.heading;
-      for (let i = 0; i < 60; i++) G.update(1 / 60);
+      step(60);
       const ap = gs.aimPoint;
       const chEl = document.getElementById('crosshair');
       // the target is behind the camera: the crosshair is on the screen edge with the arrow
@@ -183,14 +185,12 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       const camYaw0 = G.cameraRig.footYaw;
       const keep = [cops[0].x, cops[0].z];
       put(cops[0], 14, 3.5);
-      for (let i = 0; i < 6; i++) G.update(1 / 60);
-      for (let i = 0; i < 3; i++) { G.cameraRig.update(1 / 60, G.followable); }
-      for (let i = 0; i < 2; i++) G.update(1 / 60);
+      step(8);
       const left = parseFloat(chEl.style.left), top = parseFloat(chEl.style.top);
       out.onTarget = !chEl.hidden && !chEl.classList.contains('edge') && Math.abs(left - innerWidth / 2) > 25;
       out.cameraStill = G.cameraRig.footYaw === camYaw0;
       put(cops[0], -10, 0.5);
-      for (let i = 0; i < 40; i++) G.update(1 / 60);
+      step(40);
       const before = cops[0].hp; const farBefore = cops[1].hp;
       gs.update(0.016, false, true);
       out.hit = cops[0].hp < before; out.otherHit = cops[1].hp < farBefore;
