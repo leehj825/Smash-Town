@@ -234,14 +234,39 @@ To achieve the punchy, comic-book arcade feel shown in the visual direction:
 
 ---
 
+### 5.5 Story & Goals — "Save Old Town" (v3.3, implemented)
+
+A five-chapter story that the player can follow **or ignore**: the gold marker, objective pill and minimap blip are only suggestions. Gigs, golden stars and free roaming are available at all times, the story waits for the player, and conversations only start when the player is not wanted ("Lose the police first!").
+
+| Chapter | Characters | Objectives | Reward |
+| :--- | :--- | :--- | :--- |
+| 1 · Welcome to Sunset Bay | Donna (donut shop) | Drive to Donna's Donut Shop → talk → smash 6 street props → return → talk | $1,000 |
+| 2 · Smash for Good | Mr. Park (24h Motel), Ally (reporter) | Meet Mr. Park → smash 12 props → take the petition to City Hall (the plaza) | $1,500 |
+| 3 · Inside Job | Captain Lee (harbor) | Borrow Mayor Bigsby's black limo → drive it to the Harbor gate (if it is wrecked a fresh one spawns and the step restarts) | $2,500 |
+| 4 · The Big Shipment | Captain Lee | Find three crates around the harbor → bring the blueprints to the plaza | $3,000 |
+| 5 · Save the Day | Donna, Ally, Mayor Bigsby | Smash 10 more props → finale conversation, fireworks over the plaza, **Supercar unlocked** | $10,000 |
+
+* All story text is bilingual (EN/KO) and switches live. Conversations are short pages advanced with `F`, `Enter`, `Space` or a tap; the player stops while one is open and the touch controls hide.
+* **Free-roam goals available throughout:** the four gigs, **12 golden stars** hidden along the roads (+$300 each, counted in the HUD and shown on the minimap when near), smashing combos, garages and the car shop.
+* Progress (chapter, step, smash progress, collected stars, unlocked cars) is saved in `localStorage`.
+
+---
+
 ## 6. World & Level Design
 
-* **Grid Architecture:** $8 \times 8$ **Modular City Blocks** (each block $40\text{ m} \times 40\text{ m}$, total playable area $320\text{ m} \times 320\text{ m}$), procedurally generated from a clean JSON district layout.
-* **4 Distinct Districts:**
-  1. **Sunset Beach (South):** Coastal highway, palm-lined boardwalk, pastel cafes, beach jump ramps.
-  2. **Old Town Strip (West):** Dense 2–3 story shops (`24h MOTEL`, `DONUTS`), colorful awnings, packed with hydrants, newsstands, and trash cans (ideal for on-foot brawls and Smash Combos).
-  3. **Downtown Core (Center/North):** Tall skyscrapers, wide 4-lane avenues built for top-speed runs.
-  4. **Harbor & Industrial (East):** Shipping containers, warehouses, tight alleyways for breaking police line-of-sight.
+* **Road Network (v3.2):** a procedurally generated network of ~600 m × 580 m (about 3.5× the original 320 m square). Vertical and horizontal road lines have **individual spacing (36–66 m) and widths** — narrow alleys (pedestrian only), streets, avenues, and a wide coastal highway with a median — and ~20 % of ordinary segments are removed (pedestrian streets, superblocks, dead ends) while keeping the drivable network fully connected. Block sizes, lot shapes and building footprints vary accordingly. The generator is seeded, so the city is identical every run.
+* **No jump ramps:** the orange road ramps were removed (they looked unnatural). The physics still supports ramps, but none are placed.
+* **Districts and landmarks:**
+  1. **Sunset Beach (South):** coastal highway, palm-lined boardwalk, pastel cafes, sand and the open sea.
+  2. **Old Town Strip (West):** dense 2–3 story shops (`24h MOTEL`, `DONUTS`, …), colorful awnings, packed with hydrants, newsstands and trash cans (ideal for on-foot brawls and Smash Combos).
+  3. **Downtown Core (Center):** tall skyscrapers (tallest toward the middle), wide avenues built for top-speed runs, and a **plaza with a fountain**.
+  4. **Suburbs (North-West):** houses with pitched roofs, chimneys and gardens, round and pine trees, and a **lake**.
+  5. **Harbor & Industrial (East):** shipping containers, warehouses, tight alleyways for breaking line-of-sight, and a large **harbor basin** with moored boats.
+  6. **Parks:** scattered green lots with crossing footpaths, benches and trees.
+  7. **River:** a river runs north–south through the city; roads cross it on **bridges with railings**.
+  8. **Forest corners:** the north-west and north-east corners are woods with no ring road, so the outline is not a square; **mountains** ring the north, west and east horizons.
+* **Landmarks on real roads:** garages (5), gig markers, delivery checkpoints, hijack spots and the player spawn are chosen from actual drivable road segments (never inside buildings).
+* **Traffic density (v3.3):** 18 / 12 / 8 ordinary civilian cars on High / Medium / Low (police are never part of this count), and they stop for people standing in their lane.
 
 ---
 
@@ -296,7 +321,7 @@ Legend: ✅ done · ◐ partial · ⬜ not done. "Tested" means exercised by a s
 | Area | Status | Notes |
 | :--- | :---: | :--- |
 | i18n (EN default, KO in Settings, live switch, saved) | ✅ | Title screen has no language buttons; Korean is a Settings option. Popup text is fixed at spawn time. |
-| Procedural city (8×8, 4 districts, roads, crosswalks, ramps) | ✅ | Seeded RNG; merged flat-shaded geometry. |
+| Procedural city (~600 × 580 m, irregular road network, 8 area types, river with bridges, mountains) | ✅ | Seeded RNG; merged flat-shaded geometry in 200 m chunks so far areas are frustum-culled. Generation takes ~100 ms. See §6. |
 | Old Town signboards (`24h MOTEL`, `DONUTS`, …) | ✅ | One canvas atlas, one draw call, emissive at night. English text only. |
 | Props: palms, lamps, hydrants, benches, **newsstands, trash cans** | ✅ | Instanced; smash → pooled tumbling bodies + debris + 5 s hydrant spray. Newspaper "sheets" are white debris cubes. |
 | Vehicles (sports, sedan, taxi, pickup, muscle, supercar, police, interceptor, SWAT, armored) | ✅ | Player car has animated wheels; AI cars use a single merged mesh. Damage stages and explosion implemented. |
@@ -311,7 +336,8 @@ Legend: ✅ done · ◐ partial · ⬜ not done. "Tested" means exercised by a s
 | Foot cops (exit cruisers, surround, baton melee) | ✅ | Count scales with stars; telegraphed wind-up. |
 | Wanted 1–5★, PIT, roadblocks, interceptors, SWAT prediction, armored | ✅ | |
 | Pay & Spray garages + vehicle shop + persistence | ✅ | `localStorage` only. |
-| Gigs: Defeat the Police, Smash Rampage, Hot Delivery, Grand Hijack | ✅ | |
+| Gigs: Defeat the Police, Smash Rampage, Hot Delivery, Grand Hijack | ✅ | Markers sit on real roads of the generated city; the delivery time limit scales with the route. |
+| Story (5 chapters), golden stars, saved progress | ✅ | See §5.5. |
 | Lighting: 2-light rig, day/sunset/night, glowing windows/lamps/signs | ✅ | |
 | Headlights: additive cone meshes | ◐ | Road glow quad only; no cone meshes. |
 | Shadows: player-following frustum, texel snapping | ✅ | Three r187 removed `PCFSoftShadowMap`; `PCFShadowMap` is used. |
@@ -319,8 +345,34 @@ Legend: ✅ done · ◐ partial · ⬜ not done. "Tested" means exercised by a s
 | Post-processing: ACES + selective bloom | ✅ | Toggle via Graphics preset. |
 | HUD (context-switching bottom-right, health bar, WANTED banner, objective pill, minimap blips) | ✅ | |
 | Procedural audio (engine, screech, siren, footsteps, whoosh, impacts, prop smash) | ✅ | No music. |
+| Story navigation | ✅ | A guide arrow with road distance in the story pill (points along the road route, straight at the goal when close), a gold road route on the minimap (Dijkstra over the road network, `src/nav.ts`), a full-screen map on `M` / map button / R3 with the chapter checklist, "New goal" toasts on each step, and a reminder after ~100 s without progress. Smash steps point at the nearest unbroken prop. |
+| Gamepad (Gamepad API, standard layout) | ✅ | Analog driving on RT/LT + left stick, on-foot combat on face buttons and both sticks, D-pad menu navigation, rumble on impacts. Verified with a simulated controller feeding `navigator.getGamepads()`; not tried on physical hardware. See the README for the full layout. |
 | Mobile touch controls | ◐ | Driving: steer arrows + gas/brake/nitro/drift. On foot: **analog left stick** (forward/back + strafe, with deadzone), KICK / DODGE / JUMP / WPN / F / HIT buttons, drag-to-orbit. Layout verified overlap-free at 667×375, 740×360, 844×390 and 915×412; not tested on a real device. |
-| Performance targets (60 fps, <100 draw calls) | ◐ | ≈100 draw calls measured with shadow pass included, ~290k triangles. Frame rate unverified. |
+| Performance targets (60 fps, <100 draw calls) | ◐ | Main pass: ≈66 draw calls on a calm street and ≈85–95 at ★★★★★ with 8 police cars in view (≈90 / ≈147 when the shadow pass is counted); ~420k triangles. Frame rate unverified. |
+
+### 9.1 Balance tuning (v3.1, from playtest feedback)
+
+Playtesting showed that once wanted, too many police arrived and escaping was nearly impossible. Changes:
+
+| Area | Before | Now |
+| :--- | :--- | :--- |
+| Heat per star | 25 / 70 / 130 / 210 / 320 | 30 / 90 / 170 / 270 / 400 |
+| Heat from a smashed prop / hit pedestrian / hit civilian car / hijack | +6 / +25 / +15 / +25 | +3 / +15 / +10 / +20 |
+| Police cars by stars (1→5) | 1 · 3 · 4 · 6 · 8 | **1 · 3 · 5 · 8 · 10** (design target set by the project owner): ★1 1 cruiser; ★2 3 cruisers; ★3 3 cruisers + 2 interceptors; ★4 4 cruisers + 2 interceptors + 2 SWAT; ★5 4 cruisers + 2 interceptors + 2 SWAT + 2 armored |
+| Civilian traffic cars (High / Medium / Low) | 14 / 10 / 6 | **18 / 12 / 8** (ordinary cars only; police never count toward this quota) |
+| Police after a chase | chasers became permanent patrol cars that crowded out normal traffic | they drive off and are removed once out of the camera's view (or after 20 s more), so the streets are full of ordinary cars again |
+| Reinforcements | a new car every 1.4 s, 80–170 m away, always replenished | one every 2.5 s (first after 3 s), 110–220 m away, **none while you are evading** |
+| Police speed | 100 % of top speed | 88 % of top speed (a fast car can outrun them; ramming capped at 92 %) |
+| Giving up | cars far away teleported back near the player | cars left more than 190 m behind are removed |
+| Roadblocks (3★+) | up to 2, every 12 s | 1, every 25 s |
+| Losing the heat | out of sight (>60 m) for 6 s, −14 heat/s | out of sight (>85 m) for 4 s, −22 heat/s |
+| Busted (stopped with a cop within 7.5 m) | 2.2 s | 3.0 s |
+| Foot cops by stars (1→5) | 2 · 4 · 5 · 6 · 7 | 1 · 2 · 3 · 4 · 5 |
+| Player attack speed | GDD frame data | ~30 % slower (all wind-up / active / recovery times ×1.33); cops were already slower to telegraph |
+| Kids Play (new setting, **default ON**) | — | Nobody dies. Defeated cops are *knocked out* ("K.O.!" popup, still counted as defeated, can't be hit again, then get up and walk away); cars only bump people over gently; the player is "KNOCKED OUT" instead of WASTED. Toggle in Pause → Settings (saved in `localStorage`); turning it off restores the original behaviour (cops can be killed, player is WASTED). |
+| Cars and people | — | Traffic and patrol cars brake and stop (~5 m gap) for anyone standing or walking in their lane, the player on foot included, and drive on once the lane is clear. Police chasing a player on foot roll to a stop about 6 m away instead of driving into them. |
+| Hijacking | — | Taking a moving car makes it roll to a stop and its driver climb out on the driver's side (get-up animation). Civilians run away and rejoin the crowd elsewhere; police officers get out too (and fight you if you stay on foot, otherwise they walk off). This also applies to empty roadblock cruisers (a cop steps out). |
+| Unarmed locomotion | `walk` / `run` / `idle` | `walkCalm` / `runCalm` / `idleEase`; armed characters keep the combat stance clips |
 
 ## 10. Known Gaps & Technical Debt
 

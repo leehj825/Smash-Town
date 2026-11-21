@@ -6,7 +6,7 @@ import { join } from 'node:path';
 
 const root = process.argv[2] ?? '../model_check';
 const KEEP = [
-  'idle', 'idleCalm', 'idleAlert', 'idleUnarmed',
+  'idle', 'idleCalm', 'idleAlert', 'idleUnarmed', 'idleEase',
   'walk', 'walkB', 'walkCalm', 'run', 'runB', 'runCalm',
   'strafeWalkN', 'strafeWalkP', 'strafeRunN', 'strafeRunP',
   'attack1', 'attack2', 'attack3', 'attackJump', 'brawlPunch', 'brawlSwipe', 'kick',

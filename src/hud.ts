@@ -52,6 +52,21 @@ export class Hud {
   private wantedBanner = $('wanted-banner');
   private slots = Array.from(document.querySelectorAll<HTMLElement>('#weapon-slots .slot'));
   private lastFoot: boolean | null = null;
+  private dialogEl = $('dialog');
+  private dlgWho = $('dlg-who');
+  private dlgText = $('dlg-text');
+  private dlgHint = $('dlg-hint');
+  private storyPill = $('story-pill');
+  private storyTitle = $('story-title');
+  private storyText = $('story-text');
+  private storyNav = $('story-nav');
+  private navArrow = $('nav-arrow');
+  private navDist = $('nav-dist');
+  private route: { x: number; z: number }[] | null = null;
+  private starCount = $('stars-count');
+  private storyProgress = $('story-progress');
+  private lastStory = '';
+  private lastProgress = '';
 
   constructor(private world: World) {
     this.setWanted(0);
@@ -89,6 +104,55 @@ export class Hud {
     this.gigTitle.textContent = title;
     this.gigObj.textContent = obj;
     this.gigTime.textContent = time;
+  }
+
+  /** The story objective pill (top centre). */
+  setStory(info: { title: string; text: string } | null): void {
+    const key = info ? info.title + '|' + info.text : '';
+    if (key === this.lastStory) return;
+    this.lastStory = key;
+    this.storyPill.hidden = !info;
+    if (info) { this.storyTitle.textContent = info.title; this.storyText.textContent = info.text; }
+  }
+
+  /** Guide arrow in the story pill: `angle` is clockwise from straight ahead (radians); null hides it. */
+  setNav(angle: number | null, text: string): void {
+    this.storyNav.hidden = angle === null && !text;
+    if (angle === null) this.navArrow.style.visibility = 'hidden';
+    else { this.navArrow.style.visibility = 'visible'; this.navArrow.style.transform = `rotate(${angle.toFixed(3)}rad)`; }
+    if (this.navDist.textContent !== text) this.navDist.textContent = text;
+  }
+
+  /** The road route to the objective, drawn on the minimap. */
+  setRoute(pts: { x: number; z: number }[] | null): void { this.route = pts; }
+
+  pulseStory(): void {
+    this.storyPill.classList.remove('pulse');
+    void this.storyPill.offsetWidth;
+    this.storyPill.classList.add('pulse');
+  }
+
+  setStoryProgress(text: string): void {
+    if (text === this.lastProgress) return;
+    this.lastProgress = text;
+    this.storyProgress.textContent = text;
+  }
+
+  setCollectibles(n: number, total: number): void {
+    this.starCount.textContent = `\u2605 ${n}/${total}`;
+  }
+
+  showDialog(who: string, text: string, hint: string): void {
+    this.dialogEl.hidden = false;
+    document.body.classList.add('dialog-open');
+    this.dlgWho.textContent = who;
+    this.dlgText.textContent = text;
+    this.dlgHint.textContent = hint;
+  }
+
+  hideDialog(): void {
+    this.dialogEl.hidden = true;
+    document.body.classList.remove('dialog-open');
   }
 
   setPrompt(text: string | null): void {
@@ -175,7 +239,7 @@ export class Hud {
     const S = this.mini.width;
     const c = S / 2;
     const metersVisible = 150;
-    const MM = 4;
+    const { scale: MM, pad: PAD } = this.world.minimap;
     const scale = S / metersVisible;
     const rot = -Math.PI / 2 - Math.atan2(Math.cos(f.heading), Math.sin(f.heading));
     g.clearRect(0, 0, S, S);
@@ -185,7 +249,18 @@ export class Hud {
     g.translate(c, c);
     g.rotate(rot);
     g.scale(scale / MM, scale / MM);
-    g.drawImage(this.world.minimapCanvas, -(f.position.x + 40) * MM, -(f.position.z + 40) * MM);
+    g.drawImage(this.world.minimap.canvas, -(f.position.x + PAD) * MM, -(f.position.z + PAD) * MM);
+    if (this.route && this.route.length > 1) {
+      // route to the story goal, in the same rotated frame as the map image
+      g.lineJoin = 'round'; g.lineCap = 'round';
+      const trace = () => {
+        g.beginPath();
+        this.route!.forEach((p, k) => { const px = (p.x - f.position.x) * MM, pz = (p.z - f.position.z) * MM; if (k === 0) g.moveTo(px, pz); else g.lineTo(px, pz); });
+        g.stroke();
+      };
+      g.strokeStyle = 'rgba(20,20,30,.85)'; g.lineWidth = 6.5 * MM / scale; trace();
+      g.strokeStyle = '#ffd23a'; g.lineWidth = 3.5 * MM / scale; trace();
+    }
     g.restore();
 
     // blips (rotated into the radar frame, clamped to the rim)

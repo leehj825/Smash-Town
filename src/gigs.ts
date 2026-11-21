@@ -26,11 +26,6 @@ interface Active {
 
 const RAMPAGE_TARGET = 25000;
 const BRAWL_TARGET = 5;
-const CHECKPOINTS = [{ x: 200, z: 60 }, { x: 80, z: 190 }, { x: 240, z: 290 }];
-const HIJACK_SPOTS = [
-  { x: 124.5, z: 140, h: Math.PI }, { x: 35.5, z: 260, h: 0 }, { x: 275.5, z: 60, h: 0 },
-];
-
 /** Four instant missions: Smash Rampage, Hot Delivery, Grand Hijack, Stunt Jump. */
 export class GigManager {
   readonly markers: Marker[];
@@ -39,6 +34,7 @@ export class GigManager {
   private extra = new Beacon(0xb066ff, 4);
 
   constructor(private game: Game, scene: THREE.Scene) {
+    const lm = game.world.landmarks;
     const mk = (id: GigId, x: number, z: number, color: number, css: string): Marker => {
       const beacon = new Beacon(color, 4.5);
       beacon.setPosition(x, z);
@@ -46,10 +42,10 @@ export class GigManager {
       return { id, x, z, color, css, beacon, cooldown: 0 };
     };
     this.markers = [
-      mk('rampage', 40, 100, 0xff8c00, '#ff8c00'),
-      mk('delivery', 120, 20, 0xff3355, '#ff3355'),
-      mk('hijack', 280, 140, 0xb066ff, '#b066ff'),
-      mk('brawl', 80, 60, 0x36e0ff, '#36e0ff'),
+      mk('rampage', lm.gigs.rampage.x, lm.gigs.rampage.z, 0xff8c00, '#ff8c00'),
+      mk('delivery', lm.gigs.delivery.x, lm.gigs.delivery.z, 0xff3355, '#ff3355'),
+      mk('hijack', lm.gigs.hijack.x, lm.gigs.hijack.z, 0xb066ff, '#b066ff'),
+      mk('brawl', lm.gigs.brawl.x, lm.gigs.brawl.z, 0x36e0ff, '#36e0ff'),
     ];
     scene.add(this.objective.group, this.extra.group);
     this.objective.visible = false;
@@ -68,16 +64,23 @@ export class GigManager {
         a.time = 60; a.target = RAMPAGE_TARGET;
         break;
       case 'delivery':
-        a.time = 110;
+        {
+          // time limit scales with the route length (start -> checkpoints), at an easy ~14 m/s average plus a margin
+          const cps = g.world.landmarks.checkpoints;
+          let len = Math.hypot(cps[0].x - g.focusX, cps[0].z - g.focusZ);
+          for (let k = 1; k < cps.length; k++) len += Math.hypot(cps[k].x - cps[k - 1].x, cps[k].z - cps[k - 1].z);
+          a.time = Math.round(30 + (len * 1.4) / 14);
+        }
         g.setMinStars(2);
-        this.objective.setPosition(CHECKPOINTS[0].x, CHECKPOINTS[0].z);
+        this.objective.setPosition(g.world.landmarks.checkpoints[0].x, g.world.landmarks.checkpoints[0].z);
         this.objective.visible = true;
         break;
       case 'hijack': {
-        a.time = 150;
+        a.time = 220;
         const px = g.focusX, pz = g.focusZ;
-        const spots = HIJACK_SPOTS.filter((s) => Math.hypot(s.x - px, s.z - pz) > 50);
-        const s = spots[Math.floor(Math.random() * spots.length)] ?? HIJACK_SPOTS[0];
+        const hs = g.world.landmarks.hijackSpots;
+        const spots = hs.filter((q) => Math.hypot(q.x - px, q.z - pz) > 50);
+        const s = spots[Math.floor(Math.random() * spots.length)] ?? hs[0];
         a.car = g.spawnVehicle('supercar', 0xf5f5f5, s.x, s.z, s.h, 'parked');
         a.car.isGigTarget = true;
         this.extra.setPosition(s.x, s.z);
@@ -153,13 +156,14 @@ export class GigManager {
         break;
       }
       case 'delivery': {
-        const cp = CHECKPOINTS[a.cp];
-        g.hud.showGig(true, title, tf('gig.delivery.obj', { a: a.cp + 1, b: CHECKPOINTS.length }), time);
+        const CP = g.world.landmarks.checkpoints;
+        const cp = CP[a.cp];
+        g.hud.showGig(true, title, tf('gig.delivery.obj', { a: a.cp + 1, b: CP.length }), time);
         if (Math.hypot(cp.x - g.focusX, cp.z - g.focusZ) < 8) {
           a.cp++;
-          g.hud.toast(`${a.cp} / ${CHECKPOINTS.length}`, 1000);
-          if (a.cp >= CHECKPOINTS.length) { this.finish(true, 4500); break; }
-          this.objective.setPosition(CHECKPOINTS[a.cp].x, CHECKPOINTS[a.cp].z);
+          g.hud.toast(`${a.cp} / ${CP.length}`, 1000);
+          if (a.cp >= CP.length) { this.finish(true, 4500); break; }
+          this.objective.setPosition(CP[a.cp].x, CP[a.cp].z);
         }
         if (a.time <= 0) this.finish(false);
         break;
@@ -197,7 +201,7 @@ export class GigManager {
       for (const m of this.markers) if (m.cooldown <= 0) push(m.x, m.z, m.css, false, 5);
       return;
     }
-    if (a.id === 'delivery') push(CHECKPOINTS[a.cp].x, CHECKPOINTS[a.cp].z, '#ffd500', false, 6);
+    if (a.id === 'delivery') push(this.game.world.landmarks.checkpoints[a.cp].x, this.game.world.landmarks.checkpoints[a.cp].z, '#ffd500', false, 6);
     if (a.id === 'hijack' && a.stage === 'steal' && a.car) push(a.car.x, a.car.z, '#b066ff', false, 6);
     if (a.id === 'hijack' && a.stage === 'deliver') for (const gz of this.game.world.garages) push(gz.x, gz.z, '#ffd500', false, 6);
   }

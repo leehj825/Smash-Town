@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import { AudioEngine } from './audio';
 import { Beacon } from './beacon';
+import { Collectibles } from './collectibles';
+import { StoryManager, type StorySave } from './story';
 import { PoliceBrain, TrafficBrain, type PoliceRole } from './ai';
 import type { CameraRig, Followable } from './cameraRig';
 import type { Environment } from './environment';
 import { MeshBuilder, makeRng, paletteMaterial } from './geo';
 import { GigManager } from './gigs';
+import { Navigator, type Route } from './nav';
 import type { Blip, Hud } from './hud';
 import type { Input } from './input';
 import { t, tf } from './i18n';
@@ -15,18 +18,20 @@ import type { Props } from './props';
 import { CIVILIAN_COLORS, CIVILIAN_KINDS, PLAYER_ROSTER, STATS, VehicleFactory, type VehicleKind } from './vehicle';
 import { GameVehicle, type AIMode, type VehicleEvents } from './vehicles';
 import type { Vfx } from './vfx';
-import { CELL, GRID, roadHalfWidth, type CircleCollider, type World } from './world';
+import type { CircleCollider, World } from './world';
 
 const SAVE_KEY = 'smashtown.save.v1';
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[] }
 
-const STAR_HEAT = [25, 70, 130, 210, 320];
+// Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
+const STAR_HEAT = [30, 90, 170, 270, 400];
 const COMPOSITION: Record<number, [PoliceRole, number][]> = {
+  // total police cars: 1, 3, 5, 8, 10
   1: [['cruiser', 1]],
   2: [['cruiser', 3]],
-  3: [['cruiser', 2], ['interceptor', 2]],
-  4: [['cruiser', 2], ['interceptor', 2], ['swat', 2]],
-  5: [['cruiser', 2], ['interceptor', 2], ['swat', 2], ['armored', 2]],
+  3: [['cruiser', 3], ['interceptor', 2]],
+  4: [['cruiser', 4], ['interceptor', 2], ['swat', 2]],
+  5: [['cruiser', 4], ['interceptor', 2], ['swat', 2], ['armored', 2]],
 };
 const ROLE_KIND: Record<PoliceRole, VehicleKind> = { cruiser: 'police', interceptor: 'interceptor', swat: 'swat', armored: 'armored' };
 
@@ -58,14 +63,22 @@ export class Game {
   readonly popups = new Popups();
   readonly slash = new SlashTrail();
   readonly gigs: GigManager;
+  readonly story: StoryManager;
+  /** Road route to the story goal (refreshed a few times a second) and the goal itself. */
+  route: Route | null = null;
+  goal: { x: number; z: number; label: string; prop?: boolean } | null = null;
+  private nav = new Navigator();
+  private routeT = 0;
+  readonly collectibles: Collectibles;
+  smashTotal = 0;
 
   vehicles: GameVehicle[] = [];
   driving: GameVehicle | null = null;
   onFoot = false;
-  state: 'play' | 'garage' | 'busted' | 'wrecked' | 'wasted' = 'play';
+  state: 'play' | 'garage' | 'busted' | 'wrecked' | 'wasted' | 'dialog' = 'play';
   damageTotal = 0;
   hitStop = 0;
-  trafficTarget = 12;
+  trafficTarget = 14;
   useBlob = false;
 
   private rng = makeRng(99);
@@ -121,6 +134,11 @@ export class Game {
     this.cash = this.save.cash;
     this.hud.setCash(this.cash);
 
+    this.collectibles = new Collectibles(d.world.landmarks.collectibles, this.save.collected ?? []);
+    this.scene.add(this.collectibles.group);
+    this.hud.setCollectibles(this.collectibles.count, this.collectibles.total);
+    this.story = new StoryManager(this, this.scene, this.save.story);
+
     for (const g of this.world.garages) {
       const b = new Beacon(0x3dff8a, 6);
       b.setPosition(g.x, g.z);
@@ -149,13 +167,17 @@ export class Game {
       const unlocked = (s.unlocked ?? []).filter((k): k is VehicleKind => PLAYER_ROSTER.includes(k as VehicleKind));
       for (const k of fallback.unlocked) if (!unlocked.includes(k)) unlocked.push(k);
       const selected = s.selected && unlocked.includes(s.selected) ? s.selected : 'sports';
-      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected };
+      const st = s.story;
+      const story = st && Number.isFinite(st.ch) && Number.isFinite(st.step) && Number.isFinite(st.prog) ? { ch: st.ch, step: st.step, prog: st.prog } : undefined;
+      const collected = Array.isArray(s.collected) ? s.collected.filter((n): n is number => Number.isInteger(n)) : [];
+      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected };
     } catch {
       return fallback;
     }
   }
   private flushSave(): void {
     this.save.cash = Math.round(this.cash);
+    this.save.collected = this.collectibles.indices();
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.save)); } catch { /* ignore */ }
     this.saveDirty = false;
   }
@@ -171,6 +193,24 @@ export class Game {
     this.saveDirty = true;
     this.hud.setCash(this.cash);
     if (n >= 100) this.audio.cash();
+  }
+
+  /** Called by the story when its position changes. */
+  saveStory(s: StorySave): void {
+    this.save.story = s;
+    this.saveDirty = true;
+  }
+
+  unlockVehicle(kind: VehicleKind): void {
+    if (!this.save.unlocked.includes(kind)) { this.save.unlocked.push(kind); this.saveDirty = true; }
+  }
+
+  /** Opens / closes a story conversation: the player stops and input is ignored until it ends. */
+  setDialogOpen(open: boolean): void {
+    if (open && this.state === 'play') {
+      this.state = 'dialog';
+      if (this.driving) { this.driving.ctrl.vx = this.driving.ctrl.vz = 0; }
+    } else if (!open && this.state === 'dialog') this.state = 'play';
   }
 
   setMinStars(n: number): void {
@@ -228,6 +268,7 @@ export class Game {
     const c = v.ctrl;
     this.vfx.emitSparks(c.position.x, 0.8, c.position.z, Math.min(10, 2 + s * 0.4));
     if (v === this.driving) {
+      this.input.rumble(Math.min(1, s / 18), 0.5, 140);
       this.cameraRig.shake(Math.min(1, s / 22));
       if (s > 9) this.hitStop = Math.max(this.hitStop, 0.03);
       this.audio.crash(s);
@@ -247,12 +288,15 @@ export class Game {
     c.dead = true;
     const value = this.props.smash(c.smash, c.x, c.z, vx, vz);
     if (!byPlayer) return;
+    this.smashTotal++;
+    this.input.rumble(0.3, 0.7, 90);
+    this.story.onSmash();
     this.damageTotal += value;
     this.comboCount++;
     this.comboTimer = 4;
     const mult = Math.min(10, 1 + Math.floor(this.comboCount / 2));
     this.addCash(Math.round(value * 0.1 * mult));
-    this.addHeat(6);
+    this.addHeat(3);
     this.audio.smash();
     this.cameraRig.shake(Math.min(0.5, speed / 70));
   }
@@ -264,6 +308,7 @@ export class Game {
     let s = 0;
     for (let i = 0; i < STAR_HEAT.length; i++) if (this.heat >= STAR_HEAT[i]) s = i + 1;
     if (s > prev) {
+      if (prev === 0) this.policeSpawnTimer = Math.max(this.policeSpawnTimer, 3); // first cruiser arrives after a short delay
       this.stars = s;
       this.hud.toast(tf('ui.toast.wanted', { n: s }), 1600);
     }
@@ -288,6 +333,7 @@ export class Game {
         v.police = null;
         v.traffic = new TrafficBrain(this.rng);
         v.traffic.attachNearest(v.x, v.z, v.ctrl.heading);
+        v.despawnT = 6 + this.rng() * 6; // they drive off and are removed once out of sight, so police never pile up in the traffic
       }
     }
     for (const rb of [...this.roadblocks]) this.removeRoadblock(rb);
@@ -299,8 +345,8 @@ export class Game {
 
   private spawnPolice(role: PoliceRole): void {
     const px = this.focusX, pz = this.focusZ;
-    let p = TrafficBrain.randomPlacement(this.rng, px, pz, 80);
-    for (let i = 0; i < 8 && Math.hypot(p.x - px, p.z - pz) > 170; i++) p = TrafficBrain.randomPlacement(this.rng, px, pz, 80);
+    let p = TrafficBrain.randomPlacement(this.rng, px, pz, 110);
+    for (let i = 0; i < 8 && Math.hypot(p.x - px, p.z - pz) > 220; i++) p = TrafficBrain.randomPlacement(this.rng, px, pz, 110);
     const kind = ROLE_KIND[role];
     const v = this.spawnVehicle(kind, STATS[kind].color, p.x, p.z, Math.atan2(px - p.x, pz - p.z), 'police');
     v.police = new PoliceBrain(role, this.rng);
@@ -309,46 +355,42 @@ export class Game {
   private managePolice(dt: number): void {
     if (this.stars === 0) return;
     const comp = COMPOSITION[this.stars];
+    // while you are evading (police exist but are far behind) no reinforcements are sent, so a clean getaway is possible
+    const evading = this.vehicles.some((v) => v.ai === 'police') && this.unseen > 2;
     const have: Record<string, number> = {};
     for (const v of this.policeVehicles()) have[v.police!.role] = (have[v.police!.role] ?? 0) + 1;
     this.policeSpawnTimer -= dt;
-    if (this.policeSpawnTimer <= 0) {
+    if (this.policeSpawnTimer <= 0 && !evading) {
       for (const [role, n] of comp) {
-        if ((have[role] ?? 0) < n) { this.spawnPolice(role); this.policeSpawnTimer = 1.4; break; }
+        if ((have[role] ?? 0) < n) { this.spawnPolice(role); this.policeSpawnTimer = 2.5; break; }
       }
     }
     // roadblocks from 3 stars
     if (this.stars >= 3) {
       this.roadblockTimer -= dt;
-      if (this.roadblockTimer <= 0 && this.roadblocks.length < 2) { this.spawnRoadblock(); this.roadblockTimer = 12; }
+      if (this.roadblockTimer <= 0 && this.roadblocks.length < 1) { this.spawnRoadblock(); this.roadblockTimer = 25; }
     }
     for (const rb of [...this.roadblocks]) {
       if (Math.hypot(rb.x - this.focusX, rb.z - this.focusZ) > 210) this.removeRoadblock(rb);
     }
   }
 
+  /** A barricade across a road segment roughly 115 m ahead of where the player is heading, with two cruisers on the approach side. */
   private spawnRoadblock(): void {
     const d = this.driving;
     const fx = d ? Math.sin(d.ctrl.heading) : 0, fz = d ? Math.cos(d.ctrl.heading) : 1;
     const px = this.focusX, pz = this.focusZ;
-    const alongZ = Math.abs(fz) >= Math.abs(fx);
-    const sgn = alongZ ? Math.sign(fz) || 1 : Math.sign(fx) || 1;
-    const clampN = (v: number) => Math.max(0, Math.min(GRID, v));
-    let x: number, z: number, hw: number;
-    if (alongZ) {
-      const line = clampN(Math.round(px / CELL));
-      hw = roadHalfWidth(line);
-      x = line * CELL;
-      const mid = Math.round((pz + sgn * 115 - 20) / CELL) * CELL + 20;
-      z = Math.max(20, Math.min(GRID * CELL - 20, mid));
-    } else {
-      const line = clampN(Math.round(pz / CELL));
-      hw = roadHalfWidth(line);
-      z = line * CELL;
-      const mid = Math.round((px + sgn * 115 - 20) / CELL) * CELL + 20;
-      x = Math.max(20, Math.min(GRID * CELL - 20, mid));
+    const tx = px + fx * 115, tz = pz + fz * 115;
+    let seg = null as (typeof this.world.segments)[number] | null, bd = Infinity;
+    for (const sgm of this.world.segments) {
+      if (sgm.len < 34 || sgm.hw < 6) continue;
+      if (Math.hypot(sgm.x - px, sgm.z - pz) < 70) continue;
+      const dd = Math.hypot(sgm.x - tx, sgm.z - tz);
+      if (dd < bd) { bd = dd; seg = sgm; }
     }
-    if (Math.hypot(x - px, z - pz) < 70) return;
+    if (!seg) return;
+    const { x, z, dx, dz, hw } = seg;
+    const alongZ = dz !== 0; // the road runs along z, so the barricade spreads along x
     const b = new MeshBuilder();
     const bw = hw * 2 - 1;
     const sx = alongZ ? bw : 1.2, sz = alongZ ? 1.2 : bw;
@@ -359,13 +401,14 @@ export class Game {
     this.scene.add(mesh);
     const box = { minX: x - sx / 2, maxX: x + sx / 2, minZ: z - sz / 2, maxZ: z + sz / 2 };
     this.world.boxes.push(box);
+    // the cruisers sit on the side the player approaches from, angled toward the oncoming car
+    const approach = (px - x) * dx + (pz - z) * dz >= 0 ? 1 : -1;
     const cars: GameVehicle[] = [];
     for (const side of [-1, 1]) {
-      const cx = alongZ ? x + side * (hw - 2.2) : x - sgn * 3.2;
-      const cz = alongZ ? z - sgn * 3.2 : z + side * (hw - 2.2);
-      const heading = alongZ ? (sgn > 0 ? Math.PI + side * 0.5 : side * 0.5) : (sgn > 0 ? -Math.PI / 2 + side * 0.5 : Math.PI / 2 + side * 0.5);
-      const v = this.spawnVehicle('police', STATS.police.color, cx, cz, heading, 'parked');
-      cars.push(v);
+      const cx = x + approach * 3.2 * dx + side * (hw - 2.2) * -dz;
+      const cz = z + approach * 3.2 * dz + side * (hw - 2.2) * dx;
+      const heading = Math.atan2(approach * dx, approach * dz) + side * 0.5;
+      cars.push(this.spawnVehicle('police', STATS.police.color, cx, cz, heading, 'parked'));
     }
     this.roadblocks.push({ x, z, mesh, box, cars });
   }
@@ -375,7 +418,7 @@ export class Game {
     rb.mesh.geometry.dispose();
     const i = this.world.boxes.indexOf(rb.box);
     if (i >= 0) this.world.boxes.splice(i, 1);
-    for (const c of rb.cars) this.removeVehicle(c);
+    for (const c of rb.cars) if (c.ai !== 'player' && c !== this.driving) this.removeVehicle(c); // never delete a cruiser the player took
     this.roadblocks.splice(this.roadblocks.indexOf(rb), 1);
   }
 
@@ -405,10 +448,16 @@ export class Game {
     } else {
       const v = this.nearestVehicle(3.2);
       if (!v) return;
+      // whoever was driving gets out: civilians run away, cops climb out too (also the empty roadblock cruisers)
+      const hadDriver = v.ai === 'traffic' || v.ai === 'police' || (v.isPolice && v.ai === 'parked' && !v.owned);
       if (v.police || v.traffic || v.ai === 'police' || v.ai === 'traffic') {
-        this.addHeat(v.isPolice ? 60 : 25);
+        this.addHeat(v.isPolice ? 45 : 20);
         v.traffic = null;
         v.police = null;
+      }
+      if (hadDriver) {
+        this.humans.ejectDriver(v.x, v.z, v.ctrl.heading, v.isPolice);
+        v.ctrl.vx *= 0.2; v.ctrl.vz *= 0.2; // the car rolls to a stop as the driver bails out
       }
       v.ai = 'player';
       v.ensureFull();
@@ -518,8 +567,10 @@ export class Game {
     const dt = rawDt;
     this.time += dt;
     const input = this.input;
+    input.mode = this.onFoot ? 'foot' : 'car';
 
     if (input.wasPressed('Escape') && this.state === 'garage') this.closeGarage();
+    if (this.state === 'dialog' && (input.wasPressed('KeyF') || input.wasPressed('Enter') || input.wasPressed('Space'))) this.story.advanceDialog();
 
     if (this.state === 'play') {
       if (input.wasPressed('KeyF') || input.wasPressed('KeyE')) this.enterExit();
@@ -540,7 +591,7 @@ export class Game {
             v.control.throttle = 0; v.control.steer = 0; v.control.handbrake = true; v.control.nitro = false;
           }
           break;
-        case 'traffic': v.traffic?.update(dt, v, this.vehicles, this.rng); break;
+        case 'traffic': v.traffic?.update(dt, v, this.vehicles, this.rng, this.humans.list); break;
         case 'police': {
           const tg = this.chaseTarget();
           v.police?.update(dt, v, tg, this.world, this.stars);
@@ -572,6 +623,9 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
+    this.story.update(dt);
+    this.collectibles.update(dt);
+    this.collectStars();
     this.updateStateMachine(dt);
 
     // ---- presentation
@@ -579,9 +633,12 @@ export class Game {
     this.updatePrompt();
     this.updateAudio(dt);
     this.buildBlips();
+    this.updateGuide(dt);
     const d = this.driving;
     this.hud.update(this.followable, d ? d.ctrl.hp : 1, d ? d.ctrl.nitro : 1, d ? d.ctrl.nitroActive : false, this.blips.slice(0, this.blipCount), dt);
     const pl = this.humans.player;
+    this.hud.setStory(this.story.hudInfo());
+    this.hud.setStoryProgress(this.story.progressText());
     this.hud.setTelemetryVisible(!!d);
     this.hud.setFootMode(this.onFoot, pl.weapon, this.humans.unlockedBaton);
     this.hud.setPlayerHp(Math.max(0, pl.hp / pl.maxHp));
@@ -591,6 +648,45 @@ export class Game {
       this.saveTimer -= dt;
       if (this.saveTimer <= 0) { this.flushSave(); this.saveTimer = 3; }
     }
+  }
+
+  /** Story guidance: road route to the goal, the guide arrow and its distance. */
+  private updateGuide(dt: number): void {
+    const o = this.story.objective();
+    this.goal = o;
+    if (!o) { this.route = null; this.hud.setNav(null, ''); this.hud.setRoute(null); return; }
+    const fx = this.focusX, fz = this.focusZ;
+    const straight = Math.hypot(o.x - fx, o.z - fz);
+    this.routeT -= dt;
+    const moved = this.route ? Math.hypot(this.route.pts[this.route.pts.length - 1].x - o.x, this.route.pts[this.route.pts.length - 1].z - o.z) > 4 : true;
+    if (this.routeT <= 0 || moved) { this.routeT = 0.6; this.route = this.nav.route(fx, fz, o.x, o.z); }
+    else this.route!.pts[0] = { x: fx, z: fz };
+    if (straight < 14 && !o.prop) { this.hud.setNav(null, t('ui.nav.here')); this.hud.setRoute(null); return; }
+    const pts = this.route!.pts;
+    // aim along the road: the first waypoint that is far enough ahead (or straight at the goal when it is close)
+    let tx = o.x, tz = o.z;
+    if (straight > 35) {
+      for (let k = 1; k < pts.length; k++) if (Math.hypot(pts[k].x - fx, pts[k].z - fz) > 22) { tx = pts[k].x; tz = pts[k].z; break; }
+    }
+    const f = this.camDir;
+    this.cameraRig.camera.getWorldDirection(f);
+    const dx = tx - fx, dz = tz - fz;
+    const along = dx * f.x + dz * f.z, side = dx * -f.z + dz * f.x;
+    const m = Math.max(this.route!.len, straight);
+    this.hud.setNav(Math.atan2(side, along), `${Math.round(m / 5) * 5} m`);
+    this.hud.setRoute(pts);
+  }
+
+  /** Pick up golden stars by touching them (in a car or on foot). */
+  private collectStars(): void {
+    if (this.state !== 'play') return;
+    const i = this.collectibles.tryCollect(this.focusX, this.focusZ, this.onFoot ? 2.4 : 4);
+    if (i < 0) return;
+    this.addCash(300);
+    this.saveDirty = true;
+    this.hud.setCollectibles(this.collectibles.count, this.collectibles.total);
+    this.hud.toast(`${t('ui.stars_found')} ${this.collectibles.count}/${this.collectibles.total}  +$300`, 2200);
+    this.audio.cash();
   }
 
   private fx = {
@@ -612,7 +708,7 @@ export class Game {
     const d = this.driving;
     this.copCars.length = 0;
     for (const v of this.vehicles) if (v.ai === 'police' && !v.ctrl.wrecked) this.copCars.push({ x: v.x, z: v.z });
-    let want = this.onFoot && playing ? [0, 2, 4, 5, 6, 7][this.stars] : 0;
+    let want = this.onFoot && playing ? [0, 1, 2, 3, 4, 5][this.stars] : 0;
     if (this.onFoot && playing && this.gigs.active?.id === 'brawl') want = Math.max(want, 4);
     const ctx: HumanCtx = {
       input: playing ? this.input : this.idleInput,
@@ -695,8 +791,13 @@ export class Game {
         this.damageTotal += atk.dmg * 40;
         void att;
       },
-      onPlayerHurt: () => { this.cameraRig.shake(0.35); this.audio.thump(); },
-      onCopDown: (h) => { this.addCash(150); this.addHeat(15); this.vfx.emitFire(h.x, 1, h.z, 4, 0.3); },
+      onPlayerHurt: () => { this.cameraRig.shake(0.35); this.audio.thump(); this.input.rumble(0.9, 0.6, 180); },
+      onCopDown: (h) => {
+        this.addCash(150);
+        this.addHeat(15);
+        if (this.humans.kids) this.popups.spawn(h.x, h.y + 2.2, h.z, t('pop.ko'), '#8a5cd6'); // knocked out, not killed
+        else this.vfx.emitFire(h.x, 1, h.z, 4, 0.3);
+      },
       onSwing: (att, atk) => {
         this.audio.whoosh(atk.kind !== 'punch');
         if (atk.kind === 'swing' && att.role === Role.Player) this.slash.fire(att.x, att.y + 1.1, att.z, att.heading);
@@ -755,7 +856,7 @@ export class Game {
             this.audio.crash(s);
             this.damageTotal += s * 120;
             if (s > 4 && this.heatCooldown <= 0 && !other.isPolice) {
-              this.addHeat(15);
+              this.addHeat(10);
               this.heatCooldown = 1.2;
             }
           } else if (this.nearPlayer(midX, midZ, 50)) this.audio.crash(s * 0.6);
@@ -772,7 +873,7 @@ export class Game {
       for (const off of c.collisionOffsets) {
         const h = this.humans.hitByVehicle(v.x + fxv * off, v.z + fzv * off, c.collisionRadius, c.vx, c.vz);
         if (h && v === this.driving) {
-          this.addHeat(h.role === Role.Cop ? 30 : 25);
+          this.addHeat(h.role === Role.Cop ? 20 : 15);
           this.audio.thump();
           this.vfx.emitDebris(h.x, 1, h.z, c.vx, c.vz, 0xe85a4f, 4);
           this.cameraRig.shake(0.25);
@@ -815,19 +916,43 @@ export class Game {
           if (c.hp < 0.3) this.vfx.emitFire(hx, 1.0, hz, 1, 0.3);
         }
       }
-      // recycle faraway AI
-      if (v.ai === 'traffic' && !this.nearPlayer(v.x, v.z, 200)) this.relocate(v);
-      else if (v.ai === 'police' && !this.nearPlayer(v.x, v.z, 280)) this.relocate(v), v.traffic = null;
+      // police that stood down leave once nobody can see them
+      if (v.despawnT > 0 && v.ai === 'traffic') {
+        v.despawnT -= dt;
+        if (v.despawnT <= 0) {
+          // leave as soon as they are out of the camera's view (or far away); if they linger in view, give up after 20 s more
+          if (!this.nearPlayer(v.x, v.z, 50) || !this.inCameraView(v.x, v.z) || v.despawnExtra > 20) { this.removeVehicle(v); continue; }
+          v.despawnT = 2; v.despawnExtra += 2;
+        }
+      }
+      // recycle faraway AI (police are removed instead of being moved back into the city)
+      if (v.ai === 'traffic' && !this.nearPlayer(v.x, v.z, 200)) {
+        if (v.isPolice) { this.removeVehicle(v); continue; }
+        this.relocate(v);
+      }
+      else if (v.ai === 'police' && !this.nearPlayer(v.x, v.z, 190)) { this.removeVehicle(v); continue; } // they give up when left far behind (no rubber-banding back)
       else if (v.ai === 'parked' && !v.owned && !v.isGigTarget && !this.nearPlayer(v.x, v.z, 240) && !this.roadblocks.some((r) => r.cars.includes(v))) this.removeVehicle(v);
     }
   }
 
+  private camDir = new THREE.Vector3();
+  /** Is the ground point in front of the camera (roughly on screen) and not too far? */
+  private inCameraView(x: number, z: number): boolean {
+    const cam = this.cameraRig.camera;
+    cam.getWorldDirection(this.camDir);
+    const dx = x - cam.position.x, dz = z - cam.position.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 240) return false;
+    const fl = Math.hypot(this.camDir.x, this.camDir.z) || 1;
+    return (dx * this.camDir.x + dz * this.camDir.z) / (Math.max(d, 0.001) * fl) > 0.3;
+  }
+
   private maintainTraffic(): void {
     let n = 0;
-    for (const v of this.vehicles) if (v.ai === 'traffic') n++;
+    for (const v of this.vehicles) if (v.ai === 'traffic' && !v.isPolice) n++; // only ordinary cars count toward the traffic quota
     if (n < this.trafficTarget) this.spawnTraffic(false);
     else if (n > this.trafficTarget + 2) {
-      const v = this.vehicles.find((q) => q.ai === 'traffic' && !this.nearPlayer(q.x, q.z, 60));
+      const v = this.vehicles.find((q) => q.ai === 'traffic' && !q.isPolice && !this.nearPlayer(q.x, q.z, 60));
       if (v) this.removeVehicle(v);
     }
   }
@@ -836,9 +961,9 @@ export class Game {
     if (this.stars === 0) { this.managePolice(dt); return; }
     let nearest = Infinity;
     for (const v of this.policeVehicles()) nearest = Math.min(nearest, Math.hypot(v.x - this.focusX, v.z - this.focusZ));
-    this.unseen = nearest > 60 ? this.unseen + dt : 0;
-    if (this.unseen > 6 && this.heat > this.minHeat) {
-      this.heat = Math.max(this.minHeat, this.heat - 14 * dt);
+    this.unseen = nearest > 85 ? this.unseen + dt : 0;
+    if (this.unseen > 4 && this.heat > this.minHeat) {
+      this.heat = Math.max(this.minHeat, this.heat - 22 * dt);
       let s = 0;
       for (let i = 0; i < STAR_HEAT.length; i++) if (this.heat >= STAR_HEAT[i]) s = i + 1;
       if (s < this.stars) {
@@ -863,7 +988,7 @@ export class Game {
         if (Math.hypot(v.x - this.focusX, v.z - this.focusZ) < 7.5) { close = true; break; }
       }
       this.bustTimer = stopped && close ? this.bustTimer + dt : Math.max(0, this.bustTimer - dt * 1.5);
-      if (this.bustTimer > 2.2) this.busted();
+      if (this.bustTimer > 3.0) this.busted();
     }
   }
 
@@ -917,7 +1042,7 @@ export class Game {
         const fine = Math.min(Math.round(this.cash), 300);
         this.cash -= fine;
         this.hud.setCash(this.cash);
-        this.hud.setOverlay('ui.wasted', tf('ui.toast.busted', { n: fine }));
+        this.hud.setOverlay(this.humans.kids ? 'ui.knocked_out' : 'ui.wasted', tf('ui.toast.busted', { n: fine }));
       }
     } else if (this.state === 'busted' || this.state === 'wrecked' || this.state === 'wasted') {
       this.stateTimer -= dt;
@@ -994,6 +1119,12 @@ export class Game {
     this.blipCount = 0;
     for (const g of this.world.garages) this.pushBlip(g.x, g.z, '#3dff8a', false, 5);
     this.gigs.blips(this.pushBlip);
+    this.story.blips(this.pushBlip);
+    for (let i = 0; i < this.collectibles.total; i++) {
+      if (this.collectibles.isCollected(i)) continue;
+      const sp = this.collectibles.spot(i);
+      if (Math.hypot(sp.x - this.focusX, sp.z - this.focusZ) < 110) this.pushBlip(sp.x, sp.z, '#ffe27a', false, 3.2);
+    }
     for (const v of this.vehicles) {
       if (v.isPolice && !v.ctrl.wrecked && (v.ai === 'police' || v.ai === 'parked')) this.pushBlip(v.x, v.z, '#ff2a3a', true, 4.5);
     }

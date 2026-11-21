@@ -66,6 +66,11 @@ export class AudioEngine {
     this.sirenOsc.start();
   }
 
+  /** Browsers may leave the context suspended until a trusted gesture; call this on any input to resume it. */
+  ensureRunning(): void {
+    if (this.ctx && this.ctx.state === 'suspended') void this.ctx.resume();
+  }
+
   setEnabled(on: boolean): void {
     this.enabled = on;
     if (this.ctx) this.master.gain.setTargetAtTime(on ? this.volume : 0, this.ctx.currentTime, 0.05);

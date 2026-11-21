@@ -14,17 +14,23 @@
 
     <div id="hud" hidden>
       <button id="btn-pause" class="hud-btn" aria-label="Pause">☰</button>
+      <button id="btn-map" class="hud-btn" aria-label="Map">&#128506;</button>
 
       <div id="status">
         <div id="stars" title="WANTED">
           <span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span>
         </div>
         <div id="cash">$0</div>
+        <div id="stars-count" title="Golden stars">★ 0/12</div>
         <div id="phealth"><span data-i18n="ui.hp">HP</span><div class="track"><div id="phealth-fill" class="fill hp"></div></div></div>
         <div id="combo"><span data-i18n="ui.smash_combo">SMASH COMBO</span> <b id="combo-mult"></b><div id="combo-bar"><div id="combo-fill"></div></div></div>
       </div>
 
-      <div id="gig" hidden><div id="gig-title"></div><div id="gig-obj"></div><div id="gig-time"></div></div>
+      <div id="top-center">
+        <div id="story-pill" hidden><div id="story-title"></div><div id="story-text"></div><div id="story-nav" hidden><span id="nav-arrow">&#9650;</span><span id="nav-dist"></span></div></div>
+        <div id="gig" hidden><div id="gig-title"></div><div id="gig-obj"></div><div id="gig-time"></div></div>
+      </div>
+      <div id="dialog" hidden><div id="dlg-who"></div><div id="dlg-text"></div><div id="dlg-hint"></div></div>
       <div id="toast"></div>
       <div id="prompt" hidden></div>
       <div id="overlay-msg" hidden></div>
@@ -41,6 +47,7 @@
           <div class="bar"><label data-i18n="ui.nitro">NITRO</label><div class="track"><div id="nitro-fill" class="fill nitro"></div></div></div>
           <div class="bar"><label data-i18n="ui.hp">HP</label><div class="track"><div id="hp-fill" class="fill hp"></div></div></div>
         </div>
+        <div id="pad-hint"><div class="pad-drive" data-i18n="ui.pad.drive"></div><div class="pad-foot" data-i18n="ui.pad.foot"></div></div>
         <ul id="hints" class="hints-drive">
           <li data-i18n="ui.hint.drive"></li>
           <li data-i18n="ui.hint.handbrake"></li>
@@ -48,6 +55,7 @@
           <li data-i18n="ui.hint.exit_car"></li>
           <li data-i18n="ui.hint.time"></li>
           <li data-i18n="ui.hint.reset"></li>
+          <li data-i18n="ui.hint.map"></li>
         </ul>
         <div id="foot-hud">
           <div id="weapon-slots">
@@ -78,6 +86,7 @@
     <div id="pause" class="overlay" hidden>
       <div class="panel">
         <h2 data-i18n="ui.paused">PAUSED</h2>
+        <div class="row"><span data-i18n="ui.story">STORY</span><span id="story-progress"></span></div>
         <div class="row"><span data-i18n="ui.settings.language">Language</span>
           <div class="segs"><button class="seg lang" data-lang="en">English</button><button class="seg lang" data-lang="ko">한국어</button></div>
         </div>
@@ -86,6 +95,12 @@
             <button class="seg quality" data-q="high" data-i18n="ui.quality.high"></button>
             <button class="seg quality" data-q="medium" data-i18n="ui.quality.medium"></button>
             <button class="seg quality" data-q="low" data-i18n="ui.quality.low"></button>
+          </div>
+        </div>
+        <div class="row kids-row"><span><span data-i18n="ui.settings.kids">Kids Play</span><small class="hint" data-i18n="ui.settings.kids_hint"></small></span>
+          <div class="segs">
+            <button class="seg kids" data-k="1" data-i18n="ui.on"></button>
+            <button class="seg kids" data-k="0" data-i18n="ui.off"></button>
           </div>
         </div>
         <div class="row"><span data-i18n="ui.settings.audio">Audio</span>
