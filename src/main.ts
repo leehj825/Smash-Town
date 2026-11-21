@@ -19,6 +19,7 @@ type Quality = 'high' | 'medium' | 'low';
 const QUALITY_KEY = 'smashtown.quality';
 const TIME_KEY = 'smashtown.time';
 const AUDIO_KEY = 'smashtown.audio';
+const KIDS_KEY = 'smashtown.kids';
 const TRAFFIC: Record<Quality, number> = { high: 14, medium: 10, low: 6 };
 
 const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || matchMedia('(pointer: coarse)').matches;
@@ -126,6 +127,14 @@ function applyAudio(on: boolean): void {
 }
 applyAudio(storedGet(AUDIO_KEY) !== '0');
 
+/** Kids Play (default ON): nobody dies - defeated cops and the player are only knocked out. */
+function applyKids(on: boolean): void {
+  game.humans.kids = on;
+  storedSet(KIDS_KEY, on ? '1' : '0');
+  document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.classList.toggle('sel', (b.dataset.k === '1') === on));
+}
+applyKids(storedGet(KIDS_KEY) !== '0');
+
 // ---------------------------------------------------------------- UI wiring
 const titleEl = document.getElementById('title')!;
 const pauseEl = document.getElementById('pause')!;
@@ -157,6 +166,7 @@ document.querySelectorAll<HTMLElement>('.lang').forEach((b) => b.addEventListene
 document.querySelectorAll<HTMLElement>('.quality').forEach((b) => b.addEventListener('click', () => applyQuality(b.dataset.q as Quality)));
 document.querySelectorAll<HTMLElement>('.tod').forEach((b) => b.addEventListener('click', () => applyTime(b.dataset.t as TimeOfDay)));
 document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.addEventListener('click', () => applyAudio(b.dataset.a === '1')));
+document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.addEventListener('click', () => applyKids(b.dataset.k === '1')));
 applyDom();
 document.documentElement.lang = getLang();
 const syncLangButtons = () =>

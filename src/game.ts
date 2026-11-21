@@ -23,11 +23,12 @@ interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKin
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
 const STAR_HEAT = [30, 90, 170, 270, 400];
 const COMPOSITION: Record<number, [PoliceRole, number][]> = {
+  // total police cars: 1, 3, 5, 8, 10
   1: [['cruiser', 1]],
-  2: [['cruiser', 2]],
-  3: [['cruiser', 2], ['interceptor', 1]],
-  4: [['cruiser', 2], ['interceptor', 1], ['swat', 1]],
-  5: [['cruiser', 3], ['interceptor', 1], ['swat', 1], ['armored', 1]],
+  2: [['cruiser', 3]],
+  3: [['cruiser', 3], ['interceptor', 2]],
+  4: [['cruiser', 4], ['interceptor', 2], ['swat', 2]],
+  5: [['cruiser', 4], ['interceptor', 2], ['swat', 2], ['armored', 2]],
 };
 const ROLE_KIND: Record<PoliceRole, VehicleKind> = { cruiser: 'police', interceptor: 'interceptor', swat: 'swat', armored: 'armored' };
 
@@ -318,7 +319,7 @@ export class Game {
     this.policeSpawnTimer -= dt;
     if (this.policeSpawnTimer <= 0 && !evading) {
       for (const [role, n] of comp) {
-        if ((have[role] ?? 0) < n) { this.spawnPolice(role); this.policeSpawnTimer = 4; break; }
+        if ((have[role] ?? 0) < n) { this.spawnPolice(role); this.policeSpawnTimer = 2.5; break; }
       }
     }
     // roadblocks from 3 stars
@@ -700,7 +701,12 @@ export class Game {
         void att;
       },
       onPlayerHurt: () => { this.cameraRig.shake(0.35); this.audio.thump(); },
-      onCopDown: (h) => { this.addCash(150); this.addHeat(15); this.vfx.emitFire(h.x, 1, h.z, 4, 0.3); },
+      onCopDown: (h) => {
+        this.addCash(150);
+        this.addHeat(15);
+        if (this.humans.kids) this.popups.spawn(h.x, h.y + 2.2, h.z, t('pop.ko'), '#8a5cd6'); // knocked out, not killed
+        else this.vfx.emitFire(h.x, 1, h.z, 4, 0.3);
+      },
       onSwing: (att, atk) => {
         this.audio.whoosh(atk.kind !== 'punch');
         if (atk.kind === 'swing' && att.role === Role.Player) this.slash.fire(att.x, att.y + 1.1, att.z, att.heading);
@@ -921,7 +927,7 @@ export class Game {
         const fine = Math.min(Math.round(this.cash), 300);
         this.cash -= fine;
         this.hud.setCash(this.cash);
-        this.hud.setOverlay('ui.wasted', tf('ui.toast.busted', { n: fine }));
+        this.hud.setOverlay(this.humans.kids ? 'ui.knocked_out' : 'ui.wasted', tf('ui.toast.busted', { n: fine }));
       }
     } else if (this.state === 'busted' || this.state === 'wrecked' || this.state === 'wasted') {
       this.stateTimer -= dt;

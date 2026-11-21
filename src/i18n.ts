@@ -5,6 +5,10 @@ const dict = {
   en: {
     'ui.title': 'SMASH TOWN',
     'ui.wasted': 'WASTED',
+    'ui.knocked_out': 'KNOCKED OUT',
+    'ui.settings.kids': 'Kids Play',
+    'ui.settings.kids_hint': 'Nobody gets hurt: everyone is just knocked out',
+    'pop.ko': 'K.O.!',
     'ui.mission.defeat_police': 'DEFEAT THE POLICE!',
     'ui.hint.enter_car': '[F] Enter Vehicle',
     'ui.hint.exit_car': '[F] Exit Vehicle',
@@ -86,6 +90,10 @@ const dict = {
   ko: {
     'ui.title': '스매시 타운',
     'ui.wasted': '기절함',
+    'ui.knocked_out': '기절!',
+    'ui.settings.kids': '어린이 모드',
+    'ui.settings.kids_hint': '아무도 다치지 않아요: 모두 기절만 해요',
+    'pop.ko': '기절!',
     'ui.mission.defeat_police': '경찰을 무찌르세요!',
     'ui.hint.enter_car': '[F] 차량 탑승',
     'ui.hint.exit_car': '[F] 차량 하차',

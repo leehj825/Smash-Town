@@ -47,6 +47,8 @@ export class Human {
   downT = 0; airT = 0; prevState = -1;
   rendered = false;
   prevWeapon = 0; equipT = 0;
+  /** Knocked out (Kids Play): can't be hit again, gets up and walks away. */
+  ko = false;
   lastStepSign = 1;
   // civilian path
   lot!: Lot; s = 0; dir = 1; pathSpeed = 1.6;
@@ -87,6 +89,8 @@ export class Humans {
   readonly list: Human[] = [];
   readonly player: Human;
   unlockedBaton = false;
+  /** Kids Play: nobody dies. Defeated cops and the player are only knocked out. */
+  kids = true;
   copsDefeated = 0;
   combatTimer = 0;
 
@@ -366,7 +370,7 @@ export class Humans {
     const cosArc = Math.cos((a.arc * Math.PI) / 360);
     let landed = false;
     for (const t of this.list) {
-      if (!t.active || t === h || t.state === St.Dead) continue;
+      if (!t.active || t === h || t.state === St.Dead || t.ko) continue;
       if (h.role === Role.Cop && t.role !== Role.Player) continue;
       if (h.role === Role.Civ) continue;
       const dx = t.x - h.x, dz = t.z - h.z;
@@ -411,11 +415,13 @@ export class Humans {
     t.flash = 0.14;
     let killed = t.hp <= 0;
     if (t.role === Role.Civ && killed) { t.hp = 1; killed = false; }
+    // Kids Play: a defeated cop is knocked out (hp stays above 0 so they get up and leave); nobody ever enters the Dead state
+    if (this.kids && killed && t.role === Role.Cop) t.hp = 1, t.ko = true;
     const heavy = a.heavy || killed;
     t.attack = null; t.buffered = 0;
     t.heading = Math.atan2(-nx, -nz);
     if (heavy) {
-      t.state = killed && t.role !== Role.Civ ? St.Dead : St.Down;
+      t.state = killed && t.role !== Role.Civ && !this.kids ? St.Dead : St.Down;
       t.stateDur = t.stateT = killed ? 2.4 : 1.4;
       t.vx = nx * a.push; t.vz = nz * a.push;
       t.vy = Math.max(a.up, 2.6);
@@ -441,11 +447,14 @@ export class Humans {
       if (Math.hypot(t.x - cx, t.z - cz) > r + 0.45) continue;
       t.attack = null;
       const killed = t.role === Role.Cop && (t.hp -= 40) <= 0;
-      t.state = killed ? St.Dead : St.Down;
+      if (this.kids && killed) { t.hp = 1; t.ko = true; }
+      t.state = killed && !this.kids ? St.Dead : St.Down;
       t.stateDur = t.stateT = killed ? 2.4 : 2.0;
-      t.vx = vx * 1.05 + (this.rng() - 0.5) * 3;
-      t.vz = vz * 1.05 + (this.rng() - 0.5) * 3;
-      t.vy = 5 + this.rng() * 3;
+      // Kids Play: cars only bump people over gently
+      const k = this.kids ? 0.5 : 1.05;
+      t.vx = vx * k + (this.rng() - 0.5) * 3;
+      t.vz = vz * k + (this.rng() - 0.5) * 3;
+      t.vy = this.kids ? 3 : 5 + this.rng() * 3;
       t.grounded = false;
       t.flash = 0.14;
       t.fleeing = true;
@@ -485,7 +494,7 @@ export class Humans {
     }
     if (!ok) { const a = this.rng() * TWO_PI; x = px + Math.sin(a) * 26; z = pz + Math.cos(a) * 26; }
     const h = slot;
-    h.active = true; h.role = Role.Cop;
+    h.active = true; h.role = Role.Cop; h.ko = false;
     h.x = x; h.z = z; h.y = GROUND; h.vy = 0; h.vx = h.vz = h.mvx = h.mvz = 0; h.grounded = true;
     h.state = St.Idle; h.hp = h.maxHp = 60; h.weapon = 2; h.leaving = false; h.cd = 0.6 + this.rng();
     h.atkScale = 0.55; h.scale = 1.03; h.attack = null; h.invuln = 0;
@@ -626,6 +635,7 @@ export class Humans {
         h.stateT -= dt;
         if (h.stateT <= 0) {
           h.state = St.Idle;
+          if (h.ko) { h.leaving = true; h.leaveT = 4; } // a knocked-out cop dusts themselves off and walks away
           if (h.role === Role.Civ) { h.hp = h.maxHp; this.assign(h, this.ctx.playerCarX, this.ctx.playerCarZ); h.fleeing = true; }
         }
         break;

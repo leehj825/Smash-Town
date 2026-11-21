@@ -330,8 +330,8 @@ Playtesting showed that once wanted, too many police arrived and escaping was ne
 | :--- | :--- | :--- |
 | Heat per star | 25 / 70 / 130 / 210 / 320 | 30 / 90 / 170 / 270 / 400 |
 | Heat from a smashed prop / hit pedestrian / hit civilian car / hijack | +6 / +25 / +15 / +25 | +3 / +15 / +10 / +20 |
-| Police cars by stars (1→5) | 1 · 3 · 4 · 6 · 8 | 1 · 2 · 3 · 4 · 6 |
-| Reinforcements | a new car every 1.4 s, 80–170 m away, always replenished | one every 4 s (first after 3 s), 110–220 m away, **none while you are evading** |
+| Police cars by stars (1→5) | 1 · 3 · 4 · 6 · 8 | **1 · 3 · 5 · 8 · 10** (design target set by the project owner): ★1 1 cruiser; ★2 3 cruisers; ★3 3 cruisers + 2 interceptors; ★4 4 cruisers + 2 interceptors + 2 SWAT; ★5 4 cruisers + 2 interceptors + 2 SWAT + 2 armored |
+| Reinforcements | a new car every 1.4 s, 80–170 m away, always replenished | one every 2.5 s (first after 3 s), 110–220 m away, **none while you are evading** |
 | Police speed | 100 % of top speed | 88 % of top speed (a fast car can outrun them; ramming capped at 92 %) |
 | Giving up | cars far away teleported back near the player | cars left more than 190 m behind are removed |
 | Roadblocks (3★+) | up to 2, every 12 s | 1, every 25 s |
@@ -339,6 +339,7 @@ Playtesting showed that once wanted, too many police arrived and escaping was ne
 | Busted (stopped with a cop within 7.5 m) | 2.2 s | 3.0 s |
 | Foot cops by stars (1→5) | 2 · 4 · 5 · 6 · 7 | 1 · 2 · 3 · 4 · 5 |
 | Player attack speed | GDD frame data | ~30 % slower (all wind-up / active / recovery times ×1.33); cops were already slower to telegraph |
+| Kids Play (new setting, **default ON**) | — | Nobody dies. Defeated cops are *knocked out* ("K.O.!" popup, still counted as defeated, can't be hit again, then get up and walk away); cars only bump people over gently; the player is "KNOCKED OUT" instead of WASTED. Toggle in Pause → Settings (saved in `localStorage`); turning it off restores the original behaviour (cops can be killed, player is WASTED). |
 | Unarmed locomotion | `walk` / `run` / `idle` | `walkCalm` / `runCalm` / `idleEase`; armed characters keep the combat stance clips |
 
 ## 10. Known Gaps & Technical Debt
