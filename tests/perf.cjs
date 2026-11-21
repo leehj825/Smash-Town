@@ -42,6 +42,16 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     const worst = await measure();
     const nPolice = await S(() => g().vehicles.filter((v) => v.isPolice).length);
     console.log('INFO  worst case (5 stars, storm, helicopter)', JSON.stringify({ ...worst, policeCars: nPolice }));
+    // slower devices: Medium and Low draw fewer trees
+    const tri = {};
+    for (const q of ['high', 'medium', 'low']) {
+      await S((q) => window.__smash.applyQuality(q), q);
+      await p.waitForTimeout(300);
+      tri[q] = (await measure()).tris;
+    }
+    await S(() => window.__smash.applyQuality('high'));
+    console.log('INFO  triangles by quality', JSON.stringify(tri));
+    ok(tri.low < tri.medium && tri.medium < tri.high && tri.low < tri.high * 0.8, 'Medium and Low draw fewer triangles than High', JSON.stringify(tri));
     ok(calm.calls < 320, 'calm scene stays under 320 draw calls', String(calm.calls));
     ok(worst.calls < 420, 'worst case stays under 420 draw calls', String(worst.calls));
     ok(worst.tris < 900000, 'worst case stays under 900k triangles', String(worst.tris));

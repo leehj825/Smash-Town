@@ -104,6 +104,7 @@ function applyQuality(q: Quality): void {
   bloom.enabled = q === 'high';
   game.useBlob = !shadows;
   game.trafficTarget = TRAFFIC[q];
+  props.setVegetation(q === 'high' ? 1 : q === 'medium' ? 0.7 : 0.4);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, q === 'low' ? 1.25 : 2));
   resize();
   scene.traverse((o) => {

@@ -126,6 +126,7 @@ export interface Props {
   /** Smash a prop: hides its instance, launches a tumbling copy, bursts debris, starts hydrant geysers. Returns damage value. */
   smash(ref: SmashRef, x: number, z: number, vx: number, vz: number): number;
   update(dt: number): void;
+  setVegetation(f: number): void;
 }
 
 export function buildProps(world: World, vfx: Vfx): Props {
@@ -245,8 +246,9 @@ export function buildProps(world: World, vfx: Vfx): Props {
     return mesh;
   };
   (Object.keys(lists) as PropType[]).forEach((k) => { meshes[k] = instance(geos[k], mat, lists[k], true); });
-  instance(treeGeometry(false), mat, trees, true);
-  instance(treeGeometry(true), mat, pines, true);
+  const treeMesh = instance(treeGeometry(false), mat, trees, true);
+  const pineMesh = instance(treeGeometry(true), mat, pines, true);
+  const veg = [treeMesh, pineMesh].map((m) => ({ m, orig: Float32Array.from(m.instanceMatrix.array as Float32Array) }));
   for (const p of trees) world.circles.push({ x: p.x, z: p.z, r: 0.55 });
   for (const p of pines) world.circles.push({ x: p.x, z: p.z, r: 0.55 });
   const lampHeadMaterial = new THREE.MeshStandardMaterial({ color: 0xfff1c9, emissive: 0xffe2a0, emissiveIntensity: 0.2, flatShading: true });
@@ -337,5 +339,17 @@ export function buildProps(world: World, vfx: Vfx): Props {
     }
   }
 
-  return { group, lampHeadMaterial, smash, update };
+  /** Thins out trees and pines for slower devices: `f` is the share kept (1 = all). Spread evenly, not cut off district by district. */
+  function setVegetation(f: number): void {
+    for (const { m, orig } of veg) {
+      const arr = m.instanceMatrix.array as Float32Array;
+      for (let i = 0; i < m.count; i++) {
+        const keep = (i * 0.6180339887) % 1 < f;
+        for (let k = 0; k < 16; k++) arr[i * 16 + k] = keep ? orig[i * 16 + k] : 0;
+      }
+      m.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  return { group, lampHeadMaterial, smash, update, setVegetation };
 }
