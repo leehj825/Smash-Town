@@ -129,16 +129,16 @@ function windowTextures(): { map: THREE.CanvasTexture; emissive: THREE.CanvasTex
   return { map, emissive };
 }
 
-const SIGN_TEXTS = ['24h MOTEL', 'DONUTS', 'PIZZA', 'CAFE', 'BAR', 'ARCADE', 'BOOKS', 'SUSHI'];
-const SIGN_COLORS = [['#2a2f7a', '#ffd34d'], ['#ff7eb6', '#ffffff'], ['#c0392b', '#fff3c4'], ['#1f7a5a', '#ffffff'], ['#3a2a5a', '#7fe0ff'], ['#101a40', '#ff4d9a'], ['#7a4a1f', '#ffe9b0'], ['#e8f4ff', '#d62828']];
+const SIGN_TEXTS = ['24h MOTEL', 'DONUTS', 'PIZZA', 'CAFE', 'BAR', 'ARCADE', 'BOOKS', 'SUSHI', 'PHARMACY', 'GYM', 'TACOS', 'NOODLES', 'TATTOO', 'MUSIC', 'VIDEO', 'FLOWERS'];
+const SIGN_COLORS = [['#2a2f7a', '#ffd34d'], ['#ff7eb6', '#ffffff'], ['#c0392b', '#fff3c4'], ['#1f7a5a', '#ffffff'], ['#3a2a5a', '#7fe0ff'], ['#101a40', '#ff4d9a'], ['#7a4a1f', '#ffe9b0'], ['#e8f4ff', '#d62828'], ['#ffffff', '#1f9d55'], ['#222831', '#ff7a1a'], ['#f2a73b', '#3b1d0a'], ['#8e1b1b', '#ffe9b0'], ['#111111', '#d6d6d6'], ['#4a1a6b', '#ffd23a'], ['#1c3b6b', '#ffffff'], ['#ffb3d1', '#7a1a4a']];
 
 /** One 2x4 atlas holding every shop signboard (a single draw call). Cell (c, r) -> uv rect. */
 function signAtlas(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
-  c.width = 1024; c.height = 512;
+  c.width = 1024; c.height = 1024;
   const g = c.getContext('2d')!;
   g.fillStyle = '#1b1b22';
-  g.fillRect(0, 0, 1024, 512);
+  g.fillRect(0, 0, 1024, 1024);
   SIGN_TEXTS.forEach((text, i) => {
     const cx = (i % 2) * 512, cy = Math.floor(i / 2) * 128;
     const [bg, fg] = SIGN_COLORS[i];
@@ -659,7 +659,7 @@ export function buildWorld(): World {
   const signs: { x: number; z: number; dirX: number; dirZ: number; w: number; idx: number }[] = [];
   let signCount = 0;
   const addSign = (x: number, z: number, dirX: number, dirZ: number, w: number) => {
-    if (signCount >= 18) return;
+    if (signCount >= 36) return;
     signs.push({ x, z, dirX, dirZ, w: Math.min(5.6, w * 0.7), idx: signCount % SIGN_TEXTS.length });
     signCount++;
   };
@@ -1036,8 +1036,8 @@ export function buildWorld(): World {
       for (let f = 0; f < 6; f++) {
         for (let v = 0; v < 4; v++) {
           const i = f * 4 + v;
-          if (f === front) uv.setXY(i, col * 0.5 + uv.getX(i) * 0.5, 1 - row * 0.25 - 0.25 + uv.getY(i) * 0.25);
-          else uv.setXY(i, 0.5 * col + 0.003, 1 - row * 0.25 - 0.01);
+          if (f === front) uv.setXY(i, col * 0.5 + uv.getX(i) * 0.5, 1 - row * 0.125 - 0.125 + uv.getY(i) * 0.125);
+          else uv.setXY(i, 0.5 * col + 0.003, 1 - row * 0.125 - 0.005);
         }
       }
       g.translate(sg.x + sg.dirX * 0.2, 5.6, sg.z + sg.dirZ * 0.2);

@@ -56,6 +56,10 @@ export class Environment {
   private tmpRight = new THREE.Vector3();
   private tmpUp = new THREE.Vector3();
   private tmpSnap = new THREE.Vector3();
+  /** Low-poly clouds drifting across the sky (they follow the camera, so the sky never runs out of them). */
+  private clouds = new THREE.Group();
+  private cloudMat = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false, transparent: true, opacity: 0.95, depthWrite: false });
+  private cloudList: { m: THREE.Mesh; x: number; z: number; speed: number }[] = [];
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -98,6 +102,43 @@ export class Environment {
     this.sky = new THREE.Mesh(new THREE.SphereGeometry(500, 24, 12), this.skyMat);
     this.sky.frustumCulled = false;
     this.sky.renderOrder = -1;
+    {
+      // one puffy cloud shape (a few merged low-poly blobs, white on top and bluish-grey underneath), reused for every cloud
+      const parts: THREE.BufferGeometry[] = [];
+      const blobs: [number, number, number, number][] = [[0, 0, 0, 34], [38, -4, 6, 26], [-40, -6, -4, 24], [14, 14, -6, 24], [-16, 10, 10, 20]];
+      for (const [x, y, z, r] of blobs) {
+        const g = new THREE.IcosahedronGeometry(r, 0).toNonIndexed();
+        g.scale(1, 0.62, 1); g.translate(x, y, z);
+        const pos = g.attributes.position;
+        const col = new Float32Array(pos.count * 3);
+        for (let i = 0; i < pos.count; i++) {
+          const up = pos.getY(i) > y - 2;
+          col[i * 3] = up ? 1 : 0.78; col[i * 3 + 1] = up ? 1 : 0.83; col[i * 3 + 2] = up ? 1 : 0.9;
+        }
+        g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+        parts.push(g);
+      }
+      let total = 0;
+      for (const g of parts) total += g.attributes.position.count;
+      const pos = new Float32Array(total * 3), col = new Float32Array(total * 3);
+      let o = 0;
+      for (const g of parts) { pos.set(g.attributes.position.array as Float32Array, o * 3); col.set(g.attributes.color.array as Float32Array, o * 3); o += g.attributes.position.count; }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      for (let i = 0; i < 16; i++) {
+        const m = new THREE.Mesh(geo, this.cloudMat);
+        const ang = Math.random() * Math.PI * 2, rad = 160 + Math.random() * 300;
+        const x = Math.cos(ang) * rad, z = Math.sin(ang) * rad;
+        m.position.set(x, 150 + Math.random() * 70, z);
+        m.scale.setScalar(0.7 + Math.random() * 0.9);
+        m.rotation.y = Math.random() * 3;
+        m.frustumCulled = false; m.renderOrder = -1;
+        this.clouds.add(m);
+        this.cloudList.push({ m, x, z, speed: 2 + Math.random() * 3 });
+      }
+      scene.add(this.clouds);
+    }
     scene.add(this.sky);
 
     this.apply();
@@ -164,6 +205,13 @@ export class Environment {
     this.sun.target.updateMatrixWorld();
 
     this.sky.position.copy(camera.position);
+    // clouds drift on a slow wind and wrap round the camera
+    this.clouds.position.set(camera.position.x, 0, camera.position.z);
+    for (const c of this.cloudList) {
+      c.x += c.speed * dt;
+      if (c.x > 460) c.x = -460;
+      c.m.position.x = c.x;
+    }
   }
 
   private apply(): void {
@@ -183,5 +231,8 @@ export class Environment {
     this.hemi.groundColor.copy(c.hemiGround);
     this.hemi.intensity = c.hemiIntensity * (1 - 0.15 * this.wDim) + this.wFlash * 1.6;
     this.night = c.night;
+    // clouds take the colour of the horizon at sunset and night, and go grey in bad weather
+    this.cloudMat.color.setRGB(1, 1, 1).lerp(this.tmpHor, 0.2 + c.night * 0.55 + this.wGrey * 0.3);
+    this.cloudMat.opacity = Math.min(1, 0.85 + this.wGrey * 0.15);
   }
 }
