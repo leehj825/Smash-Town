@@ -6,13 +6,15 @@ import type { BoxCollider, World } from './world';
 // Enterable shops. Each room is a small set built far outside the city (a "hidden pocket"); stepping through a door fades out and
 // teleports the player there, so street traffic, police and cameras can never interfere. Walls are ordinary box colliders.
 
-export type ShopKind = 'donut' | 'gun' | 'clothes' | 'arcade' | 'motel' | 'bank';
+export type ShopKind = 'donut' | 'gun' | 'clothes' | 'arcade' | 'motel' | 'bank' | 'garage';
 export interface Room {
   id: ShopKind;
   en: string; ko: string;
   color: number; css: string;
   /** Door on the street (where the beacon stands). */
   door: { x: number; z: number; h: number };
+  /** The garage has several street doors (one per garage building). */
+  doors?: { x: number; z: number; h: number }[];
   /** Room centre in the pocket and its counter / exit positions. */
   ox: number; oz: number;
   counter: { x: number; z: number };
@@ -29,6 +31,7 @@ const DEFS: { id: ShopKind; en: string; ko: string; color: number; css: string; 
   { id: 'clothes', en: 'Clothes Shop', ko: '옷 가게', color: 0xb084ff, css: '#b084ff', floor: 0xd9d2e9, wall: 0x9a85d6, frac: 0.48 },
   { id: 'arcade', en: 'Arcade', ko: '오락실', color: 0x35e0ff, css: '#35e0ff', floor: 0x1d1f33, wall: 0x2c3057, frac: 0.7 },
   { id: 'bank', en: 'Smash Bank', ko: '스매시 은행', color: 0xffd23a, css: '#ffd23a', floor: 0xcfd3da, wall: 0x3c4a6b, frac: 0.86 },
+  { id: 'garage', en: 'Garage', ko: '차고', color: 0x3dff8a, css: '#3dff8a', floor: 0x3a3d46, wall: 0x56606f, frac: -3 },
   { id: 'motel', en: '24h Motel', ko: '24시 모텔', color: 0x7dff6a, css: '#7dff6a', floor: 0xcdb99a, wall: 0xd9c9a8, frac: -2 },
 ];
 
@@ -63,6 +66,14 @@ export class Interiors {
       const ownable = d.id === 'donut' || d.id === 'motel' || d.id === 'arcade' || d.id === 'bank';
       if (ownable) { b.box(1.9, 0.95, 0.9, ox + 4.6, 0.48, oz - 3.8, 0x3b3f55); b.box(0.7, 0.08, 0.5, ox + 4.6, 1.0, oz - 3.8, 0xffd23a); }
       if (d.id === 'arcade') for (let i = 0; i < 4; i++) b.box(1.0, 2.0, 0.9, ox - 4.5 + i * 3, 1.0, oz + 2.8, [0xff4d6d, 0x35e0ff, 0xffd23a, 0x7dff6a][i]);
+      if (d.id === 'garage') {
+        // two car lifts, a tool bench, tyre stacks, oil drums, hazard stripes by the door
+        for (const sx of [-1, 1]) { b.box(0.3, 2.4, 0.3, ox + sx * 3.2, 1.2, oz + 1.6, 0xffd23a); b.box(0.3, 2.4, 0.3, ox + sx * 3.2, 1.2, oz + 3.6, 0xffd23a); b.box(0.4, 0.2, 2.5, ox + sx * 3.2, 0.5, oz + 2.6, 0x6d7280); }
+        b.box(2.6, 0.9, 0.7, ox - 5.4, 0.45, oz - 1.0, 0x8a5a33); b.box(2.6, 0.1, 0.8, ox - 5.4, 0.95, oz - 1.0, 0xcfc8b8);
+        for (let i = 0; i < 4; i++) b.cylinder(0.45, 0.45, 0.28, 10, ox + 5.5, 0.15 + i * 0.3, oz + 3.8, 0x1a1a1f);
+        for (let i = 0; i < 3; i++) b.cylinder(0.35, 0.35, 0.9, 8, ox + 5.5 - i * 0.8, 0.45, oz - 4.4, [0x2f6bd6, 0xd62d3a, 0x2fb87a][i]);
+        for (let k = 0; k < 8; k++) b.box(0.9, 0.03, 0.4, ox - 3.6 + k * 1.0, 0.03, oz + D / 2 - 0.5, k % 2 ? 0xffd23a : 0x222222);
+      }
       if (d.id === 'bank') for (let i = 0; i < 3; i++) b.box(1.4, 1.1, 1.4, ox - 4.5 + i * 2, 0.55, oz + 2.8, 0xb7bcc7);
       if (d.id === 'motel') b.box(2.2, 0.7, 3.4, ox + 4.5, 0.35, oz + 2, 0xf4f4f4);
       if (d.id === 'clothes') for (let i = 0; i < 4; i++) b.box(0.7, 1.8, 0.5, ox - 4.5 + i * 3, 0.9, oz + 2.8, [0xd93636, 0x3b82f6, 0x2fb87a, 0xf2a73b][i]);
@@ -118,6 +129,7 @@ export class Interiors {
     this.rooms.forEach((r, k) => {
       const d = DEFS[k];
       let spot: { x: number; z: number; h: number };
+      if (d.frac === -3) { r.beacon.visible = false; return; }
       if (d.frac === -1) spot = this.sidewalk(world, st.donna.x, st.donna.z);
       else if (d.frac === -2) spot = this.sidewalk(world, st.motel.x, st.motel.z);
       else {
@@ -133,7 +145,10 @@ export class Interiors {
 
   update(dt: number): void { for (const r of this.rooms) r.beacon.update(dt); }
   roomAt(x: number, z: number, r: number): Room | null {
-    for (const room of this.rooms) if (Math.hypot(room.door.x - x, room.door.z - z) < r) return room;
+    for (const room of this.rooms) {
+      if (room.doors) { if (room.doors.some((d) => Math.hypot(d.x - x, d.z - z) < r)) return room; continue; }
+      if (Math.hypot(room.door.x - x, room.door.z - z) < r) return room;
+    }
     return null;
   }
 }

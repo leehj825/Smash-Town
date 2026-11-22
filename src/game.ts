@@ -189,6 +189,10 @@ export class Game {
     this.heli.attach(this.scene);
     this.interiors = new Interiors(d.world, this.scene);
     this.machines = new Machines(this);
+    {
+      const gr = this.interiors.rooms.find((r) => r.id === 'garage');
+      if (gr) gr.doors = this.world.garages.map((g) => g.door ?? { x: g.x, z: g.z, h: 0 });
+    }
     this.roofDash = new RoofDash(this);
     this.policeFire = new PoliceFire(this);
     this.range = new RangeGig(this);
@@ -551,7 +555,7 @@ export class Game {
 
   private enterBuilding(room: Room): void {
     if (this.fading || this.state !== 'play') return;
-    if (this.stars > 0) { this.hud.toast(bi('The door is locked - the police are watching!', '문이 잠겨 있어요 - 경찰이 지켜보고 있어요!'), 2400); return; }
+    if (this.stars > 0 && !(room.id === 'garage' && this.canHide())) { this.hud.toast(room.id === 'garage' ? bi('The police are too close to hide!', '경찰이 너무 가까워서 숨을 수 없어요!') : bi('The door is locked - the police are watching!', '문이 잠겨 있어요 - 경찰이 지켜보고 있어요!'), 2400); return; }
     const pl = this.humans.player;
     this.ret = { x: pl.x, z: pl.z, h: pl.heading };
     this.progress.add('shops');
@@ -589,6 +593,7 @@ export class Game {
     this.slash.update(dt);
     this.guns.tick(dt);
     this.interiors.update(dt);
+    if (room.id === 'garage' && this.stars > 0) this.hideDecay(dt);
     if (playing && (input.wasPressed('KeyF') || input.wasPressed('KeyE'))) {
       if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) this.leaveBuilding();
       else if (this.shops.deskNear(room)) this.shops.deskAction(room);
@@ -928,6 +933,11 @@ export class Game {
   closeGarage(): void {
     if (this.state !== 'garage') return;
     this.hud.closeGarage();
+    if (this.garageTemp) {
+      const v = this.driving;
+      this.driving = null; this.garageTemp = false;
+      if (v) { v.ai = 'parked'; this.lastDriven = v; this.garageVehicle = v; }
+    }
     this.state = 'play';
     this.garageLock = true;
     this.flushSave();
@@ -1578,6 +1588,65 @@ export class Game {
     this.hud.setCombo(Math.max(0, this.comboTimer / 4), this.comboCount > 0 ? mult : 1);
   }
 
+  /** True when no police car or cop is close enough to see you slip into a garage. */
+  canHide(): boolean {
+    for (const v of this.policeVehicles()) if (Math.hypot(v.x - this.focusX, v.z - this.focusZ) < 28) return false;
+    const p = this.humans.player;
+    for (const h of this.humans.list) if (h.active && h.role === Role.Cop && !h.leaving && Math.hypot(h.x - p.x, h.z - p.z) < 14) return false;
+    return true;
+  }
+
+  /** The car that the garage counter works on: the one you came in with, or your own car parked nearby. */
+  garageVehicle: GameVehicle | null = null;
+  private garageTemp = false;
+
+  /** Drive up to a garage: the car stops outside, you step out and the shutter opens. */
+  private parkInGarage(): void {
+    const room = this.interiors.rooms.find((r) => r.id === 'garage');
+    const d = this.driving;
+    if (!room || !d || this.fading) return;
+    if (this.stars > 0 && !this.canHide()) { this.hud.toast(bi('The police are too close to hide!', '경찰이 너무 가까워서 숨을 수 없어요!'), 2200); this.garageLock = true; return; }
+    d.ctrl.vx = d.ctrl.vz = 0;
+    d.ai = 'parked';
+    this.lastDriven = d;
+    this.garageVehicle = d;
+    this.driving = null;
+    this.onFoot = true;
+    let door = room.doors![0], bd = Infinity;
+    for (const dr of room.doors!) { const k = Math.hypot(dr.x - d.x, dr.z - d.z); if (k < bd) { bd = k; door = dr; } }
+    this.humans.setPlayerActive(true, door.x, door.z, door.h);
+    this.enterBuilding(room);
+  }
+
+  /** The garage counter: repair, paint and vehicle menus for the car outside. */
+  openGarageCounter(): void {
+    const room = this.inside;
+    let v = this.garageVehicle && !this.garageVehicle.ctrl.wrecked ? this.garageVehicle : null;
+    if (!v) {
+      let bd = 80;
+      for (const q of this.vehicles) { if (!q.owned || q.ctrl.wrecked) continue; const k = Math.hypot(q.x - this.ret.x, q.z - this.ret.z); if (k < bd) { bd = k; v = q; } }
+    }
+    if (!v || !room) { this.hud.toast(bi('Bring your car to the garage', '차를 차고 앞에 세워 주세요'), 2200); return; }
+    this.garageVehicle = v;
+    this.driving = v;
+    this.garageTemp = true;
+    this.openGarage('garage');
+  }
+
+  /** While hiding in a garage the heat drains away quickly. */
+  private hideDecay(dt: number): void {
+    this.crimeT += dt;
+    if (this.crimeT < 3 || this.heat <= this.minHeat) return;
+    this.heat = Math.max(this.minHeat, this.heat - 30 * dt);
+    let s = 0;
+    for (let i = 0; i < STAR_HEAT.length; i++) if (this.heat >= STAR_HEAT[i]) s = i + 1;
+    if (s < this.stars) {
+      this.stars = s;
+      this.hud.setWanted(s);
+      if (s === 0) { this.hud.toast(t('ui.toast.lost')); this.clearWanted(); }
+    }
+  }
+
   private updateGarageZones(): void {
     for (const b of this.garageBeacons) b.update(1 / 60);
     const d = this.driving;
@@ -1587,9 +1656,9 @@ export class Game {
       if (Math.hypot(g.x - d.x, g.z - d.z) < 7) near = true;
     }
     if (!near) { this.garageLock = false; return; }
-    if (this.garageLock || d.ctrl.speed > 25) return;
+    if (this.garageLock || d.ctrl.speed > 14) return;
     if (this.gigs.onGarageArrival()) { this.garageLock = true; return; }
-    this.openGarage();
+    this.parkInGarage();
   }
 
   private updateStateMachine(dt: number): void {

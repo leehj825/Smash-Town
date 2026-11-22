@@ -83,6 +83,33 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { n: M.list.length, soda, atmCash: G.cash, bank: G.save.bank };
     });
     ok(mach.n > 5 && mach.soda.cash === 95 && mach.soda.hp > 50 && mach.atmCash === 490 && mach.bank === 500, 'vending machines heal for $5 and ATMs pay out savings', JSON.stringify(mach));
+    const pre = await S(() => {
+      const G = g();
+      const v = G.vehicles.find((q) => q.owned) || G.vehicles[0];
+      const gar = G.world.garages[0];
+      v.ctrl.reset(gar.x, gar.z, 0); G.humans.setPlayerActive(false, 0, 0, 0);
+      v.ai = 'player'; G.driving = v; G.onFoot = false; G.state = 'play'; G.inside = null;
+      G.stars = 3; G.heat = 170; G.crimeT = 0;
+      G.parkInGarage();
+      return { doorOk: !!gar.door };
+    });
+    await p.waitForFunction(() => window.__smash.game.inside, null, { timeout: 30000 });
+    const hide = await S((pre) => {
+      const G = g();
+      const inside = G.inside.id === 'garage';
+      const startStars = G.stars;
+      for (let i = 0; i < 400 && G.stars > 0; i++) G.update(0.05);
+      return { doorOk: pre.doorOk, inside, startStars, stars: G.stars };
+    }, pre);
+    ok(hide.doorOk && hide.inside && hide.startStars === 3 && hide.stars === 0, 'a garage building lets you slip in and lie low until the wanted level is gone', JSON.stringify(hide));
+    const counter = await S(() => {
+      const G = g();
+      G.openGarageCounter();
+      const open = G.state === 'garage' && !!G.driving;
+      G.closeGarage();
+      return { open, drivingAfter: !!G.driving, state: G.state };
+    });
+    ok(counter.open && !counter.drivingAfter && counter.state === 'play', 'the garage counter opens the car menu and closes cleanly', JSON.stringify(counter));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();

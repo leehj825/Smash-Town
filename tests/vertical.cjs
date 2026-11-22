@@ -94,7 +94,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
 
     // shops
     const shops = await S(() => { const G = g(); const R = G.interiors.rooms; const bad = R.filter((r) => G.world.boxes.some((b) => r.door.x > b.minX && r.door.x < b.maxX && r.door.z > b.minZ && r.door.z < b.maxZ)).length; return { n: R.length, bad, ids: R.map((r) => r.id).join(',') }; });
-    ok(shops.n === 6 && shops.bad === 0, 'six shop doors on open pavement', JSON.stringify(shops));
+    ok(shops.n === 7 && shops.bad === 0, 'seven shop doors on open pavement', JSON.stringify(shops));
     await S(() => { const G = g(); G.stars = 5; const r = G.interiors.rooms[0]; G.humans.setPlayerActive(true, r.door.x, r.door.z, 0); G.enterBuilding(r); });
     await p.waitForTimeout(700);
     ok(await S(() => g().inside === null), 'doors are locked while wanted');

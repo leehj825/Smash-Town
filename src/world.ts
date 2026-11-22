@@ -10,7 +10,7 @@ export interface SmashRef { type: 'hydrant' | 'lamp' | 'palm' | 'bench' | 'newss
 export interface CircleCollider { x: number; z: number; r: number; smash?: SmashRef; dead?: boolean }
 /** Climbable wedge (no longer placed in the city; kept so the physics code stays generic). */
 export interface Ramp { x: number; z: number; dx: number; dz: number; len: number; width: number; h: number }
-export interface Spot { x: number; z: number; y?: number }
+export interface Spot { x: number; z: number; y?: number; /** Garages only: where you stand to go in (on the curb, in front of the shutter), and its heading. */ door?: { x: number; z: number; h: number } }
 /** A building the player can climb: ladder on one face, flat roof at height `h`. */
 export interface Roof { box: BoxCollider; minX: number; maxX: number; minZ: number; maxZ: number; h: number; ladder: { x: number; z: number; nx: number; nz: number } }
 
@@ -254,6 +254,11 @@ class QuadBatch {
     g.computeVertexNormals();
     return g;
   }
+}
+
+/** Half-depth of a garage facade, measured along the outward normal (the facade is wide along the road). */
+function d_half(along: boolean, w: number, d: number): number {
+  return along ? d / 2 : w / 2;
 }
 
 export function buildWorld(): World {
@@ -1059,7 +1064,35 @@ export function buildWorld(): World {
   const garages: Spot[] = [];
   for (const [u, v] of [[0.14, 0.62], [0.9, 0.4], [0.5, 0.42], [0.28, 0.16], [0.45, 0.9]] as const) {
     const s = pickSeg(W * u, D * v, garages, 70);
-    garages.push({ x: s.x, z: s.z });
+    const spot: Spot = { x: s.x, z: s.z };
+    // a garage front on the sidewalk: 10 m wide, 2.6 m deep, with a big roll-up door facing the road
+    const gb = new MeshBuilder();
+    for (const side of [1, -1]) {
+      const nx = -s.dz * side, nz = s.dx * side;
+      const cx = s.x + nx * (s.hw + 2.0), cz = s.z + nz * (s.hw + 2.0);
+      const along = Math.abs(s.dx) > 0.5;                       // road runs along x: the facade is wide in x
+      const w = along ? 10 : 2.6, d = along ? 2.6 : 10;
+      if (boxes.some((b) => cx + w / 2 > b.minX - 0.3 && cx - w / 2 < b.maxX + 0.3 && cz + d / 2 > b.minZ - 0.3 && cz - d / 2 < b.maxZ + 0.3)) continue;
+      const h = 4.6;
+      gb.box(w, h, d, cx, h / 2, cz, 0x7b8494);
+      gb.box(w + 0.4, 0.4, d + 0.4, cx, h + 0.2, cz, 0x4a4f5a);                            // roof trim
+      const fx = (a: number, y: number, ww: number, hh: number, dd: number, c: number) => {      // a flat detail on the road-facing face
+        const px = cx - nx * (d_half(along, w, d) + dd / 2) + (along ? a : 0), pz = cz - nz * (d_half(along, w, d) + dd / 2) + (along ? 0 : a);
+        gb.box(along ? ww : dd, hh, along ? dd : ww, px, y, pz, c);
+      };
+      fx(0, 1.8, 6.4, 3.6, 0.2, 0x2b2f3a);                                                // door frame
+      for (let k = 0; k < 8; k++) fx(0, 0.25 + k * 0.42, 6.0, 0.34, 0.26, k % 2 ? 0xc3c8d2 : 0xaab0bc);   // roll-up slats
+      fx(0, 4.15, 7.4, 0.5, 0.24, 0x1f7a4a); fx(0, 4.15, 6.4, 0.16, 0.28, 0xffffff);         // GARAGE sign band
+      for (const a of [-4.1, 4.1]) { fx(a, 1.6, 0.9, 1.1, 0.16, 0x4a6b8a); fx(a, 1.6, 1.0, 1.2, 0.12, 0xe4e0d8); }   // side windows
+      for (let k = 0; k < 6; k++) fx(-3.4 + k * 1.36, 0.1, 0.65, 0.2, 0.3, k % 2 ? 0xffd23a : 0x222222);  // hazard strip
+      boxes.push({ minX: cx - w / 2, maxX: cx + w / 2, minZ: cz - d / 2, maxZ: cz + d / 2, h });
+      spot.door = { x: s.x + nx * (s.hw + 0.3), z: s.z + nz * (s.hw + 0.3), h: Math.atan2(nx, nz) };
+      const m = new THREE.Mesh(gb.build(), paletteMaterial());
+      m.castShadow = true; m.receiveShadow = true;
+      group.add(m);
+      break;
+    }
+    garages.push(spot);
   }
   const used: Spot[] = [...garages];
   const gigSpot = (u: number, v: number): Spot => { const s = pickSeg(W * u, D * v, used, 45); const p = { x: s.x, z: s.z }; used.push(p); return p; };

@@ -46,6 +46,7 @@ export class Shops {
         break;
       }
       case 'gun': this.G.openGarage('arms'); break;
+      case 'garage': this.G.openGarageCounter(); break;
     }
   }
 
@@ -104,6 +105,7 @@ export class Shops {
         case 'clothes': return bi('[F] Try a new outfit - $100', '[F] 새 옷 입어보기 - $100');
         case 'bank': return bi('[F] Deposit all cash (safe from busts, +1%/min)', '[F] 전액 입금 (체포 안전, 분당 +1%)');
         case 'gun': return bi('[F] Browse weapons', '[F] 무기 보기');
+        case 'garage': return this.G.stars > 0 ? bi('[F] Garage - lie low here until the heat is gone', '[F] 차고 - 수배가 풀릴 때까지 숨어 있기') : bi('[F] Garage: repair, paint, vehicles', '[F] 차고: 수리, 도색, 차량');
       }
     }
     return null;
