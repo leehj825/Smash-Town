@@ -73,6 +73,16 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { dep, after: G.cash, bank: G.save.bank };
     });
     ok(bank.dep.cash === 0 && bank.dep.bank === 5000 && bank.after === 5000 && bank.bank === 0, 'the bank takes deposits and pays them back', JSON.stringify(bank));
+    const mach = await S(() => {
+      const G = g(); const M = G.machines; const pl = G.humans.player;
+      const v = M.list.find((m) => m.kind === 'vending'), a = M.list.find((m) => m.kind === 'atm');
+      G.humans.setPlayerActive(true, v.x, v.z + 1.2, 0); G.onFoot = true; G.inside = null; G.state = 'play';
+      pl.hp = 50; G.cash = 100; M.use(M.nearest(pl.x, pl.z));
+      const soda = { hp: pl.hp, cash: G.cash };
+      G.save.bank = 1000; G.cash = 0; M.use(a);
+      return { n: M.list.length, soda, atmCash: G.cash, bank: G.save.bank };
+    });
+    ok(mach.n > 5 && mach.soda.cash === 95 && mach.soda.hp > 50 && mach.atmCash === 490 && mach.bank === 500, 'vending machines heal for $5 and ATMs pay out savings', JSON.stringify(mach));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();

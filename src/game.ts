@@ -19,6 +19,7 @@ import { SideQuests } from './sidequests';
 import { Progress, type ProgressSave } from './tracker';
 import { Shops } from './shops';
 import { Medics } from './medics';
+import { Machines } from './machines';
 import { settings } from './settings';
 import { Mood } from './mood';
 import type { Roof } from './world';
@@ -93,6 +94,7 @@ export class Game {
   readonly range: RangeGig;
   readonly shops: Shops;
   readonly medics: Medics;
+  machines!: Machines;
   readonly sideQuests: SideQuests;
   readonly progress: Progress;
   readonly mood: Mood;
@@ -186,6 +188,7 @@ export class Game {
     this.scene.add(this.guns.group);
     this.heli.attach(this.scene);
     this.interiors = new Interiors(d.world, this.scene);
+    this.machines = new Machines(this);
     this.roofDash = new RoofDash(this);
     this.policeFire = new PoliceFire(this);
     this.range = new RangeGig(this);
@@ -961,8 +964,10 @@ export class Game {
       if (input.wasPressed('KeyF') || input.wasPressed('KeyE')) {
         const lo = this.ladderOption();
         const door = this.onFoot && !this.climb ? this.interiors.roomAt(this.humans.player.x, this.humans.player.z, 2.6) : null;
+        const mach = this.onFoot && !lo && !door ? this.machines.nearest(this.humans.player.x, this.humans.player.z) : null;
         if (lo) this.startClimb(lo);
         else if (door && !this.humans.player.roof) this.enterBuilding(door);
+        else if (mach) this.machines.use(mach);
         else this.enterExit();
       }
       if (input.wasPressed('KeyR')) { if (this.onFoot) this.guns.reload(); else this.resetCar(); }
@@ -1656,7 +1661,10 @@ export class Game {
       this.hud.setActionLabel(lo ? bi('CLIMB', '오르기') : door && !this.humans.player.roof ? bi('ENTER', '입장') : 'F');
       if (lo) this.hud.setPrompt(lo.up ? bi('[F] Climb the ladder', '[F] 사다리 오르기') : bi('[F] Climb down', '[F] 내려가기'));
       else if (door && !this.humans.player.roof) this.hud.setPrompt(`${bi('[F] Enter', '[F] 들어가기')} ${bi(door.en, door.ko)}`);
-      else this.hud.setPrompt(this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
+      else {
+        const mach = this.machines.nearest(this.humans.player.x, this.humans.player.z);
+        this.hud.setPrompt(mach ? this.machines.prompt(mach) : this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
+      }
     }
     else if (this.driving && this.driving.ctrl.speed < 2.5 && this.stars === 0) this.hud.setPrompt(t('ui.hint.exit_car'));
     else this.hud.setPrompt(null);
