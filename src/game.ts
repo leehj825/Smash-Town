@@ -771,6 +771,7 @@ export class Game {
     if (old && this.vehicles.includes(old) && (old.owned || old.ctrl.wrecked)) this.removeVehicle(old);
     this.driving = null;
     this.spawnPlayer(this.save.selected, g.x + 3.3, g.z + 10, Math.PI);
+    this.garageLock = true; // you roll out of the garage: do not walk straight back in
     this.cameraRig.snap();
   }
 
