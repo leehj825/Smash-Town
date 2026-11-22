@@ -1635,6 +1635,7 @@ export class Game {
     this.world.windowMaterial.emissiveIntensity = n * 1.1;
     this.world.signMaterial.emissiveIntensity = 0.15 + n * 1.0;
     this.props.lampHeadMaterial.emissiveIntensity = 0.15 + n * 3.2;
+    this.props.setNight(n);
     VehicleFactory.sharedHead.emissiveIntensity = 0.6 + n * 2.6;
     const flash = Math.floor(this.time * 7) % 2 === 0;
     const sirens = this.stars > 0 || this.roadblocks.length > 0 || this.medics.active;

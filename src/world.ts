@@ -688,6 +688,12 @@ export function buildWorld(): World {
     for (let yy = TILE_H * 2; yy < h - 2; yy += TILE_H * 2) plain(w + 0.2, 0.22, d + 0.2, x, y0 + yy, z, light);
     bld = keep;
   };
+  /** A glowing box (neon): UVs parked on a lit window texel so the night emissive map lights it. */
+  const neon = (w: number, h: number, d: number, x: number, y: number, z: number, color: number) => {
+    const g = bld.box(w, h, d, x, y, z, color);
+    const uv = g.attributes.uv as THREE.BufferAttribute;
+    for (let n = 0; n < uv.count; n++) uv.setXY(n, 0.234, 0.766);
+  };
   /** A shop front on the ground floor of one face: a frame, a glass door and display windows, a step and a little lamp. */
   const shopFront = (x: number, z: number, w: number, d: number, dirX: number, dirZ: number, color: number) => {
     const keep = bld; bld = chunkOf(detChunks, x, z);
@@ -707,7 +713,17 @@ export function buildWorld(): World {
     along(0, 1.3, 1.6, 2.6, 0.16, frame);
     along(0, 1.25, 1.2, 2.4, 0.22, glass);
     along(0, 0.1, 2.2, 0.2, 0.7, 0xb9b4a8); // step
-    along(1.45, 2.3, 0.18, 0.18, 0.3, 0xffe9a6); // lamp
+    {
+      // a neon strip over the door and one over each window, and a door lamp
+      const neonCol = [0xff5db1, 0x35e0ff, 0x7dff6a, 0xffb347][Math.floor(rng() * 4)];
+      const nd = (o: number, y: number, ww: number, hh: number, dd: number, c: number) => {
+        if (dirZ !== 0) neon(ww, hh, dd, x + o, y, z + dirZ * (d / 2 + dd / 2 - 0.02), c);
+        else neon(dd, hh, ww, x + dirX * (w / 2 + dd / 2 - 0.02), y, z + o, c);
+      };
+      nd(0, 3.05, 2.2, 0.1, 0.12, neonCol);
+      for (const s of [-1, 1]) nd(s * Math.min(span * 0.28, 5), 2.85, winW, 0.07, 0.12, neonCol);
+      nd(1.45, 2.3, 0.18, 0.18, 0.3, 0xffe9a6);
+    }
   };
   /** A zig-zag steel fire escape on one face: a landing and railing per floor, with a sloped stair between landings. */
   const fireEscape = (x: number, z: number, w: number, d: number, h: number, dirX: number, dirZ: number) => {
