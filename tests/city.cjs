@@ -157,6 +157,35 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { riv, rivals, prog, trail, arrow, left: G.vehicles.filter((q) => q.isGigTarget).length };
     });
     ok(rivals.rivals === 2 && Math.max(...rivals.prog) >= 2 && rivals.trail > 5 && rivals.arrow, 'rival racers drive the course on their own while road chevrons and an arrow show the way', JSON.stringify(rivals));
+    const deliv = await S(() => {
+      const G = g(); const D = G.delivery;
+      G.stars = 0; G.heat = 0; G.humans.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0); G.onFoot = true; G.driving = null; G.inside = null; G.state = 'play';
+      D.update(0.05); D.cooldown = 0;
+      const spot = D.spot;
+      G.humans.player.x = spot.x; G.humans.player.z = spot.z;
+      D.update(0.05);
+      const started = D.active, n = D.stops.length;
+      const cash0 = G.cash;
+      let guard = 0;
+      while (D.active && guard++ < 10) { const s = D.stops[D.i]; G.humans.player.x = s.x; G.humans.player.z = s.z; D.update(0.05); }
+      return { started, n, paid: G.cash - cash0, done: D.completed };
+    });
+    ok(deliv.started && deliv.n >= 2 && deliv.paid >= 300 && deliv.done === 1, 'a delivery run picks up orders at the donut shop and pays for every drop', JSON.stringify(deliv));
+    const robbery = await S(() => {
+      const G = g(); const r = G.interiors.rooms.find((q) => q.id === 'donut');
+      G.stars = 0; G.heat = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.state = 'play';
+      G.guns.buyGun('pistol'); G.humans.guns = G.guns.flags(); G.humans.equip(3);
+      G.inside = r; G.humans.setPlayerActive(true, r.counter.x, r.counter.z + 1.8, 0); G.humans.equip(3);
+      const can = G.shops.canRob(r);
+      G.shops.rob(r);
+      const first = G.cash;
+      const again = G.shops.canRob(r);
+      G.inside = null;
+      return { can, first, stars: G.stars, again };
+    });
+    ok(robbery.can && robbery.first >= 300 && robbery.stars >= 2 && !robbery.again, 'robbing a till with a gun pays out, raises the alarm, and the till stays empty', JSON.stringify(robbery));
+    const taxiTypes = await S(() => { const G = g(); const T = G.taxi; return { hasKind: 'kind' in T, hasLegs: 'legs' in T }; });
+    ok(taxiTypes.hasKind && taxiTypes.hasLegs, 'taxi passengers come in kinds (rush, VIP, group)', JSON.stringify(taxiTypes));
     // savings, houses and race records survive a reload
     await S(() => { const G = g(); G.save.bank = 4321; G.save.homes = [1, 2]; G.save.raceBest = [0, 77.5]; G.flushSave(); });
     await p.reload();

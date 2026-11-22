@@ -8,6 +8,28 @@ import type { Room } from './interiors';
 export class Shops {
   constructor(private G: Game) {}
 
+  // ---- robbing a till: with a gun out, press G at a counter (donut shop, arcade, clothes shop)
+  private robbed: Record<string, number> = {};
+  private now(): number { return performance.now() / 1000; }
+  canRob(room: Room): boolean {
+    return ['donut', 'arcade', 'clothes'].includes(room.id) && !!this.G.guns.current() && (this.robbed[room.id] ?? 0) <= this.now();
+  }
+  rob(room: Room): void {
+    const G = this.G;
+    if (!['donut', 'arcade', 'clothes'].includes(room.id)) return;
+    if (!G.guns.current()) { G.hud.toast(bi('You need a gun out to rob the till', '금고를 털려면 총이 필요해요'), 2000); return; }
+    if ((this.robbed[room.id] ?? 0) > this.now()) { G.hud.toast(bi('The till is empty - come back later', '금고가 비었어요 - 나중에 오세요'), 2000); return; }
+    this.robbed[room.id] = this.now() + 300;
+    const loot = (room.id === 'arcade' ? 500 : room.id === 'clothes' ? 400 : 300) + Math.floor(Math.random() * 400);
+    G.addCash(loot, 'other');
+    G.addHeat(100);
+    G.progress.add('robberies');
+    const pl = G.humans.player;
+    G.popups.spawn(pl.x, 3, pl.z, `+$${loot}`, '#ffd23a');
+    G.hud.toast(bi('Hands up! You grab the cash - the alarm is ringing!', '손 들어! 돈을 챙겼지만 경보가 울려요!'), 3000);
+    G.audio.scream();
+  }
+
   // ---- the bank heist: crack the vault (the alarm goes off at once), stay put until it opens, then get out
   heist: { t: number } | null = null;
   private heistCooldown = 0;
@@ -135,6 +157,7 @@ export class Shops {
   prompt(room: Room): string | null {
     const pl = this.G.humans.player;
     if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) return bi('[F] Leave', '[F] 나가기');
+    if (this.canRob(room) && Math.hypot(this.G.humans.player.x - room.counter.x, this.G.humans.player.z - room.counter.z) < 3.4) return bi('[G] Rob the till (gun out) - or [F] to shop', '[G] 금고 털기 (총 필요) - 또는 [F] 상점 이용');
     if (room.id === 'bank' && this.vaultNear(room)) return this.heist ? bi('Cracking the vault - stay here!', '금고 해제 중 - 움직이지 마세요!') : bi('[F] Crack the vault (sets off the alarm!)', '[F] 금고 털기 (경보가 울립니다!)');
     if (this.deskNear(room)) {
       if (room.id === 'bank') return `${bi('[F] Withdraw all', '[F] 전액 출금')} - $${Math.floor(this.G.save.bank ?? 0).toLocaleString('en-US')}`;

@@ -26,6 +26,7 @@ import { TrafficLights } from './lights';
 import { News } from './news';
 import { TaxiJob } from './taxi';
 import { StreetRace } from './race';
+import { DeliveryJob } from './delivery';
 import { settings } from './settings';
 import { Mood } from './mood';
 import { GUN_ORDER, GUNS, GUN_UP_PRICE, GUN_UP_TIER, Guns, type GunDef, type GunId } from './guns';
@@ -109,6 +110,7 @@ export class Game {
   news!: News;
   taxi!: TaxiJob;
   race!: StreetRace;
+  delivery!: DeliveryJob;
   readonly sideQuests: SideQuests;
   readonly progress: Progress;
   readonly mood: Mood;
@@ -209,6 +211,7 @@ export class Game {
     this.news = new News(this);
     this.taxi = new TaxiJob(this);
     this.race = new StreetRace(this);
+    this.delivery = new DeliveryJob(this);
     this.lights = new TrafficLights();
     this.scene.add(this.lights.group);
     {
@@ -666,6 +669,7 @@ export class Game {
       else if (this.shops.deskNear(room)) this.shops.deskAction(room);
       else if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shops.action(room);
     }
+    if (playing && input.wasPressed('KeyG') && Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shops.rob(room);
     this.input.gunOut = false; this.cameraRig.aimMode = 0; this.guns.aimPoint = null; this.hud.setCrosshair(false); this.hud.setLockOn(false); this.hud.setGunOut(false);
     this.hud.setPrompt(this.state === 'play' ? this.shops.prompt(room) : null);
     this.progress.tick(dt);
@@ -1131,7 +1135,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);
@@ -1895,6 +1899,7 @@ export class Game {
     this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
     if (this.hunter) this.pushBlip(this.hunter.x, this.hunter.z, '#ff9a3d', true, 5);
+    for (const m of this.delivery.markers()) this.pushBlip(m.x, m.z, '#ff8fb8', m.flash, 5);
     for (const m of this.race.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5);
     for (const m of this.taxi.markers()) this.pushBlip(m.x, m.z, m.color, true, 5.5);
     for (const m of this.range.markers()) this.pushBlip(m.x, m.z, '#ff9a3d', m.active, m.active ? 5 : 4);

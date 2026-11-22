@@ -108,7 +108,7 @@ export class StreetRace {
     const bestTxt = best !== undefined ? ` · ${bi('Best', '최고')} ${Math.floor(best / 60)}:${String(Math.floor(best % 60)).padStart(2, '0')}` : '';
     const place = this.game.driving ? this.rank(this.game.driving) : 1;
     const ord = ['1st', '2nd', '3rd'][place - 1] ?? `${place}th`;
-    return { title: `${bi('STREET RACE', '스트리트 레이스')} · ${bi('Course', '코스')} ${this.which + 1}${bestTxt}`, text: `${bi('Checkpoint', '체크포인트')} ${Math.min(this.idx + 1, this.cp.length)}/${this.cp.length} · ${ord}/${this.rivals.length + 1}` };
+    return { title: `${bi('STREET RACE', '스트리트 레이스')} · ${bi('Course', '코스')} ${this.which + 1} ${bi(this.level.label, this.level.labelKo)}${bestTxt}`, text: `${bi('Checkpoint', '체크포인트')} ${Math.min(this.idx + 1, this.cp.length)}/${this.cp.length} · ${ord}/${this.rivals.length + 1}` };
   }
 
   /** Where the HUD guide arrow and the minimap route should lead (the next checkpoint) while a race is on. */
@@ -151,6 +151,15 @@ export class StreetRace {
     if (msg) this.game.hud.toast(msg, 2600);
   }
 
+  /** Course 1 is easy, 2 is medium, 3 is hard: faster rivals and a bigger prize. */
+  private get level(): { skill: number; prize: number; label: string; labelKo: string } {
+    return [
+      { skill: 0.92, prize: 1, label: 'EASY', labelKo: '쉬움' },
+      { skill: 1.0, prize: 1.5, label: 'MEDIUM', labelKo: '보통' },
+      { skill: 1.07, prize: 2.2, label: 'HARD', labelKo: '어려움' },
+    ][this.which] ?? { skill: 1, prize: 1, label: 'MEDIUM', labelKo: '보통' };
+  }
+
   private spawnRivals(d: GameVehicle): void {
     void d;
     const G = this.game;
@@ -160,8 +169,8 @@ export class StreetRace {
     const fx = st.dx * sgn, fz = st.dz * sgn, rx = fz, rz = -fx;
     const h = Math.atan2(fx, fz);
     const specs: { kind: 'sports' | 'muscle'; color: number; css: string; name: string; skill: number; side: number; back: number }[] = [
-      { kind: 'sports', color: 0xff7a1a, css: '#ff7a1a', name: 'ORANGE', skill: 0.9, side: -2.6, back: 3.5 },
-      { kind: 'muscle', color: 0xf2f2f2, css: '#ffffff', name: 'WHITE', skill: 0.84, side: 2.6, back: 7 },
+      { kind: 'sports', color: 0xff7a1a, css: '#ff7a1a', name: 'ORANGE', skill: 0.9 * this.level.skill, side: -2.6, back: 3.5 },
+      { kind: 'muscle', color: 0xf2f2f2, css: '#ffffff', name: 'WHITE', skill: 0.84 * this.level.skill, side: 2.6, back: 7 },
     ];
     for (const s of specs) {
       const v = G.spawnVehicle(s.kind, s.color, st.x + rx * s.side - fx * s.back, st.z + rz * s.side - fz * s.back, h, 'parked', true);
@@ -182,6 +191,14 @@ export class StreetRace {
     let tx = cp.x, tz = cp.z;
     const pts = r.route!;
     for (let k = 1; k < pts.length; k++) if (Math.hypot(pts[k].x - v.x, pts[k].z - v.z) > 15) { tx = pts[k].x; tz = pts[k].z; break; }
+    // the aggressive one goes for you when you are right in front of it
+    const pv = G.driving;
+    let attack = false;
+    if (r.name === 'ORANGE' && pv && !r.done) {
+      const rx = pv.x - v.x, rz = pv.z - v.z;
+      const dist = Math.hypot(rx, rz);
+      if (dist < 11 && rx * Math.sin(c.heading) + rz * Math.cos(c.heading) > 0) { tx = pv.x; tz = pv.z; attack = true; }
+    }
     const diff = wrap(Math.atan2(tx - v.x, tz - v.z) - c.heading);
     ctl.steer = clamp(-diff * 2.6, -1, 1);
     ctl.nitro = false;
@@ -199,7 +216,7 @@ export class StreetRace {
       if (ahead < 0 || ahead > 12) continue;
       if (Math.abs(rx * fz - rz * fx) < 2.4) want = Math.min(want, Math.max(4, (ahead - 5) * 2.2));
     }
-    ctl.throttle = c.forwardSpeed < want ? 1 : c.forwardSpeed > want + 3 ? -1 : 0;
+    ctl.throttle = c.forwardSpeed < want || attack ? 1 : c.forwardSpeed > want + 3 ? -1 : 0;
     if (c.speed < 1 && this.phase === 'run') { r.stuck += dt; if (r.stuck > 1.6) { r.stuck = 0; r.rev = 1.1; } } else r.stuck = Math.max(0, r.stuck - dt);
     if (Math.hypot(cp.x - v.x, cp.z - v.z) < 13) {
       r.idx++; r.route = null;
@@ -291,7 +308,7 @@ export class StreetRace {
     if (this.phase === 'idle') {
       this.cooldown = Math.max(0, this.cooldown - dt);
       for (const b of this.startBeacons) b.visible = this.cooldown <= 0;
-      if (!driving || this.cooldown > 0 || G.stars > 0 || G.gigs.active || G.taxi.active || G.range.running) return;
+      if (!driving || this.cooldown > 0 || G.stars > 0 || G.gigs.active || G.taxi.active || G.delivery.active || G.range.running) return;
       for (let i = 0; i < this.starts.length; i++) {
         const s = this.starts[i];
         if (Math.hypot(s.x - d!.x, s.z - d!.z) < 6.5 && d!.ctrl.speed < 12) {
@@ -303,7 +320,7 @@ export class StreetRace {
           this.beacon.setPosition(this.cp[0].x, this.cp[0].z); this.beacon.visible = true;
           if (this.cp[1]) { this.beacon2.setPosition(this.cp[1].x, this.cp[1].z); this.beacon2.visible = true; }
           this.spawnRivals(d!);
-          G.hud.toast(bi('Street race! Two rivals line up beside you.', '스트리트 레이스! 라이벌 두 대가 옆에 섰어요.'), 2400);
+          G.hud.toast(`${bi('Street race!', '스트리트 레이스!')} ${bi(this.level.label, this.level.labelKo)} · ${bi('ORANGE is aggressive, WHITE plays it safe.', '주황은 공격적, 흰색은 안전 운전.')}`, 3200);
           break;
         }
       }
@@ -335,7 +352,7 @@ export class StreetRace {
       if (this.idx >= this.cp.length) {
         const placeAtFinish = this.finishedBefore + 1;
         const share = [1, 0.55, 0.3][placeAtFinish - 1] ?? 0.2;
-        const pay = Math.round((600 + Math.max(0, this.time) * 12) * share);
+        const pay = Math.round((600 + Math.max(0, this.time) * 12) * share * this.level.prize);
         G.addCash(pay, 'gigs');
         G.progress.add('gigs');
         if (placeAtFinish === 1) { G.progress.add('races'); this.done++; }
