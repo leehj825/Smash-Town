@@ -12,6 +12,8 @@ export class Helicopter {
   x = 0; z = 0; y = 26;
   active = false;
   cooldown = 0;
+  /** Bullets wear it down (rockets destroy it outright). */
+  hp = 100;
 
   constructor() {
     const b = new MeshBuilder();
@@ -58,6 +60,7 @@ export class Helicopter {
 
   spawn(px: number, pz: number): void {
     this.active = true;
+    this.hp = 100;
     this.ang = Math.random() * Math.PI * 2;
     this.x = px + Math.cos(this.ang) * 60; this.z = pz + Math.sin(this.ang) * 60;
     this.group.visible = true; this.beam.visible = true; this.disc.visible = true;

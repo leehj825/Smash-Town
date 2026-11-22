@@ -33,9 +33,9 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     const up = await S(() => {
       const G = g(); const pl = G.humans.player; const r = G.world.roofs[0];
       G.humans.setPlayerActive(true, r.ladder.x + r.ladder.nx * 0.5, r.ladder.z + r.ladder.nz * 0.5, 0);
-      const lo = G.ladderOption();
+      const lo = G.climber.option();
       if (!lo || !lo.up) return { option: false };
-      G.startClimb(lo);
+      G.climber.start(lo);
       for (let i = 0; i < 80; i++) G.update(0.05);
       return { option: true, roof: !!pl.roof, y: Math.round(pl.y * 10) / 10, h: Math.round(r.h * 10) / 10, climbing: !!G.climb };
     });
@@ -94,32 +94,32 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
 
     // shops
     const shops = await S(() => { const G = g(); const R = G.interiors.rooms; const bad = R.filter((r) => G.world.boxes.some((b) => r.door.x > b.minX && r.door.x < b.maxX && r.door.z > b.minZ && r.door.z < b.maxZ)).length; return { n: R.length, bad, ids: R.map((r) => r.id).join(',') }; });
-    ok(shops.n === 5 && shops.bad === 0, 'five shop doors on open pavement', JSON.stringify(shops));
+    ok(shops.n === 8 && shops.bad === 0, 'eight shop doors on open pavement', JSON.stringify(shops));
     await S(() => { const G = g(); G.stars = 5; const r = G.interiors.rooms[0]; G.humans.setPlayerActive(true, r.door.x, r.door.z, 0); G.enterBuilding(r); });
     await p.waitForTimeout(700);
     ok(await S(() => g().inside === null), 'doors are locked while wanted');
     await S(() => { const G = g(); G.stars = 0; G.heat = 0; G.cash = 1000; G.interiors.rooms[0] && 0; });
     await S(() => { const G = g(); const r = G.interiors.rooms[0]; G.humans.setPlayerActive(true, r.door.x, r.door.z, 0); G.enterBuilding(r); });
-    await p.waitForTimeout(900);
+    await p.waitForFunction(() => window.__smash.game.inside, null, { timeout: 30000 });
     const inside = await S(() => { const G = g(); const pl = G.humans.player; return { in: G.inside && G.inside.id, x: Math.round(pl.x), z: Math.round(pl.z), fx: Math.round(G.focusX) }; });
     ok(inside.in === 'donut' && inside.x > 2900, 'F at a door fades into the shop', JSON.stringify(inside));
     const vehBefore = await S(() => g().vehicles.slice(0, 6).map((v) => [Math.round(v.x), Math.round(v.z)]));
     for (let i = 0; i < 40; i++) await S(() => g().update(0.05));
     const vehAfter = await S(() => g().vehicles.slice(0, 6).map((v) => [Math.round(v.x), Math.round(v.z)]));
     ok(JSON.stringify(vehBefore) === JSON.stringify(vehAfter), 'the street is frozen while you are inside');
-    const buy = await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.counter.x; pl.z = r.counter.z + 2; pl.hp = 40; const c0 = G.cashAmount; G.shopAction(r); return { hp: pl.hp, paid: c0 - G.cashAmount }; });
+    const buy = await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.counter.x; pl.z = r.counter.z + 2; pl.hp = 40; const c0 = G.cashAmount; G.shops.action(r); return { hp: pl.hp, paid: c0 - G.cashAmount }; });
     ok(buy.hp === pl100() && buy.paid === 10, 'donut: $10 restores full health', JSON.stringify(buy));
     function pl100() { return 100; }
     const wall = await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.ox + 5; pl.z = r.oz; for (let i = 0; i < 90; i++) { pl.vx = 9; G.update(1 / 60); } return { x: pl.x - r.ox }; });
     ok(wall.x < 7.1, 'walls stop you inside the shop', JSON.stringify(wall));
     await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.exit.x; pl.z = r.exit.z; G.leaveBuilding(); });
-    await p.waitForTimeout(900);
+    await p.waitForFunction(() => !window.__smash.game.inside, null, { timeout: 30000 });
     const out = await S(() => { const G = g(); const pl = G.humans.player; const r = G.interiors.rooms[0]; return { inside: !!G.inside, d: Math.round(Math.hypot(pl.x - r.door.x, pl.z - r.door.z)) }; });
     ok(!out.inside && out.d < 4, 'leaving returns you to the street door', JSON.stringify(out));
     // gun shop uses the arms panel only
     await S(() => { const G = g(); const r = G.interiors.rooms.find((q) => q.id === 'gun'); G.humans.setPlayerActive(true, r.door.x, r.door.z, 0); G.enterBuilding(r); });
-    await p.waitForTimeout(900);
-    await S(() => { const G = g(); G.shopAction(G.inside); });
+    await p.waitForFunction(() => window.__smash.game.inside, null, { timeout: 30000 });
+    await S(() => { const G = g(); G.shops.action(G.inside); });
     const gun = await S(() => ({ state: g().state, tabs: document.querySelectorAll('.gtab').length, repair: !!document.getElementById('g-repair') }));
     ok(gun.state === 'garage' && gun.tabs === 1 && !gun.repair, 'gun shop opens the arms panel only', JSON.stringify(gun));
   } finally {

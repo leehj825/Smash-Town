@@ -7,7 +7,7 @@ export interface ControlState {
   nitro: boolean;
 }
 
-export type VirtualButton = 'up' | 'down' | 'left' | 'right' | 'hand' | 'nitro' | 'fire';
+export type VirtualButton = 'up' | 'down' | 'left' | 'right' | 'hand' | 'nitro' | 'fire' | 'aim';
 
 /** Keyboard + on-screen (touch) input with arcade-friendly axes. */
 export class Input implements ControlState {
@@ -26,6 +26,9 @@ export class Input implements ControlState {
   onPadChange: ((active: boolean) => void) | null = null;
   private pad = { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, a: false, x: false, rb: false, lb: false, lsClick: false };
   private mouseDown = false;
+  private prevLt = 0;
+  /** Set by the game: a gun is in the player's hand on foot (right mouse and the left trigger then aim instead of kicking / sprinting). */
+  gunOut = false;
   private prevBtn: boolean[] = [];
   private gpRef: Gamepad | null = null;
   private lastRumble = 0;
@@ -40,7 +43,8 @@ export class Input implements ControlState {
     canvas.addEventListener('mousedown', (e) => {
       this.setPadActive(false);
       if (e.button === 0) { this.pressed.add('Attack'); this.mouseDown = true; }
-      if (e.button === 2) this.pressed.add('Kick');
+      // right click: kick with fists, switch aiming on / off with a gun out
+      if (e.button === 2) this.pressed.add(this.gunOut ? 'AimToggle' : 'Kick');
       // capture the mouse on first click for orbiting (Esc releases it)
       if (e.button === 0 && !document.pointerLockElement && !document.body.classList.contains('is-touch')) {
         try { void canvas.requestPointerLock?.(); } catch { /* optional */ }
@@ -135,11 +139,12 @@ export class Input implements ControlState {
   get nitro(): boolean {
     if (this.any('ShiftLeft', 'ShiftRight') || this.virtual.has('nitro')) return true;
     // gamepad: RB boosts the car; on foot LT or a left-stick click sprints
-    return this.mode === 'car' ? this.pad.rb : this.pad.lt > 0.5 || this.pad.lsClick;
+    // with a gun out the left trigger aims, so only a left-stick click sprints
+    return this.mode === 'car' ? this.pad.rb : (!this.gunOut && this.pad.lt > 0.5) || this.pad.lsClick;
   }
   /** Fire button held: left mouse, the touch HIT button, RT or X on a gamepad (used by automatic guns). */
   get fireHeld(): boolean {
-    return this.mouseDown || this.virtual.has('fire') || (this.mode === 'foot' && !this.menu && (this.pad.rt > 0.5 || this.pad.x));
+    return this.mouseDown || this.virtual.has('fire') || ((this.mode === 'foot' && !this.menu && this.pad.rt > 0.5) || (!this.menu && this.pad.x));
   }
   /** True once per key press. */
   wasPressed(code: string): boolean {
@@ -202,6 +207,9 @@ export class Input implements ControlState {
     P.a = held(0); P.x = held(2); P.rb = held(5); P.lb = held(4); P.lsClick = held(10);
 
     const foot = this.mode === 'foot' && !this.menu;
+    // left trigger: a press switches aiming on / off (it is the sprint trigger only while no gun is out)
+    if (foot && P.lt > 0.5 && this.prevLt <= 0.5) this.pressed.add('AimToggle');
+    this.prevLt = P.lt;
     const now: boolean[] = [];
     for (let i = 0; i < 16; i++) now[i] = held(i);
     const edge = (i: number) => now[i] && !this.prevBtn[i];
@@ -210,7 +218,7 @@ export class Input implements ControlState {
     for (let i = 0; i < 16; i++) if (edge(i)) active = true;
     if (edge(0)) { add('Space'); add('PadA'); }
     if (edge(1)) { add('PadB'); if (this.menu) add('Escape'); else if (foot) add('ControlLeft'); }
-    if (edge(2)) { add('PadX'); if (foot) add('Attack'); }
+    if (edge(2)) { add('PadX'); if (foot || (this.mode === 'car' && !this.menu)) add('Attack'); }
     if (edge(3)) { add('PadY'); add('KeyF'); }
     if (edge(4) && foot) add('KeyV');
     if (edge(5) && foot) add('Kick');
@@ -218,7 +226,7 @@ export class Input implements ControlState {
     if (edge(9)) { add('Escape'); add('Enter'); }
     if (edge(11)) add('KeyM');
     if (edge(12)) { add('PadUp'); if (!this.menu) add('KeyT'); }
-    if (edge(13)) add('PadDown');
+    if (edge(13)) { add('PadDown'); if (foot) add('AutoToggle'); }
     if (edge(14)) { add('PadLeft'); if (foot) add('WheelDown'); }
     if (edge(15)) { add('PadRight'); if (foot) add('WheelUp'); }
     this.prevBtn = now;

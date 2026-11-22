@@ -16,6 +16,8 @@ export const ACTIONS: ActionDef[] = [
   { id: 'weapon', def: 'KeyV', en: 'Next weapon', ko: '다음 무기' },
   { id: 'jump', def: 'KeyC', en: 'Jump', ko: '점프' },
   { id: 'time', def: 'KeyT', en: 'Time of day', ko: '시간대 변경' },
+  { id: 'aim', def: 'KeyX', en: 'Aim on / off (gun out)', ko: '조준 켜기/끄기 (총 사용 중)' },
+  { id: 'auto', def: 'KeyB', en: 'Auto-aim on / off', ko: '자동 조준 켜기/끄기' },
   { id: 'radio', def: 'KeyN', en: 'Radio on / off', ko: '라디오 켜기/끄기' },
   { id: 'map', def: 'KeyM', en: 'Big map', ko: '큰 지도' },
 ];
@@ -25,6 +27,7 @@ export const RESERVED = new Set(['Escape', 'Enter', 'KeyP', 'Tab']);
 
 export interface Settings {
   sens: number; // mouse / touch look multiplier
+  aimSens: number; // look multiplier while aiming (slower is steadier)
   fov: number; // degrees added to the camera field of view
   shake: number; // screen-shake multiplier (0 = off)
   binds: Record<string, string>; // action id -> physical key code
@@ -32,7 +35,7 @@ export interface Settings {
 }
 
 const KEY = 'smashtown.settings.v1';
-const DEFAULTS: Settings = { sens: 1, fov: 0, shake: 1, binds: {}, tutorialDone: false };
+const DEFAULTS: Settings = { sens: 1, aimSens: 0.85, fov: 0, shake: 1, binds: {}, tutorialDone: false };
 
 function load(): Settings {
   try {
@@ -43,6 +46,7 @@ function load(): Settings {
       for (const a of ACTIONS) { const k = s.binds?.[a.id]; if (typeof k === 'string' && k && !RESERVED.has(k)) binds[a.id] = k; }
       return {
         sens: typeof s.sens === 'number' ? s.sens : 1,
+        aimSens: typeof s.aimSens === 'number' ? s.aimSens : 0.85,
         fov: typeof s.fov === 'number' ? s.fov : 0,
         shake: typeof s.shake === 'number' ? s.shake : 1,
         binds, tutorialDone: !!s.tutorialDone,

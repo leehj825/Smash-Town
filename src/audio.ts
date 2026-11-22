@@ -22,6 +22,7 @@ export class AudioEngine {
   private sirenOsc!: OscillatorNode;
   private sirenGain!: GainNode;
   private rainGain!: GainNode;
+  private cityGain!: GainNode;
   private t = 0;
   enabled = true;
   volume = 0.8;
@@ -67,6 +68,13 @@ export class AudioEngine {
     const rf = ctx.createBiquadFilter(); rf.type = 'bandpass'; rf.frequency.value = 3600; rf.Q.value = 0.5;
     this.rainGain = ctx.createGain(); this.rainGain.gain.value = 0;
     rain.connect(rf); rf.connect(this.rainGain); this.rainGain.connect(this.master);
+
+    // the city: a low rumble of distant traffic and crowds (looping noise through a low-pass), louder downtown
+    const city = ctx.createBufferSource(); city.buffer = this.noiseBuf; city.loop = true;
+    const cf = ctx.createBiquadFilter(); cf.type = 'lowpass'; cf.frequency.value = 260;
+    this.cityGain = ctx.createGain(); this.cityGain.gain.value = 0;
+    city.connect(cf); cf.connect(this.cityGain); this.cityGain.connect(this.master);
+    city.start();
     rain.start();
 
     // siren
@@ -151,14 +159,41 @@ export class AudioEngine {
   }
   /** Gunshots: a noise crack plus a body thump, tuned per gun. */
   gun(kind: 'pistol' | 'smg' | 'shotgun' | 'rocket' | 'paint'): void {
-    if (kind === 'pistol') { this.burst(0.09, 2600, 0.5); this.thud(180, 0.12, 0.5); }
-    else if (kind === 'smg') { this.burst(0.06, 3200, 0.38); this.thud(210, 0.08, 0.35); }
-    else if (kind === 'shotgun') { this.burst(0.2, 1500, 0.8); this.thud(110, 0.22, 0.75); }
-    else if (kind === 'rocket') { this.burst(0.35, 700, 0.6); this.thud(80, 0.3, 0.6); }
-    else { this.burst(0.04, 4200, 0.2); }
+    // each shot is a sharp crack, a rounder bang and a body thump (and for the big guns a long tail)
+    if (kind === 'pistol') { this.burst(0.05, 4200, 0.35); this.burst(0.16, 1300, 0.4); this.thud(200, 0.11, 0.55); }
+    else if (kind === 'smg') { this.burst(0.04, 4600, 0.26); this.burst(0.09, 1600, 0.22); this.thud(240, 0.07, 0.4); }
+    else if (kind === 'shotgun') { this.burst(0.08, 3400, 0.5); this.burst(0.4, 800, 0.6); this.thud(95, 0.26, 0.8); }
+    else if (kind === 'rocket') { this.burst(0.3, 700, 0.55); this.burst(0.7, 320, 0.5); this.thud(65, 0.5, 0.7); }
+    else { this.burst(0.04, 4800, 0.18); this.thud(420, 0.04, 0.2); }
   }
+  /** A spent case hitting the ground. */
+  tink(): void { this.burst(0.03, 6800, 0.1); }
   click(): void { this.burst(0.03, 5200, 0.25); }
   reload(): void { this.burst(0.05, 4000, 0.25); window.setTimeout(() => this.burst(0.05, 3000, 0.3), 280); }
+  /** Background city hum 0..1 (traffic and crowds near you). */
+  setCity(level: number): void {
+    if (this.ctx) this.cityGain.gain.setTargetAtTime(level * 0.09, this.ctx.currentTime, 0.8);
+  }
+  /** A car horn heard from `dist` metres away (two close tones, a short double honk). */
+  horn(dist: number, pitch = 1): void {
+    if (!this.ctx || dist > 70) return;
+    const ctx = this.ctx;
+    const vol = 0.13 * Math.max(0.05, 1 - dist / 70);
+    for (const [f, d] of [[0, 0], [0, 0.32]] as const) {
+      for (const base of [392, 494]) {
+        const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = base * pitch;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, ctx.currentTime + d);
+        g.gain.exponentialRampToValueAtTime(vol, ctx.currentTime + d + 0.02);
+        g.gain.setValueAtTime(vol, ctx.currentTime + d + 0.18);
+        g.gain.exponentialRampToValueAtTime(0.0005, ctx.currentTime + d + 0.26);
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800;
+        o.connect(lp); lp.connect(g); g.connect(this.master);
+        o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.3);
+      }
+      void f;
+    }
+  }
   /** Rain loudness 0..1. */
   setRain(level: number): void {
     if (this.ctx) this.rainGain.gain.setTargetAtTime(level * 0.1, this.ctx.currentTime, 0.4);
@@ -196,6 +231,36 @@ export class AudioEngine {
     const bat = kind === 'bat';
     this.thud(bat ? 180 : kind === 'kick' ? 95 : 130, bat ? 0.14 : 0.2, bat ? 0.4 : 0.55);
     this.burst(bat ? 0.09 : 0.07, bat ? 5200 : 2600, bat ? 0.4 : 0.3);
+  }
+  /** A short, rising scream-like warble. */
+  scream(): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const o = ctx.createOscillator(); o.type = 'sawtooth';
+    const g = ctx.createGain();
+    o.frequency.setValueAtTime(520, ctx.currentTime);
+    o.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.25);
+    o.frequency.linearRampToValueAtTime(700, ctx.currentTime + 0.5);
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.07, ctx.currentTime + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400;
+    o.connect(f); f.connect(g); g.connect(this.master);
+    o.start(); o.stop(ctx.currentTime + 0.6);
+  }
+  /** A short news-flash jingle. */
+  jingle(): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    [[523, 0], [659, 0.12], [784, 0.24], [1046, 0.36]].forEach(([f, d]) => {
+      const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = f;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + d);
+      g.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + d + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d + 0.14);
+      o.connect(g); g.connect(this.master);
+      o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.16);
+    });
   }
   cash(): void {
     if (!this.ctx) return;

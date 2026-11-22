@@ -54,6 +54,10 @@ const MESHES: MeshSpec[] = [
   ] },
   { name: 'head', joints: [J.head], parts: [{ c: [0, 0.03, 0], s: [0.09, 0.06, 0.09] }, { c: [0, 0.2, 0], s: [0.26, 0.28, 0.26] }] },
   { name: 'hair', joints: [J.head], parts: [{ c: [0, 0.34, -0.01], s: [0.28, 0.1, 0.28] }, { c: [0, 0.22, -0.12], s: [0.28, 0.22, 0.06] }] },
+  { name: 'umbrella', joints: [J.torso], parts: [
+    { c: [0.2, 0.55, 0.1], s: [0.025, 1.0, 0.025], color: 0x3a3a3a },
+    { c: [0.2, 1.08, 0.1], s: [1.0, 0.04, 1.0] }, { c: [0.2, 1.13, 0.1], s: [0.76, 0.05, 0.76] }, { c: [0.2, 1.18, 0.1], s: [0.46, 0.05, 0.46] }, { c: [0.2, 1.22, 0.1], s: [0.1, 0.06, 0.1], color: 0x3a3a3a },
+  ] },
   { name: 'cap', joints: [J.head], parts: [{ c: [0, 0.35, 0], s: [0.3, 0.1, 0.3] }, { c: [0, 0.29, 0.17], s: [0.26, 0.025, 0.14], color: 0x2a2a2a }] },
   { name: 'armU', joints: [J.shL, J.shR], parts: [{ c: [0, -0.15, 0], s: [0.12, 0.3, 0.12] }] },
   { name: 'armF', joints: [J.elL, J.elR], parts: [{ c: [0, -0.15, 0], s: [0.1, 0.3, 0.1] }, { c: [0, -0.34, 0], s: [0.11, 0.1, 0.11] }] },
@@ -133,7 +137,7 @@ export class CharacterRenderer {
       const mesh = new THREE.InstancedMesh(partGeometry(spec), mat, count * spec.joints.length);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.frustumCulled = false;
-      mesh.castShadow = spec.name !== 'hair' && spec.name !== 'cap';
+      mesh.castShadow = spec.name !== 'hair' && spec.name !== 'cap' && spec.name !== 'umbrella';
       for (let i = 0; i < mesh.count; i++) { mesh.setMatrixAt(i, this.zero); mesh.setColorAt(i, this.white); }
       this.group.add(mesh);
       this.meshes.push(mesh);
@@ -181,7 +185,7 @@ export class CharacterRenderer {
       const per = MESHES[mi].joints.length;
       for (let k = 0; k < per; k++) mesh.setColorAt(slot * per + k, f(c));
     };
-    set('pelvis', look.pants); set('torso', look.shirt); set('head', look.skin); set('hair', look.hair); set('cap', 0x23386b);
+    set('pelvis', look.pants); set('torso', look.shirt); set('head', look.skin); set('hair', look.hair); set('cap', 0x23386b); set('umbrella', [0xd62d3a, 0x2a6bd6, 0xffd23a, 0x2fb87a, 0x8e44ad, 0xff7aa8][slot % 6]);
     set('armU', look.shirt); set('armF', look.skin); set('thigh', look.pants); set('shin', look.pants); set('foot', look.shoe);
     this.colorsDirty = true;
   }
@@ -202,7 +206,7 @@ export class CharacterRenderer {
    * FK for one character and write all part instances.
    * `lie` rotates the whole body about the hips (knockdown), `weapon` 0 none / 1 bat / 2 baton.
    */
-  draw(slot: number, x: number, y: number, z: number, heading: number, scale: number, lie: number, pose: Pose, hasCap: boolean, weapon: number, weaponScale = 1, shield = false): void {
+  draw(slot: number, x: number, y: number, z: number, heading: number, scale: number, lie: number, pose: Pose, hasCap: boolean, weapon: number, weaponScale = 1, shield = false, umbrella = false): void {
     // base transform: root position, facing, and a hips-pivoted lie rotation
     this.q.setFromEuler(this.e.set(0, heading, 0));
     this.base.compose(this.p.set(x, y - Math.abs(Math.sin(lie)) * 0.62 * scale, z), this.q, this.s.setScalar(scale));
@@ -228,6 +232,7 @@ export class CharacterRenderer {
       const spec = MESHES[mi];
       const mesh = this.meshes[mi];
       const per = spec.joints.length;
+      if (spec.name === 'umbrella' && !umbrella) { mesh.setMatrixAt(slot, this.zero); continue; }
       if (spec.name === 'cap' && !hasCap) { mesh.setMatrixAt(slot, this.zero); continue; }
       if (spec.name === 'hair' && hasCap) { mesh.setMatrixAt(slot, this.zero); continue; }
       for (let k = 0; k < per; k++) mesh.setMatrixAt(slot * per + k, this.world[spec.joints[k]]);

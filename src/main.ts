@@ -79,6 +79,8 @@ const bigmap = new BigMap(game);
 const radio = new Radio(game.audio);
 const weather = new Weather(env, game.audio);
 scene.add(weather.group);
+weather.addPuddles(game.world.segments);
+{ const mo = new Date().getMonth(); props.setSeason(mo >= 8 && mo <= 10 ? 'autumn' : mo === 11 || mo <= 1 ? 'winter' : 'normal'); }
 game.radioDuck = (v) => radio.setDuck(v);
 const controlsPanel = new ControlsPanel();
 const howto = new HowToPlay();
@@ -94,6 +96,20 @@ composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
 let quality: Quality = 'high';
+/** On phones the game steps the graphics down by itself when the frame rate stays low (until the player picks a setting by hand). */
+let autoQuality = isMobile;
+let slowT = 0;
+/** Photo mode (H): the HUD hides, the world freezes, you look around freely and Enter saves a picture. */
+let photo = false;
+let photoSave = false;
+function setPhoto(on: boolean): void {
+  photo = on;
+  const hudEl = document.getElementById('hud')!, hint = document.getElementById('photo-hint')!;
+  hudEl.style.visibility = on ? 'hidden' : '';
+  hint.hidden = !on;
+  hint.textContent = bi('PHOTO MODE - move the mouse to look, [Enter] save a picture, [H] exit', '사진 모드 - 마우스로 둘러보기, [Enter] 사진 저장, [H] 종료');
+}
+
 function applyQuality(q: Quality): void {
   quality = q;
   storedSet(QUALITY_KEY, q);
@@ -104,6 +120,10 @@ function applyQuality(q: Quality): void {
   bloom.enabled = q === 'high';
   game.useBlob = !shadows;
   game.trafficTarget = TRAFFIC[q];
+  props.setVegetation(q === 'high' ? 0.9 : q === 'medium' ? 0.5 : 0.3);
+  game.world.detail.visible = q === 'high';
+  props.setDecor(q === 'high' ? 2 : q === 'medium' ? 1 : 0);
+  game.lights.visible = q !== 'low';
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, q === 'low' ? 1.25 : 2));
   resize();
   scene.traverse((o) => {
@@ -166,7 +186,7 @@ document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.classList.togg
 applyAudio(storedGet(AUDIO_KEY) !== '0');
 document.querySelectorAll<HTMLElement>('.radio').forEach((b) => b.classList.toggle('sel', b.dataset.r === radioChoice()));
 const savedW = storedGet(WEATHER_KEY);
-applyWeather(savedW === 'clear' || savedW === 'rain' || savedW === 'fog' || savedW === 'storm' ? savedW : 'auto');
+applyWeather(savedW === 'clear' || savedW === 'rain' || savedW === 'fog' || savedW === 'storm' || savedW === 'snow' ? savedW : 'auto');
 
 /** Kids Play (default ON): nobody dies - defeated cops and the player are only knocked out. */
 function applyKids(on: boolean): void {
@@ -217,19 +237,23 @@ function toggleMap(): void {
 document.getElementById('btn-map')!.addEventListener('click', toggleMap);
 document.getElementById('btn-resume')!.addEventListener('click', () => setPaused(false));
 document.querySelectorAll<HTMLElement>('.lang').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang as Lang)));
-document.querySelectorAll<HTMLElement>('.quality').forEach((b) => b.addEventListener('click', () => applyQuality(b.dataset.q as Quality)));
+document.querySelectorAll<HTMLElement>('.quality').forEach((b) => b.addEventListener('click', () => { autoQuality = false; slowT = 0; applyQuality(b.dataset.q as Quality); }));
 document.querySelectorAll<HTMLElement>('.tod').forEach((b) => b.addEventListener('click', () => applyTime(b.dataset.t as TimeOfDay)));
 document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.addEventListener('click', () => applyAudio(b.dataset.a === '1')));
 document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.addEventListener('click', () => applyKids(b.dataset.k === '1')));
 const segSync = (cls: string, cur: number) =>
   document.querySelectorAll<HTMLElement>('.seg.' + cls).forEach((b) => b.classList.toggle('sel', Math.abs(Number(b.dataset.v) - cur) < 0.01));
-function wireSeg(cls: 'sens' | 'fov' | 'shake'): void {
+function wireSeg(cls: 'sens' | 'aimSens' | 'fov' | 'shake'): void {
   segSync(cls, settings[cls]);
   document.querySelectorAll<HTMLElement>('.seg.' + cls).forEach((b) => b.addEventListener('click', () => {
     settings[cls] = Number(b.dataset.v); saveSettings(); segSync(cls, settings[cls]);
   }));
 }
-wireSeg('sens'); wireSeg('fov'); wireSeg('shake');
+wireSeg('sens'); wireSeg('aimSens'); wireSeg('fov'); wireSeg('shake');
+const syncAuto = () => document.querySelectorAll<HTMLElement>('.autoaim').forEach((b) => b.classList.toggle('sel', (b.dataset.a === '1') === game.autoAim));
+document.querySelectorAll<HTMLElement>('.autoaim').forEach((b) => b.addEventListener('click', () => { game.setAutoAim(b.dataset.a === '1', false); syncAuto(); }));
+syncAuto();
+game.onAutoAimChange = syncAuto;
 document.getElementById('btn-controls')!.addEventListener('click', () => controlsPanel.open());
 document.getElementById('btn-stats')!.addEventListener('click', () => statsPanel.open());
 document.getElementById('btn-howto')!.addEventListener('click', () => howto.open());
@@ -309,7 +333,13 @@ function tick(): void {
   if (state === 'title' && input.wasPressed('Enter')) startGame();
 
   const modal = openModal();
-  if (modal) {
+  if (photo) {
+    if (input.wasPressed('KeyH') || input.wasPressed('Escape')) setPhoto(false);
+    if (input.wasPressed('Enter')) photoSave = true;
+    const lk = input.takeLook();
+    cameraRig.applyLook(lk.x, lk.y);
+    dt = 0;
+  } else if (modal) {
     if (!controlsPanel.isCapturing) {
       if (input.wasPressed('Escape') || (modal === bigmap && (input.wasPressed('KeyP') || input.wasPressed('KeyM'))) || (modal === howto && (input.wasPressed('Enter') || input.wasPressed('Space')))) modal.close();
     }
@@ -319,6 +349,7 @@ function tick(): void {
     if (input.wasPressed('KeyM')) toggleMap();
     else if (game.state !== 'garage' && game.state !== 'dialog' && (input.wasPressed('Escape') || input.wasPressed('KeyP'))) setPaused(true);
     if (input.wasPressed('KeyT')) applyTime(env.cycleTime());
+    if (input.wasPressed('KeyH') && !game.inside && game.state === 'play') setPhoto(true);
     if (input.wasPressed('KeyN')) { const order: RadioChoice[] = ['off', '0', '1', '2']; applyRadio(order[(order.indexOf(radioChoice()) + 1) % order.length], true); }
   } else if (state === 'paused') {
     if (input.wasPressed('Escape') || input.wasPressed('KeyP')) setPaused(false);
@@ -332,6 +363,16 @@ function tick(): void {
     dt = 0;
   }
 
+  if (autoQuality && state === 'playing' && !modal && rawDt > 0 && rawDt < 1) {
+    slowT = rawDt > 1 / 24 ? slowT + rawDt : Math.max(0, slowT - rawDt * 2);
+    if (slowT > 6 && quality !== 'low') {
+      slowT = 0;
+      const next: Quality = quality === 'high' ? 'medium' : 'low';
+      applyQuality(next);
+      hud.toast(bi(`Graphics lowered to ${next} to keep the game smooth`, `부드럽게 하려고 화질을 ${next === 'medium' ? '중간' : '낮음'}으로 낮췄어요`), 3000);
+    }
+  }
+
   if (state === 'playing' && dt > 0) {
     // sub-step for stable collisions
     const steps = Math.ceil(dt / (1 / 60));
@@ -341,9 +382,22 @@ function tick(): void {
 
   cameraRig.update(state === 'title' ? 0.016 : dt || 0.0001, game.followable);
   weather.indoors = !!game.inside;
+  game.humans.raining = weather.rainAmount > 0.3 && !game.inside;
   weather.update(Math.max(dt, 0.001), camera);
   env.update(Math.max(dt, 0.016), game.followable.position, camera);
   composer.render();
+  if (photoSave) {
+    photoSave = false;
+    renderer.domElement.toBlob((blob) => {
+      if (!blob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `smash-town-${Date.now()}.png`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      hud.toast(bi('Picture saved', '사진을 저장했어요'), 1500);
+    });
+  }
   input.endFrame();
 }
 frame();

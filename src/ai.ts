@@ -1,5 +1,6 @@
 import type { GameVehicle } from './vehicles';
 import { net, type World } from './world';
+import { isJunction, lightState } from './lights';
 
 const wrap = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
 const clamp = (v: number, a: number, b: number): number => Math.max(a, Math.min(b, v));
@@ -115,7 +116,14 @@ export class TrafficBrain {
     const px = c.position.x, pz = c.position.z;
     const t = (px - this.ox) * this.dx + (pz - this.oz) * this.dz;
     const endT = (net.xs[this.endB] - this.ox) * this.dx + (net.zs[this.endA] - this.oz) * this.dz;
-    if (endT - t < 9) this.nextSegment(rng);
+    // traffic lights: stop at the line when the light for this direction is not green
+    let lightStop = Infinity;
+    if (isJunction(this.endB, this.endA)) {
+      const st = lightState(this.endB, this.endA, this.dz !== 0);
+      const line = endT - t - ((this.dz !== 0 ? net.hwZ[this.endA] : net.hwX[this.endB]) + 2.8);
+      if (st !== 'green' && line > -0.5 && line < 34 && !(st === 'yellow' && line < 7)) lightStop = Math.max(0, line * 0.8);
+    }
+    if (endT - t < 9 && lightStop === Infinity) this.nextSegment(rng);
     const t2 = (px - this.ox) * this.dx + (pz - this.oz) * this.dz;
     const tx = this.ox + this.dx * (t2 + 11);
     const tz = this.oz + this.dz * (t2 + 11);
@@ -126,7 +134,7 @@ export class TrafficBrain {
     ctl.handbrake = false;
     ctl.nitro = false;
 
-    let target = Math.abs(diff) > 0.5 ? 6 : this.cruise;
+    let target = Math.min(Math.abs(diff) > 0.5 ? 6 : this.cruise, lightStop);
     const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
     for (const o of others) {
       if (o === v) continue;

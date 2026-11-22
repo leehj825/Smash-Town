@@ -4,12 +4,13 @@ import { MeshBuilder, makeRng, paletteMaterial } from './geo';
 
 export type District = 'beach' | 'oldtown' | 'downtown' | 'harbor' | 'suburb' | 'park' | 'plaza' | 'water' | 'forest';
 
-export interface BoxCollider { minX: number; maxX: number; minZ: number; maxZ: number }
+/** A 2D footprint the player and cars cannot enter. `h` (when known) is the building's height, so a shot or the camera can pass over a low roof. */
+export interface BoxCollider { minX: number; maxX: number; minZ: number; maxZ: number; h?: number }
 export interface SmashRef { type: 'hydrant' | 'lamp' | 'palm' | 'bench' | 'newsstand' | 'trash'; index: number; value: number }
 export interface CircleCollider { x: number; z: number; r: number; smash?: SmashRef; dead?: boolean }
 /** Climbable wedge (no longer placed in the city; kept so the physics code stays generic). */
 export interface Ramp { x: number; z: number; dx: number; dz: number; len: number; width: number; h: number }
-export interface Spot { x: number; z: number; y?: number }
+export interface Spot { x: number; z: number; y?: number; /** Garages only: where you stand to go in (on the curb, in front of the shutter), and its heading. */ door?: { x: number; z: number; h: number } }
 /** A building the player can climb: ladder on one face, flat roof at height `h`. */
 export interface Roof { box: BoxCollider; minX: number; maxX: number; minZ: number; maxZ: number; h: number; ladder: { x: number; z: number; nx: number; nz: number } }
 
@@ -52,7 +53,11 @@ export interface Landmarks {
 }
 
 export interface World {
+  /** Houses for sale: where you stand at the front door. */
+  homes: Spot[];
   group: THREE.Group;
+  /** Fine building detail; hidden on lower quality settings. */
+  detail: THREE.Group;
   lots: Lot[];
   boxes: BoxCollider[];
   circles: CircleCollider[];
@@ -96,21 +101,25 @@ function windowTextures(): { map: THREE.CanvasTexture; emissive: THREE.CanvasTex
   wg.fillRect(0, 0, S, S);
   gg.fillStyle = '#000000';
   gg.fillRect(0, 0, S, S);
-  // 2x2 window bays per tile; the tile border stays plain wall.
-  const lit = [true, false, true, true];
+  // 2x2 window bays per tile; the tile border stays plain wall. Each bay: stone frame, recessed two-leaf window with a transom,
+  // a protruding sill, and a room behind it (lit and curtained, dark, or half-blinded).
+  const kinds = ['lit', 'dark', 'blind', 'lit'];
   for (let n = 0; n < 4; n++) {
     const cx = (n % 2) * 128;
     const cy = Math.floor(n / 2) * 128;
-    wg.fillStyle = '#5e6d86';
-    wg.fillRect(cx + 26, cy + 24, 76, 80);
-    wg.fillStyle = '#9fb4d4';
-    wg.fillRect(cx + 26, cy + 24, 76, 22);
-    wg.fillStyle = '#e9ecf2';
-    wg.fillRect(cx + 62, cy + 24, 4, 80);
-    if (lit[n]) {
-      gg.fillStyle = '#ffd98a';
-      gg.fillRect(cx + 28, cy + 28, 72, 72);
-    }
+    const x0 = cx + 22, y0 = cy + 18, w = 84, h = 86;
+    wg.fillStyle = '#c9c5bd'; wg.fillRect(x0 - 4, y0 - 4, w + 8, h + 8);               // frame
+    wg.fillStyle = '#8f8b84'; wg.fillRect(x0 - 4, y0 + h + 2, w + 8, 3);               // sill shadow
+    wg.fillStyle = '#e4e0d8'; wg.fillRect(x0 - 8, y0 + h + 4, w + 16, 6);              // sill
+    const k = kinds[n];
+    wg.fillStyle = k === 'lit' ? '#f2d9a0' : '#56667f'; wg.fillRect(x0, y0, w, h);      // pane / room behind
+    if (k !== 'lit') { wg.fillStyle = '#8fa6c8'; wg.fillRect(x0, y0, w, 26); }          // sky reflection
+    if (k === 'lit') { wg.fillStyle = '#e8b86c'; wg.fillRect(x0, y0 + 30, 16, h - 30); wg.fillRect(x0 + w - 16, y0 + 30, 16, h - 30); } // curtains
+    if (k === 'blind') { wg.fillStyle = '#d8d2c4'; wg.fillRect(x0, y0, w, 38); wg.fillStyle = '#b8b2a4'; for (let b = 6; b < 38; b += 8) wg.fillRect(x0, y0 + b, w, 2); }
+    wg.fillStyle = '#4a4742'; wg.fillRect(x0, y0, w, 3); wg.fillRect(x0, y0, 3, h);     // recess shadow (top and left)
+    wg.fillStyle = '#d9d5cc'; wg.fillRect(x0 + w / 2 - 2, y0, 4, h);                    // mullion
+    wg.fillRect(x0, y0 + 30, w, 3);                                                     // transom bar
+    if (k === 'lit') { gg.fillStyle = '#ffd98a'; gg.fillRect(x0 + 3, y0 + 3, w - 3, h - 3); }
   }
   const map = new THREE.CanvasTexture(wall);
   const emissive = new THREE.CanvasTexture(glow);
@@ -122,16 +131,16 @@ function windowTextures(): { map: THREE.CanvasTexture; emissive: THREE.CanvasTex
   return { map, emissive };
 }
 
-const SIGN_TEXTS = ['24h MOTEL', 'DONUTS', 'PIZZA', 'CAFE', 'BAR', 'ARCADE', 'BOOKS', 'SUSHI'];
-const SIGN_COLORS = [['#2a2f7a', '#ffd34d'], ['#ff7eb6', '#ffffff'], ['#c0392b', '#fff3c4'], ['#1f7a5a', '#ffffff'], ['#3a2a5a', '#7fe0ff'], ['#101a40', '#ff4d9a'], ['#7a4a1f', '#ffe9b0'], ['#e8f4ff', '#d62828']];
+const SIGN_TEXTS = ['24h MOTEL', 'DONUTS', 'PIZZA', 'CAFE', 'BAR', 'ARCADE', 'BOOKS', 'SUSHI', 'PHARMACY', 'GYM', 'TACOS', 'NOODLES', 'TATTOO', 'MUSIC', 'VIDEO', 'FLOWERS'];
+const SIGN_COLORS = [['#2a2f7a', '#ffd34d'], ['#ff7eb6', '#ffffff'], ['#c0392b', '#fff3c4'], ['#1f7a5a', '#ffffff'], ['#3a2a5a', '#7fe0ff'], ['#101a40', '#ff4d9a'], ['#7a4a1f', '#ffe9b0'], ['#e8f4ff', '#d62828'], ['#ffffff', '#1f9d55'], ['#222831', '#ff7a1a'], ['#f2a73b', '#3b1d0a'], ['#8e1b1b', '#ffe9b0'], ['#111111', '#d6d6d6'], ['#4a1a6b', '#ffd23a'], ['#1c3b6b', '#ffffff'], ['#ffb3d1', '#7a1a4a']];
 
 /** One 2x4 atlas holding every shop signboard (a single draw call). Cell (c, r) -> uv rect. */
 function signAtlas(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
-  c.width = 1024; c.height = 512;
+  c.width = 1024; c.height = 1024;
   const g = c.getContext('2d')!;
   g.fillStyle = '#1b1b22';
-  g.fillRect(0, 0, 1024, 512);
+  g.fillRect(0, 0, 1024, 1024);
   SIGN_TEXTS.forEach((text, i) => {
     const cx = (i % 2) * 512, cy = Math.floor(i / 2) * 128;
     const [bg, fg] = SIGN_COLORS[i];
@@ -193,6 +202,33 @@ function asphaltTexture(): THREE.CanvasTexture {
   return t;
 }
 
+
+/** Concrete paving slabs with joints (one slab per tile). */
+function pavingTexture(): THREE.CanvasTexture {
+  const S = 128, c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#d6d0c2'; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 260; i++) { g.fillStyle = Math.random() < 0.5 ? 'rgba(120,112,98,0.10)' : 'rgba(255,255,255,0.10)'; g.fillRect(Math.random() * S, Math.random() * S, 2 + Math.random() * 4, 2); }
+  g.fillStyle = '#8a8374'; g.fillRect(0, 0, S, 3); g.fillRect(0, 0, 3, S);        // joints
+  g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(3, 3, S - 3, 2); g.fillRect(3, 3, 2, S - 3);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  return t;
+}
+/** A storm-drain grate. */
+function grateTexture(): THREE.CanvasTexture {
+  const S = 128, c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#6b6558'; g.fillRect(0, 0, S, S);
+  g.fillStyle = '#17171b'; for (let i = 0; i < 7; i++) g.fillRect(10 + i * 16, 12, 9, S - 24);
+  g.strokeStyle = '#3c382f'; g.lineWidth = 6; g.strokeRect(3, 3, S - 6, S - 6);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 /** Axis-aligned flat quad batch (roads segments, crosswalk stripes). */
 class QuadBatch {
   pos: number[] = [];
@@ -220,6 +256,11 @@ class QuadBatch {
     g.computeVertexNormals();
     return g;
   }
+}
+
+/** Half-depth of a garage facade, measured along the outward normal (the facade is wide along the road). */
+function d_half(along: boolean, w: number, d: number): number {
+  return along ? d / 2 : w / 2;
 }
 
 export function buildWorld(): World {
@@ -419,6 +460,8 @@ export function buildWorld(): World {
   const CH = 200;
   const slabChunks = new Map<string, MeshBuilder>();
   const bldChunks = new Map<string, MeshBuilder>();
+  /** Fine architectural detail (trim, shop fronts, roof kit, house porches) lives in its own meshes so lower quality settings can drop it. */
+  const detChunks = new Map<string, MeshBuilder>();
   const chunkOf = (m: Map<string, MeshBuilder>, x: number, z: number): MeshBuilder => {
     const k = `${Math.floor(x / CH)},${Math.floor(z / CH)}`;
     let b = m.get(k);
@@ -543,6 +586,29 @@ export function buildWorld(): World {
       boxes.push({ minX: lot.x0 + r * 0.5, maxX: lot.x1 - r * 0.5, minZ: lot.z0 + r * 0.5, maxZ: lot.z1 - r * 0.5 }); // no driving into the water
     }
   }
+  // ---- paved sidewalk bands, curb stones and storm drains round the hard-surfaced lots
+  {
+    const paving = new QuadBatch(), grates = new QuadBatch();
+    const BAND = 3, WY = SLAB_H + 0.012;
+    for (const lot of lots) {
+      if (!['downtown', 'oldtown', 'plaza', 'harbor', 'beach'].includes(lot.district) || lot.river) continue;
+      const { x0, x1, z0, z1 } = lot;
+      const lx = (x0 + x1) / 2, lz = (z0 + z1) / 2;
+      paving.add(x0, x1, z0, z0 + BAND, WY, true, 3); paving.add(x0, x1, z1 - BAND, z1, WY, true, 3);
+      paving.add(x0, x0 + BAND, z0 + BAND, z1 - BAND, WY, false, 3); paving.add(x1 - BAND, x1, z0 + BAND, z1 - BAND, WY, false, 3);
+      const sb = chunkOf(slabChunks, lx, lz), curb = 0xb9b3a4;
+      sb.box(x1 - x0, 0.1, 0.28, lx, SLAB_H + 0.04, z0 + 0.14, curb); sb.box(x1 - x0, 0.1, 0.28, lx, SLAB_H + 0.04, z1 - 0.14, curb);
+      sb.box(0.28, 0.1, z1 - z0, x0 + 0.14, SLAB_H + 0.04, lz, curb); sb.box(0.28, 0.1, z1 - z0, x1 - 0.14, SLAB_H + 0.04, lz, curb);
+      for (const f of [0.3, 0.72]) {
+        grates.add(x0 + (x1 - x0) * f - 0.5, x0 + (x1 - x0) * f + 0.5, z0 - 0.75, z0 - 0.25, ROAD_Y + 0.01, true, 1);
+        grates.add(x0 + (x1 - x0) * (1 - f) - 0.5, x0 + (x1 - x0) * (1 - f) + 0.5, z1 + 0.25, z1 + 0.75, ROAD_Y + 0.01, true, 1);
+      }
+    }
+    const pm = new THREE.Mesh(paving.geometry(), new THREE.MeshStandardMaterial({ map: pavingTexture(), roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+    pm.receiveShadow = true; group.add(pm);
+    const gm = new THREE.Mesh(grates.geometry(), new THREE.MeshStandardMaterial({ map: grateTexture(), roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+    gm.receiveShadow = true; group.add(gm);
+  }
   const waterMesh = new THREE.Mesh(waterB.build(), paletteMaterial({ roughness: 0.3, metalness: 0.1 }));
   waterMesh.receiveShadow = true;
   group.add(waterMesh);
@@ -586,13 +652,16 @@ export function buildWorld(): World {
     const uv = g.attributes.uv as THREE.BufferAttribute;
     for (let n = 0; n < uv.count; n++) uv.setXY(n, WALL_UV, WALL_UV);
   };
-  const addBoxCollider = (x: number, z: number, w: number, d: number) =>
-    boxes.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
+  const addBoxCollider = (x: number, z: number, w: number, d: number): BoxCollider => {
+    const bx = { minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 };
+    boxes.push(bx);
+    return bx;
+  };
 
   const signs: { x: number; z: number; dirX: number; dirZ: number; w: number; idx: number }[] = [];
   let signCount = 0;
   const addSign = (x: number, z: number, dirX: number, dirZ: number, w: number) => {
-    if (signCount >= 18) return;
+    if (signCount >= 36) return;
     signs.push({ x, z, dirX, dirZ, w: Math.min(5.6, w * 0.7), idx: signCount % SIGN_TEXTS.length });
     signCount++;
   };
@@ -608,12 +677,119 @@ export function buildWorld(): World {
       else bld.rotatedBox(2.2, 0.12, sl, cx + dirX * 1.0, 3.7, cz + off, 0, 0, -dirX * 0.38, c);
     }
   };
+  const shade = (c: number, f: number): number => {
+    const r = Math.min(255, Math.round(((c >> 16) & 255) * f)), g = Math.min(255, Math.round(((c >> 8) & 255) * f)), b = Math.min(255, Math.round((c & 255) * f));
+    return (r << 16) | (g << 8) | b;
+  };
+  /**
+   * Architectural trim for one block of a building: a dark plinth at the foot (ground blocks only), a stone cornice at the top,
+   * pilasters up the corners, and a string course every few floors. All of it hugs the footprint so colliders stay valid.
+   */
+  const trim = (w: number, h: number, d: number, x: number, y0: number, z: number, color: number, ground: boolean) => {
+    const keep = bld; bld = chunkOf(detChunks, x, z);
+    const light = shade(color, 1.18), dark = shade(color, 0.62);
+    if (ground) plain(w + 0.3, 1.0, d + 0.3, x, y0 + 0.5, z, dark);
+    plain(w + 0.5, 0.4, d + 0.5, x, y0 + h - 0.2, z, light);
+    plain(w + 0.3, 0.2, d + 0.3, x, y0 + h - 0.5, z, dark);
+    if (w > 5 && d > 5 && h > 6) for (const sx of [-1, 1]) for (const sz of [-1, 1]) plain(0.5, h - 0.4, 0.5, x + sx * (w / 2), y0 + h / 2, z + sz * (d / 2), light);
+    for (let yy = TILE_H * 2; yy < h - 2; yy += TILE_H * 2) plain(w + 0.2, 0.22, d + 0.2, x, y0 + yy, z, light);
+    bld = keep;
+  };
+  /** A glowing box (neon): UVs parked on a lit window texel so the night emissive map lights it. */
+  const neon = (w: number, h: number, d: number, x: number, y: number, z: number, color: number) => {
+    const g = bld.box(w, h, d, x, y, z, color);
+    const uv = g.attributes.uv as THREE.BufferAttribute;
+    for (let n = 0; n < uv.count; n++) uv.setXY(n, 0.234, 0.766);
+  };
+  /** A shop front on the ground floor of one face: a frame, a glass door and display windows, a step and a little lamp. */
+  const shopFront = (x: number, z: number, w: number, d: number, dirX: number, dirZ: number, color: number) => {
+    const keep = bld; bld = chunkOf(detChunks, x, z);
+    const frame = shade(color, 0.55), glass = 0x35506b, span = dirZ !== 0 ? w : d;
+    const along = (o: number, y: number, ww: number, hh: number, dd: number, c: number) => {
+      if (dirZ !== 0) plain(ww, hh, dd, x + o, y, z + dirZ * (d / 2 + dd / 2 - 0.02), c);
+      else plain(dd, hh, ww, x + dirX * (w / 2 + dd / 2 - 0.02), y, z + o, c);
+      bld = keep;
+  };
+    const winW = Math.min(3.4, span * 0.26);
+    for (const s of [-1, 1]) {
+      const o = s * Math.min(span * 0.28, 5);
+      along(o, 1.75, winW + 0.3, 2.1, 0.14, frame);
+      along(o, 1.75, winW, 1.8, 0.2, glass);
+      along(o, 0.9, winW + 0.3, 0.12, 0.34, 0xe9e4d6); // sill
+    }
+    along(0, 1.3, 1.6, 2.6, 0.16, frame);
+    along(0, 1.25, 1.2, 2.4, 0.22, glass);
+    along(0, 0.1, 2.2, 0.2, 0.7, 0xb9b4a8); // step
+    {
+      // a neon strip over the door and one over each window, and a door lamp
+      const neonCol = [0xff5db1, 0x35e0ff, 0x7dff6a, 0xffb347][Math.floor(rng() * 4)];
+      const nd = (o: number, y: number, ww: number, hh: number, dd: number, c: number) => {
+        if (dirZ !== 0) neon(ww, hh, dd, x + o, y, z + dirZ * (d / 2 + dd / 2 - 0.02), c);
+        else neon(dd, hh, ww, x + dirX * (w / 2 + dd / 2 - 0.02), y, z + o, c);
+      };
+      nd(0, 3.05, 2.2, 0.1, 0.12, neonCol);
+      for (const s of [-1, 1]) nd(s * Math.min(span * 0.28, 5), 2.85, winW, 0.07, 0.12, neonCol);
+      nd(1.45, 2.3, 0.18, 0.18, 0.3, 0xffe9a6);
+    }
+  };
+  /** A zig-zag steel fire escape on one face: a landing and railing per floor, with a sloped stair between landings. */
+  const fireEscape = (x: number, z: number, w: number, d: number, h: number, dirX: number, dirZ: number) => {
+    const keep = bld; bld = chunkOf(detChunks, x, z);
+    const steel = 0x3a3d46, FL = 3.5, floors = Math.min(5, Math.floor((h - 3) / FL));
+    const span = dirZ !== 0 ? w : d;
+    const along = rand(-span * 0.25, span * 0.25);
+    const put = (o: number, y: number, ww: number, hh: number, dd: number, c: number) => {
+      if (dirZ !== 0) plain(ww, hh, dd, x + along + o, y, z + dirZ * (d / 2 + dd / 2), c);
+      else plain(dd, hh, ww, x + dirX * (w / 2 + dd / 2), y, z + along + o, c);
+    };
+    for (let f = 1; f <= floors; f++) {
+      const y = f * FL + 0.4;
+      put(0, y, 2.4, 0.08, 1.2, steel);
+      put(0, y + 0.55, 2.4, 0.05, 0.05, steel);
+      put(-1.17, y + 0.5, 0.05, 1.0, 1.2, steel); put(1.17, y + 0.5, 0.05, 1.0, 1.2, steel);
+      put(0, y + 0.5, 2.4, 0.05, 0.05, steel);
+      if (f < floors) {
+        const sgn = f % 2 ? 1 : -1, slope = Math.atan2(FL, 2.0), len = Math.hypot(FL, 2.0);
+        if (dirZ !== 0) bld.rotatedBox(len, 0.06, 0.6, x + along, y + FL / 2, z + dirZ * (d / 2 + 0.7), 0, 0, sgn * slope, steel);
+        else bld.rotatedBox(0.6, 0.06, len, x + dirX * (w / 2 + 0.7), y + FL / 2, z + along, -sgn * slope, 0, 0, steel);
+      }
+    }
+    bld = keep;
+  };
+  /** A railing round the edge of a flat roof. */
+  const roofRail = (x: number, z: number, w: number, d: number, top: number) => {
+    const keep = bld; bld = chunkOf(detChunks, x, z);
+    const c = 0x6b7280;
+    plain(w, 0.05, 0.05, x, top + 0.9, z + d / 2 - 0.2, c); plain(w, 0.05, 0.05, x, top + 0.9, z - d / 2 + 0.2, c);
+    plain(0.05, 0.05, d, x + w / 2 - 0.2, top + 0.9, z, c); plain(0.05, 0.05, d, x - w / 2 + 0.2, top + 0.9, z, c);
+    plain(w, 0.04, 0.04, x, top + 0.45, z + d / 2 - 0.2, c); plain(w, 0.04, 0.04, x, top + 0.45, z - d / 2 + 0.2, c);
+    for (let p = -w / 2 + 0.2; p <= w / 2; p += 2.5) { plain(0.06, 0.9, 0.06, x + p, top + 0.45, z + d / 2 - 0.2, c); plain(0.06, 0.9, 0.06, x + p, top + 0.45, z - d / 2 + 0.2, c); }
+    bld = keep;
+  };
+  /** Things on a flat roof: a stair bulkhead, vents, an antenna, solar panels, a water tank or a satellite dish. */
+  const roofKit = (x: number, z: number, w: number, d: number, top: number) => {
+    const keep = bld; bld = chunkOf(detChunks, x, z);
+    const sp = (f: number) => (rng() - 0.5) * f;
+    const n = 1 + Math.floor(rng() * 3);
+    for (let i = 0; i < n; i++) {
+      const px = x + sp(w * 0.55), pz = z + sp(d * 0.55);
+      const k = Math.floor(rng() * 5);
+      if (k === 0) { plain(2.4, 2.2, 2.2, px, top + 1.1, pz, 0xb7bcc7); plain(0.9, 1.6, 0.1, px, top + 0.8, pz + 1.15, 0x3c4a6b); }
+      else if (k === 1) { plainCyl(0.25, 0.25, 1.6, px, top + 0.8, pz, 0x8d95a3); plainCyl(0.45, 0.25, 0.3, px, top + 1.7, pz, 0x8d95a3); }
+      else if (k === 2) { plainCyl(0.06, 0.06, 5, px, top + 2.5, pz, 0x6b7280); plain(0.2, 0.2, 0.2, px, top + 5.1, pz, 0xff4d4d); plain(1.4, 0.05, 0.05, px, top + 4.2, pz, 0x6b7280); }
+      else if (k === 3) { for (let j = 0; j < 3; j++) bld.rotatedBox(2.0, 0.08, 1.2, px + j * 2.2 - 2.2, top + 0.55, pz, -0.5, 0, 0, 0x27406b); }
+      else { for (const lx of [-0.9, 0.9]) for (const lz of [-0.9, 0.9]) plain(0.15, 1.6, 0.15, px + lx, top + 0.8, pz + lz, 0x5a4632); plainCyl(1.2, 1.2, 1.8, px, top + 2.5, pz, 0x9a6b44); plainCyl(0.1, 1.3, 0.7, px, top + 3.7, pz, 0x6b4a2e); }
+    }
+    bld = keep;
+  };
   const roofExtras = (x: number, z: number, w: number, d: number, h: number) => {
     plain(w + 0.5, 0.55, d + 0.5, x, h + 0.55, z, 0xece6d8); // parapet trim
     if (rng() < 0.8) plain(1.8, 1.0, 1.4, x + rand(-w / 3, w / 3), h + 1.05, z + rand(-d / 3, d / 3), 0x9aa0ad); // AC unit
   };
   /** A suburban house with a pitched roof (a box whose top edge is collapsed into a ridge). */
+  const homes: Spot[] = [];
   const house = (x: number, z: number, w: number, d: number, dirZ: number) => {
+    if (homes.length < 4) homes.push({ x, z: z + dirZ * (d / 2 + 2.6), door: { x, z: z + dirZ * (d / 2 + 2.6), h: dirZ > 0 ? Math.PI : 0 } });
     const h = rand(3.6, 4.6);
     building(w, h, d, x, 0, z, pick(HOUSE_COLORS));
     const rh = rand(2.2, 3.0);
@@ -622,7 +798,35 @@ export function buildWorld(): World {
     });
     plain(1.1, 2.1, 0.2, x + rand(-w / 4, w / 4), 2.1, z + dirZ * (d / 2 + 0.05), 0x6b4a2e); // front door
     plain(0.5, 2.6, 0.5, x + w / 2 - 1, h + 3.1, z, 0xb08968);                                  // chimney
-    addBoxCollider(x, z, w, d);
+    const keepB = bld; bld = chunkOf(detChunks, x, z);
+    plain(0.7, 0.3, 0.7, x + w / 2 - 1, h + rh + 0.9, z, 0x6b5a4a);                             // chimney cap
+    plain(w + 0.3, 0.7, d + 0.3, x, 0.35, z, 0x8a8f99);                                          // stone foundation
+    // a porch over the front door: slab, roof, two posts, steps
+    const fz = z + dirZ * (d / 2);
+    plain(3.2, 0.25, 1.8, x, 0.3, fz + dirZ * 0.9, 0xcfc8b8);
+    plain(3.6, 0.2, 2.2, x, 2.9, fz + dirZ * 1.0, 0x6b4a3e);
+    for (const sx of [-1.4, 1.4]) plain(0.18, 2.6, 0.18, x + sx, 1.6, fz + dirZ * 1.8, 0xffffff);
+    plain(1.6, 0.18, 0.5, x, 0.12, fz + dirZ * 2.2, 0xb9b4a8);
+    // windows with shutters on both long faces and the sides
+    for (const wx of [-w * 0.3, w * 0.3]) for (const f of [1, -1]) {
+      const wz = z + f * (d / 2 + 0.05);
+      if (f === dirZ && Math.abs(wx) < 2) continue;
+      plain(1.5, 1.3, 0.12, x + wx, 2.5, wz, 0xffffff);
+      plain(1.2, 1.0, 0.16, x + wx, 2.5, wz + f * 0.02, 0x4b6a8a);
+      for (const s of [-1, 1]) plain(0.35, 1.2, 0.1, x + wx + s * 0.95, 2.5, wz + f * 0.04, 0x3f6b4a);
+    }
+    for (const sx of [-1, 1]) { plain(0.12, 1.3, 1.5, x + sx * (w / 2 + 0.05), 2.5, z, 0xffffff); plain(0.16, 1.0, 1.2, x + sx * (w / 2 + 0.05), 2.5, z, 0x4b6a8a); }
+    // a garage door and a short drive
+    plain(2.6, 2.1, 0.12, x - w * 0.32, 1.1, z - dirZ * (d / 2 + 0.04), 0xd9d9de);
+    for (let g = 0; g < 4; g++) plain(2.6, 0.06, 0.14, x - w * 0.32, 0.5 + g * 0.5, z - dirZ * (d / 2 + 0.05), 0xaeb2bd);
+    // a picket fence along the front of the garden, a mailbox and a bush
+    const gz = z + dirZ * (d / 2 + 3.4);
+    for (let p = -w / 2 - 1; p <= w / 2 + 1; p += 0.7) { if (Math.abs(p) < 1.4) continue; plain(0.12, 0.9, 0.08, x + p, 0.45, gz, 0xffffff); }
+    plain(w + 2.4, 0.08, 0.06, x, 0.7, gz, 0xffffff);
+    plain(0.08, 1.1, 0.08, x + 2.4, 0.55, gz + dirZ * 0.7, 0x5a4632); plain(0.4, 0.3, 0.25, x + 2.4, 1.2, gz + dirZ * 0.7, 0x2e5fa8);
+    for (const sx of [-1, 1]) plainCyl(0.5, 0.65, 0.8, x + sx * (w / 2 - 0.5), 0.4, fz + dirZ * 0.7, 0x2f7a3b);
+    bld = keepB;
+    addBoxCollider(x, z, w, d).h = h + rh + 1;
   };
 
   const roofCands: { box: BoxCollider; h: number; x: number; z: number; w: number; d: number; nx: number; nz: number; off: number }[] = [];
@@ -648,17 +852,25 @@ export function buildWorld(): World {
           let y = 0;
           const h1 = rand(14, 26) * heightScale;
           building(t.w, h1, t.d, t.x, y, t.z, color);
-          addBoxCollider(t.x, t.z, t.w, t.d);
+          trim(t.w, h1, t.d, t.x, y, t.z, color, true);
+          shopFront(t.x, t.z, t.w, t.d, 0, rng() < 0.5 ? -1 : 1, color);
+          const towerBox = addBoxCollider(t.x, t.z, t.w, t.d);
           y += h1;
           const h2 = rand(12, 34) * heightScale;
           building(t.w * 0.8, h2, t.d * 0.8, t.x, y, t.z, color);
+          trim(t.w * 0.8, h2, t.d * 0.8, t.x, y, t.z, color, false);
           y += h2;
           if (heightScale > 0.8 && rng() < 0.75) {
             const h3 = rand(10, 26) * heightScale;
             building(t.w * 0.55, h3, t.d * 0.55, t.x, y, t.z, color);
+            trim(t.w * 0.55, h3, t.d * 0.55, t.x, y, t.z, color, false);
             y += h3;
           }
           plain(t.w * 0.3, 2.2, t.d * 0.3, t.x, y + 2.2, t.z, 0x9aa0ad);
+          if (t.w * 0.3 > 2) roofKit(t.x, t.z, t.w * 0.4, t.d * 0.4, y + 0.1);
+          plainCyl(0.07, 0.07, 6, t.x, y + 4.4 + 3, t.z, 0x6b7280);
+          plain(0.22, 0.22, 0.22, t.x, y + 10.5, t.z, 0xff3b3b);
+          towerBox.h = y + 4.4;
         }
         break;
       }
@@ -672,17 +884,24 @@ export function buildWorld(): World {
           const x = alongX ? fx0 + w / 2 + s * (w + gap) : cx;
           const z = alongX ? cz : fz0 + d / 2 + s * (d + gap);
           const h = rand(7, 11);
-          building(w, h, d, x, 0, z, pick(PASTELS));
-          addBoxCollider(x, z, w, d);
-          const colBox = boxes[boxes.length - 1];
+          const oc = pick(PASTELS);
+          building(w, h, d, x, 0, z, oc);
+          const colBox = addBoxCollider(x, z, w, d);
+          colBox.h = h + 1.2;
+          trim(w, h, d, x, 0, z, oc, true);
           roofExtras(x, z, w, d, h);
+          roofKit(x, z, w, d, h + 0.55);
+          roofRail(x, z, w, d, h + 0.55);
+          fireEscape(x, z, w, d, h, alongX ? 1 : 0, alongX ? 0 : 1);
           if (alongX) {
             const dirZ = rng() < 0.5 ? -1 : 1;
+            shopFront(x, z, w, d, 0, dirZ, oc);
             roofCands.push({ box: colBox, h, x, z, w, d, nx: 0, nz: dirZ, off: w * 0.36 });
             awning(x, z + dirZ * d / 2, 0, dirZ, w * 0.82);
             addSign(x, z + dirZ * d / 2, 0, dirZ, w);
           } else {
             const dirX = rng() < 0.5 ? -1 : 1;
+            shopFront(x, z, w, d, dirX, 0, oc);
             roofCands.push({ box: colBox, h, x, z, w, d, nx: dirX, nz: 0, off: d * 0.36 });
             awning(x + dirX * w / 2, z, dirX, 0, d * 0.82);
             addSign(x + dirX * w / 2, z, dirX, 0, d);
@@ -697,7 +916,7 @@ export function buildWorld(): World {
           bld.box(fw + 0.6, 2.2, fd * 0.55, cx, h + 1.1, cz, 0x7d8696, (p) => {
             for (let n = 0; n < p.count; n++) if (p.getY(n) > 0) p.setX(n, p.getX(n) * 0.55);
           });
-          addBoxCollider(cx, cz, fw, fd);
+          addBoxCollider(cx, cz, fw, fd).h = h + 2.2;
         } else {
           const cw = 6, ch = 2.4, cd = 2.6, gap = 1.6;
           const nx = Math.max(1, Math.floor((fw + gap) / (cw + gap)));
@@ -712,7 +931,7 @@ export function buildWorld(): World {
               bld.box(cw, ch, cd, px, ch / 2 + s * ch, pz, pick(CONTAINER_COLORS));
               bld.box(cw + 0.05, 0.12, cd + 0.05, px, ch * (s + 1) - 0.06, pz, 0x555a66);
             }
-            addBoxCollider(px, pz, cw, cd);
+            addBoxCollider(px, pz, cw, cd).h = ch * 2;
           }
         }
         break;
@@ -747,7 +966,9 @@ export function buildWorld(): World {
           const z = lot.z0 + inset + d / 2 + 0.5;
           const h = rand(4, 6);
           building(w, h, d, x, 0, z, pick(PASTELS));
-          addBoxCollider(x, z, w, d);
+          addBoxCollider(x, z, w, d).h = h + 1.2;
+          trim(w, h, d, x, 0, z, 0xf2ead8, true);
+          shopFront(x, z, w, d, 0, 1, 0xf2ead8);
           roofExtras(x, z, w, d, h);
           awning(x, z + d / 2, 0, 1, w * 0.8);
         }
@@ -793,6 +1014,14 @@ export function buildWorld(): World {
     m.receiveShadow = true;
     group.add(m);
   }
+  const detail = new THREE.Group();
+  for (const bb of detChunks.values()) {
+    const m = new THREE.Mesh(bb.build(), windowMaterial);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    detail.add(m);
+  }
+  group.add(detail);
   const ramps: Ramp[] = []; // no jump ramps: the city has no stunt wedges on its roads
 
   // ================================================================ shop signboards
@@ -811,8 +1040,8 @@ export function buildWorld(): World {
       for (let f = 0; f < 6; f++) {
         for (let v = 0; v < 4; v++) {
           const i = f * 4 + v;
-          if (f === front) uv.setXY(i, col * 0.5 + uv.getX(i) * 0.5, 1 - row * 0.25 - 0.25 + uv.getY(i) * 0.25);
-          else uv.setXY(i, 0.5 * col + 0.003, 1 - row * 0.25 - 0.01);
+          if (f === front) uv.setXY(i, col * 0.5 + uv.getX(i) * 0.5, 1 - row * 0.125 - 0.125 + uv.getY(i) * 0.125);
+          else uv.setXY(i, 0.5 * col + 0.003, 1 - row * 0.125 - 0.005);
         }
       }
       g.translate(sg.x + sg.dirX * 0.2, 5.6, sg.z + sg.dirZ * 0.2);
@@ -839,7 +1068,35 @@ export function buildWorld(): World {
   const garages: Spot[] = [];
   for (const [u, v] of [[0.14, 0.62], [0.9, 0.4], [0.5, 0.42], [0.28, 0.16], [0.45, 0.9]] as const) {
     const s = pickSeg(W * u, D * v, garages, 70);
-    garages.push({ x: s.x, z: s.z });
+    const spot: Spot = { x: s.x, z: s.z };
+    // a garage front on the sidewalk: 10 m wide, 2.6 m deep, with a big roll-up door facing the road
+    const gb = new MeshBuilder();
+    for (const side of [1, -1]) {
+      const nx = -s.dz * side, nz = s.dx * side;
+      const cx = s.x + nx * (s.hw + 2.0), cz = s.z + nz * (s.hw + 2.0);
+      const along = Math.abs(s.dx) > 0.5;                       // road runs along x: the facade is wide in x
+      const w = along ? 10 : 2.6, d = along ? 2.6 : 10;
+      if (boxes.some((b) => cx + w / 2 > b.minX - 0.3 && cx - w / 2 < b.maxX + 0.3 && cz + d / 2 > b.minZ - 0.3 && cz - d / 2 < b.maxZ + 0.3)) continue;
+      const h = 4.6;
+      gb.box(w, h, d, cx, h / 2, cz, 0x7b8494);
+      gb.box(w + 0.4, 0.4, d + 0.4, cx, h + 0.2, cz, 0x4a4f5a);                            // roof trim
+      const fx = (a: number, y: number, ww: number, hh: number, dd: number, c: number) => {      // a flat detail on the road-facing face
+        const px = cx - nx * (d_half(along, w, d) + dd / 2) + (along ? a : 0), pz = cz - nz * (d_half(along, w, d) + dd / 2) + (along ? 0 : a);
+        gb.box(along ? ww : dd, hh, along ? dd : ww, px, y, pz, c);
+      };
+      fx(0, 1.8, 6.4, 3.6, 0.2, 0x2b2f3a);                                                // door frame
+      for (let k = 0; k < 8; k++) fx(0, 0.25 + k * 0.42, 6.0, 0.34, 0.26, k % 2 ? 0xc3c8d2 : 0xaab0bc);   // roll-up slats
+      fx(0, 4.15, 7.4, 0.5, 0.24, 0x1f7a4a); fx(0, 4.15, 6.4, 0.16, 0.28, 0xffffff);         // GARAGE sign band
+      for (const a of [-4.1, 4.1]) { fx(a, 1.6, 0.9, 1.1, 0.16, 0x4a6b8a); fx(a, 1.6, 1.0, 1.2, 0.12, 0xe4e0d8); }   // side windows
+      for (let k = 0; k < 6; k++) fx(-3.4 + k * 1.36, 0.1, 0.65, 0.2, 0.3, k % 2 ? 0xffd23a : 0x222222);  // hazard strip
+      boxes.push({ minX: cx - w / 2, maxX: cx + w / 2, minZ: cz - d / 2, maxZ: cz + d / 2, h });
+      spot.door = { x: s.x + nx * (s.hw + 0.3), z: s.z + nz * (s.hw + 0.3), h: Math.atan2(nx, nz) };
+      const m = new THREE.Mesh(gb.build(), paletteMaterial());
+      m.castShadow = true; m.receiveShadow = true;
+      group.add(m);
+      break;
+    }
+    garages.push(spot);
   }
   const used: Spot[] = [...garages];
   const gigSpot = (u: number, v: number): Spot => { const s = pickSeg(W * u, D * v, used, 45); const p = { x: s.x, z: s.z }; used.push(p); return p; };
@@ -925,7 +1182,7 @@ export function buildWorld(): World {
   }
 
   return {
-    group, lots, boxes, circles, ramps, garages, landmarks, roofs, segments, bounds, width: W, depth: D,
+    group, detail, homes, lots, boxes, circles, ramps, garages, landmarks, roofs, segments, bounds, width: W, depth: D,
     windowMaterial, signMaterial, spawn, minimap: { canvas: mm, scale: MM, pad: PAD },
   };
 }

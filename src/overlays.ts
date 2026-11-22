@@ -74,10 +74,14 @@ export class HowToPlay implements Modal {
     const map = touch ? bi('Tap the map button for the big map.', '지도 버튼으로 큰 지도를 열어요.')
       : pad ? bi('Click the right stick for the big map.', '오른쪽 스틱을 눌러 큰 지도를 열어요.')
       : bi('Press M for the big map.', 'M 키로 큰 지도를 열어요.');
+    const guns = touch ? bi('Buy guns at a garage (Arms) or the Gun Shop. Tap WPN to switch, AIM for the crosshair, AUTO to lock on to the closest cop, R to reload.', '차고(무기)나 총기 상점에서 총을 사세요. WPN으로 교체, AIM으로 조준점, AUTO로 가장 가까운 경찰 자동 조준, R로 재장전.')
+      : pad ? bi('Buy guns at a garage or the Gun Shop. RT fires, LT turns aiming on and off, D-pad down is auto-aim, Back reloads, LB switches weapons.', '차고나 총기 상점에서 총을 사세요. RT 발사, LT 조준 켜기/끄기, 아래 방향키 자동 조준, Back 재장전, LB 무기 교체.')
+      : bi('Buy guns at a garage (Arms) or the Gun Shop and press 4-9. Right click or X aims (crosshair), B turns auto-aim on, left click fires, R reloads.', '차고(무기)나 총기 상점에서 총을 사고 4-9를 누르세요. 우클릭 또는 X로 조준, B로 자동 조준, 좌클릭 발사, R 재장전.');
     this.el.innerHTML = `<div class="panel wide"><h2>${bi('HOW TO PLAY', '플레이 방법')}</h2>
       <ul class="howto">
         <li><b>${bi('Drive', '운전')}</b> ${drive}</li>
         <li><b>${bi('On foot', '도보')}</b> ${foot}</li>
+        <li><b>${bi('Guns', '총')}</b> ${guns}</li>
         <li><b>${bi('Smash', '부수기')}</b> ${bi('Hit hydrants, benches and cans for cash. Big smashes attract police.', '소화전, 벤치, 쓰레기통을 부숴 돈을 벌어요. 크게 부수면 경찰이 와요.')}</li>
         <li><b>${bi('Story', '스토리')}</b> ${bi('Follow the gold arrow at the top. ', '위쪽의 금색 화살표를 따라가세요. ')}${map}</li>
         <li><b>${bi('Explore', '탐험')}</b> ${bi('Golden stars, side jobs and garages are all on the map.', '황금 별, 부업, 차고가 모두 지도에 있어요.')}</li>

@@ -72,6 +72,10 @@ button.big:active { transform: translateY(4px); box-shadow: 0 2px 0 #a3153a; }
 #combo-mult.hot { color: #ff2a55; font-size: 19px; }
 #toast { top: 96px; left: 50%; transform: translate(-50%, -8px); padding: 8px 18px; border-radius: 12px; background: rgba(14,18,28,.82); border: 2px solid rgba(255,255,255,.4); font-size: 16px; opacity: 0; transition: opacity .2s, transform .2s; white-space: nowrap; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+#photo-hint { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); padding: 6px 14px; border-radius: 10px; background: rgba(14,18,28,.7); color: #fff; font-size: 14px; z-index: 30; pointer-events: none; }
+#news { bottom: 18px; left: 50%; transform: translate(-50%, 8px); width: min(90vw, 760px); padding: 6px 14px; border-radius: 8px; background: rgba(160,16,28,.9); border: 2px solid #fff; font-size: 14px; line-height: 1.3; opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; text-align: left; }
+#news b { background: #fff; color: #a0101c; padding: 1px 6px; border-radius: 4px; margin-right: 8px; letter-spacing: .5px; }
+#news.show { opacity: 1; transform: translate(-50%, 0); }
 #gig { top: 14px; left: 50%; transform: translateX(-50%); min-width: 260px; max-width: 80vw; text-align: center; padding: 8px 18px; border-radius: 12px; background: rgba(14,18,28,.78); border: 2px solid #ffd500; }
 #gig-title { color: #ffd500; letter-spacing: 2px; font-size: 13px; }
 #gig-obj { font-size: 14px; margin-top: 2px; font-weight: 600; }
@@ -277,3 +281,59 @@ body.foot-mode.can-reload #btn-reload { display: block; }
 .statsbox .erow { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 2px 0; text-align: left; }
 .statsbox .erow.done { color: #7dff9b; }
 .statsbox .erow.todo { opacity: .7; }
+
+/* aiming crosshair */
+#crosshair { position: fixed; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; --gap: 8px; z-index: 6; }
+#crosshair .ch { position: absolute; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.65); transition: transform .06s linear; }
+#crosshair .t, #crosshair .b { width: 2px; height: 9px; left: -1px; }
+#crosshair .l, #crosshair .r { height: 2px; width: 9px; top: -1px; }
+#crosshair .t { top: calc(-9px - var(--gap)); } #crosshair .b { top: var(--gap); }
+#crosshair .l { left: calc(-9px - var(--gap)); } #crosshair .r { left: var(--gap); }
+#crosshair .dot { width: 3px; height: 3px; left: -1.5px; top: -1.5px; border-radius: 50%; }
+#crosshair .ring { display: none; width: 30px; height: 30px; left: -15px; top: -15px; border-radius: 50%; background: none; border: 2px solid rgba(255,255,255,.85); box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
+#crosshair.round .ring { display: block; }
+#crosshair.round .ch:not(.ring):not(.dot) { display: none; }
+#crosshair.hostile .ch { background: #ff3b3b; } #crosshair.hostile .ring { background: none; border-color: #ff3b3b; }
+#crosshair.lock::after { content: ''; position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border: 2px solid #ff3b3b; border-radius: 4px; animation: lockPulse .5s infinite alternate; }
+@keyframes lockPulse { from { transform: scale(1); } to { transform: scale(.82); } }
+#crosshair.hit .t, #crosshair.hit .b, #crosshair.hit .l, #crosshair.hit .r { background: #ffd23a; transform: scale(1.5); }
+#crosshair.zoom { --gap: 5px; }
+/* touch: an AIM button next to RELOAD when a gun is out */
+#btn-aim { position: absolute; right: 84px; bottom: 178px; width: 54px; height: 54px; border-radius: 50%; border: 2px solid #ff6b6b; background: rgba(14,18,28,.75); color: #ff9b9b; font-weight: 800; font-size: 11px; pointer-events: auto; display: none; }
+#btn-aim.down { background: rgba(255,80,80,.5); }
+body.foot-mode.gun-out #btn-aim { display: block; }
+@media (max-height: 460px) { #btn-aim { bottom: 132px; width: 46px; height: 46px; right: 76px; } }
+
+/* aim toggles */
+#btn-aim.on, #btn-auto.on { background: rgba(255,80,80,.55); color: #fff; border-color: #ff6b6b; }
+#btn-auto { position: absolute; right: 148px; bottom: 178px; width: 54px; height: 54px; border-radius: 50%; border: 2px solid #ffb86b; background: rgba(14,18,28,.75); color: #ffc98f; font-weight: 800; font-size: 10px; pointer-events: auto; display: none; }
+body.foot-mode.gun-out #btn-auto { display: block; }
+@media (max-height: 460px) { #btn-auto { bottom: 132px; width: 46px; height: 46px; right: 134px; } }
+/* auto-aim lock-on box over the chosen target */
+#lockon { position: fixed; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px; pointer-events: none; z-index: 6; }
+#lockon i { position: absolute; width: 12px; height: 12px; border: 3px solid #ff3b3b; filter: drop-shadow(0 0 2px #000); }
+#lockon i:nth-child(1) { left: 0; top: 0; border-right: 0; border-bottom: 0; } #lockon i:nth-child(2) { right: 0; top: 0; border-left: 0; border-bottom: 0; }
+#lockon i:nth-child(3) { left: 0; bottom: 0; border-right: 0; border-top: 0; } #lockon i:nth-child(4) { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+
+/* auto-aim: the crosshair sits on its target; off screen it rides the edge with an arrow */
+#crosshair .arrow { display: none; width: 0; height: 0; background: none; box-shadow: none; left: 0; top: 0; border-left: 14px solid #ff3b3b; border-top: 8px solid transparent; border-bottom: 8px solid transparent; transform: rotate(var(--ang, 0deg)) translateX(32px) translateY(-8px); transform-origin: 0 8px; filter: drop-shadow(0 0 2px #000); }
+#crosshair.edge .arrow { display: block; }
+
+/* touch gun controls: one row above the action buttons, so nothing overlaps; RELOAD keeps its slot (hidden until the magazine is not full) */
+#touch .gunrow { display: none; gap: 10px; justify-content: flex-end; }
+body.foot-mode.gun-out #touch .gunrow { display: flex; }
+#touch .gunrow #btn-aim, #touch .gunrow #btn-auto, #touch .gunrow #btn-reload { position: static; display: block; right: auto; bottom: auto; width: 52px; height: 52px; font-size: 11px; }
+#touch .gunrow #btn-reload { visibility: hidden; }
+body.can-reload #touch .gunrow #btn-reload { visibility: visible; }
+@media (max-height: 460px) { #touch .gunrow { gap: 8px; } #touch .gunrow button { width: 46px; height: 46px; } }
+#ammo small { display: block; font-size: 10px; color: #ff9b9b; letter-spacing: .5px; }
+#ammo { white-space: nowrap; }
+/* very short screens (about 320 px high): smaller buttons and a smaller status block so the gun row fits */
+@media (max-height: 340px) {
+  #touch button { width: 42px; height: 42px; font-size: 10px; }
+  #touch button.hit, #touch button.gas { width: 54px; height: 54px; }
+  #touch .gunrow { gap: 6px; } #touch .gunrow button, #touch .gunrow #btn-aim, #touch .gunrow #btn-auto, #touch .gunrow #btn-reload { width: 38px; height: 38px; font-size: 9px; }
+  #touch .zone-right { gap: 6px; } #touch .grid3 { gap: 6px; }
+  #stick { width: 100px; height: 100px; }
+  #status { transform: scale(.66); }
+}

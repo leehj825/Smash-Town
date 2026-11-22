@@ -2,7 +2,7 @@ import { BODY_DESC, BODY_KEYS, BODY_NAMES, BODY_PRICES, MAX_LEVEL, NEONS, NEON_P
 import type { World } from './world';
 import type { Followable } from './cameraRig';
 import { bi, t, tf, type I18nKey } from './i18n';
-import { GUNS, GUN_ORDER, type GunId } from './guns';
+import { GUNS, GUN_ORDER, GUN_UP_PRICE, GUN_UP_TIER, type GunId } from './guns';
 import { PLAYER_ROSTER, STATS, type VehicleKind } from './vehicle';
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -17,7 +17,7 @@ export interface GarageModel {
   selected: VehicleKind;
   car: CarProgress;
   body: BodyProgress;
-  arms: { owned: GunId[]; reserve: Record<GunId, number> };
+  arms: { owned: GunId[]; reserve: Record<GunId, number>; up: Record<GunId, [number, number]> };
 }
 export interface GarageHandlers {
   onRepair: () => void;
@@ -30,6 +30,7 @@ export interface GarageHandlers {
   onBody: (i: number) => void;
   onBuyGun: (g: GunId) => void;
   onBuyAmmo: (g: GunId) => void;
+  onGunUp: (g: GunId, which: 0 | 1) => void;
   onClose: () => void;
 }
 type GarageTab = 'cars' | 'tune' | 'look' | 'body' | 'arms';
@@ -201,10 +202,13 @@ export class Hud {
     });
   }
 
-  setAmmo(text: string | null): void {
+  /** Whether a gun is out (shows the touch AIM / AUTO buttons). */
+  setGunOut(on: boolean): void { document.body.classList.toggle('gun-out', on); }
+  setAmmo(text: string | null, badges = ''): void {
     const el = document.getElementById('ammo')!;
     el.hidden = !text;
-    if (text && el.textContent !== text) el.textContent = text;
+    const html = text ? `${text}${badges ? `<small>${badges}</small>` : ''}` : '';
+    if (text && el.innerHTML !== html) el.innerHTML = html;
   }
   /** Touch: the F button reads CLIMB or ENTER next to a ladder or a shop door. */
   private lastAction = 'F';
@@ -212,6 +216,41 @@ export class Hud {
     if (text === this.lastAction) return;
     this.lastAction = text;
     document.querySelectorAll<HTMLElement>('#touch button[data-tap="KeyF"]').forEach((b) => { b.textContent = text; });
+  }
+  private hitT = 0;
+  /** Crosshair in the centre of the screen: its gap, colour state and shape. Hidden with show = false. */
+  setCrosshair(show: boolean, gap = 8, hostile = false, round = false, lock = false, zoom = false, at?: { x: number; y: number; edge: number | null }): void {
+    const el = document.getElementById('crosshair')!;
+    if (el.hidden !== !show) el.hidden = !show;
+    if (!show) return;
+    // auto-aim moves the crosshair onto its target; off the screen it sits on the edge with an arrow pointing the way
+    if (at) { el.style.left = `${Math.round(at.x)}px`; el.style.top = `${Math.round(at.y)}px`; } else { el.style.left = '50%'; el.style.top = '50%'; }
+    el.classList.toggle('edge', !!at && at.edge !== null);
+    if (at && at.edge !== null) el.style.setProperty('--ang', `${Math.round(at.edge)}deg`);
+    el.style.setProperty('--gap', `${Math.round(gap)}px`);
+    el.classList.toggle('hostile', hostile);
+    el.classList.toggle('round', round);
+    el.classList.toggle('lock', lock);
+    el.classList.toggle('zoom', zoom);
+  }
+  /** Auto-aim: a red box over the chosen target at screen position (x, y) in pixels. */
+  setLockOn(show: boolean, x = 0, y = 0): void {
+    const el = document.getElementById('lockon')!;
+    if (el.hidden !== !show) el.hidden = !show;
+    if (show) { el.style.left = `${Math.round(x)}px`; el.style.top = `${Math.round(y)}px`; }
+    document.body.classList.toggle('gun-out', show || document.body.classList.contains('gun-out'));
+  }
+  /** The touch AIM and AUTO buttons light up while on. */
+  setAimButtons(aim: boolean, auto: boolean): void {
+    document.getElementById('btn-aim')?.classList.toggle('on', aim);
+    document.getElementById('btn-auto')?.classList.toggle('on', auto);
+  }
+  /** A bullet hit something: the crosshair flashes yellow for a moment. */
+  hitMarker(): void {
+    const el = document.getElementById('crosshair')!;
+    el.classList.add('hit');
+    window.clearTimeout(this.hitT);
+    this.hitT = window.setTimeout(() => el.classList.remove('hit'), 130);
   }
   setReloadButton(on: boolean): void { document.body.classList.toggle('can-reload', on); }
 
@@ -395,8 +434,16 @@ export class Hud {
         const has = m.arms.owned.includes(id);
         const res = g.infinite ? '\u221E' : String(m.arms.reserve[id]);
         const buyBtn = has ? `<button class="seg" disabled>${bi('Owned', '보유')}</button>` : `<button class="seg gbuy" data-g="${id}">${money(g.price)}</button>`;
+        const tier = GUN_UP_TIER[id];
+        const upBtn = (which: 0 | 1, label: string) => {
+          const lv = m.arms.up[id][which];
+          const none = !has || tier === 0 || (which === 1 && (id === 'rocket' || id === 'grenade'));
+          if (none) return '';
+          return `<button class="seg gup" data-g="${id}" data-w="${which}" ${lv >= 3 ? 'disabled' : ''}>${label} ${stars(lv)} ${lv >= 3 ? bi('MAX', '최대') : money(Math.round(GUN_UP_PRICE[which][lv] * tier))}</button>`;
+        };
+        const ups = upBtn(0, bi('Damage', '피해')) + upBtn(1, bi('Magazine', '탄창'));
         const ammoBtn = has && !g.infinite ? `<button class="seg gammo" data-g="${id}">+${g.pack} ${bi('ammo', '탄약')} ${money(g.packPrice)}</button>` : '';
-        return `<div class="urow"><div><b>${g.icon} ${bi(g.en, g.ko)}</b> <span class="lv">${has ? `${bi('ammo', '탄약')} ${res}` : ''}</span><small>${bi('Magazine', '탄창')} ${g.mag} \u00B7 ${g.dmg ? bi('damage', '피해') + ' ' + g.dmg + (g.pellets > 1 ? 'x' + g.pellets : '') : bi('harmless fun', '무해한 장난감')}</small></div><div class="gbtns">${buyBtn}${ammoBtn}</div></div>`;
+        return `<div class="urow"><div><b>${g.icon} ${bi(g.en, g.ko)}</b> <span class="lv">${has ? `${bi('ammo', '탄약')} ${res}` : ''}</span><small>${bi('Magazine', '탄창')} ${g.mag} \u00B7 ${g.dmg ? bi('damage', '피해') + ' ' + g.dmg + (g.pellets > 1 ? 'x' + g.pellets : '') : bi('harmless fun', '무해한 장난감')}</small></div><div class="gbtns">${buyBtn}${ammoBtn}${ups}</div></div>`;
       }).join('') + '</div>';
     } else {
       body = '<div class="ulist">' + BODY_KEYS.map((k, i) => {
@@ -431,6 +478,7 @@ export class Hud {
     }));
     q('button.up').forEach((b) => b.addEventListener('click', () => h.onUpgrade(Number(b.dataset.i))));
     q('button.gbuy').forEach((b) => b.addEventListener('click', () => h.onBuyGun(b.dataset.g as GunId)));
+    q('button.gup').forEach((b) => b.addEventListener('click', () => h.onGunUp(b.dataset.g as GunId, Number(b.dataset.w) as 0 | 1)));
     q('button.gammo').forEach((b) => b.addEventListener('click', () => h.onBuyAmmo(b.dataset.g as GunId)));
     q('button.bup').forEach((b) => b.addEventListener('click', () => h.onBody(Number(b.dataset.i))));
     q('.swatch.paint').forEach((b) => b.addEventListener('click', () => h.onPaint(Number(b.dataset.c))));

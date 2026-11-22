@@ -12,6 +12,7 @@
   <body>
     <canvas id="game"></canvas>
 
+    <div id="photo-hint" hidden></div>
     <div id="hud" hidden>
       <button id="btn-pause" class="hud-btn" aria-label="Pause">☰</button>
       <button id="btn-map" class="hud-btn" aria-label="Map">&#128506;</button>
@@ -32,7 +33,10 @@
         <div id="gig" hidden><div id="gig-title"></div><div id="gig-obj"></div><div id="gig-time"></div></div>
       </div>
       <div id="dialog" hidden><div id="dlg-who"></div><div id="dlg-text"></div><div id="dlg-hint"></div></div>
+      <div id="crosshair" hidden><i class="ch t"></i><i class="ch b"></i><i class="ch l"></i><i class="ch r"></i><i class="ch dot"></i><i class="ch ring"></i><i class="ch arrow"></i></div>
+      <div id="lockon" hidden><i></i><i></i><i></i><i></i></div>
       <div id="toast"></div>
+      <div id="news"></div>
       <div id="prompt" hidden></div>
       <div id="overlay-msg" hidden></div>
 
@@ -72,6 +76,7 @@
           </div>
           <ul class="hints-foot">
             <li data-i18n="ui.hint.attack"></li>
+            <li data-i18n="ui.hint.aim"></li>
             <li data-i18n="ui.hint.kick"></li>
             <li data-i18n="ui.hint.dodge"></li>
             <li data-i18n="ui.hint.jump"></li>
@@ -132,6 +137,7 @@
             <button class="seg weather" data-w="rain" data-i18n="ui.weather.rain"></button>
             <button class="seg weather" data-w="fog" data-i18n="ui.weather.fog"></button>
             <button class="seg weather" data-w="storm" data-i18n="ui.weather.storm"></button>
+            <button class="seg weather" data-w="snow" data-i18n="ui.weather.snow"></button>
           </div>
         </div>
         <div class="row"><span data-i18n="ui.settings.time">Time of day</span>
@@ -143,6 +149,12 @@
         </div>
         <div class="row"><span data-i18n="ui.settings.sens">Look sensitivity</span>
           <div class="segs"><button class="seg sens" data-v="0.6">0.6x</button><button class="seg sens" data-v="1">1x</button><button class="seg sens" data-v="1.5">1.5x</button><button class="seg sens" data-v="2.2">2.2x</button></div>
+        </div>
+        <div class="row"><span data-i18n="ui.settings.aimsens">Aim sensitivity</span>
+          <div class="segs"><button class="seg aimSens" data-v="0.5">0.5x</button><button class="seg aimSens" data-v="0.85">0.85x</button><button class="seg aimSens" data-v="1">1x</button></div>
+        </div>
+        <div class="row"><span data-i18n="ui.settings.autoaim">Auto-aim (B)</span>
+          <div class="segs"><button class="seg autoaim" data-a="1" data-i18n="ui.on"></button><button class="seg autoaim" data-a="0" data-i18n="ui.off"></button></div>
         </div>
         <div class="row"><span data-i18n="ui.settings.fov">Field of view</span>
           <div class="segs"><button class="seg fov" data-v="-6">-</button><button class="seg fov" data-v="0">0</button><button class="seg fov" data-v="8">+</button><button class="seg fov" data-v="16">++</button></div>
@@ -169,6 +181,7 @@
       </div>
       <!-- right zone: action buttons -->
       <div class="zone-right">
+        <div class="gunrow"><button id="btn-aim" data-tap="AimToggle">AIM</button><button id="btn-auto" data-tap="AutoToggle">AUTO</button><button id="btn-reload" data-tap="KeyR">R</button></div>
         <div class="grid3 only-car">
           <button data-vbtn="nitro">N2O</button><button data-vbtn="hand">DRIFT</button><button data-tap="KeyF">F</button>
           <button data-vbtn="down">&#9660;</button><span></span><button data-vbtn="up" class="gas">&#9650;</button>
@@ -178,7 +191,6 @@
           <button data-tap="KeyV">WPN</button><button data-tap="KeyF">F</button><button data-vbtn="fire" data-tap="KeyJ" class="hit">HIT</button>
         </div>
       </div>
-      <button id="btn-reload" data-tap="KeyR">R</button>
     </div>
 
     <script type="module" src="./src/main.ts"></script>
