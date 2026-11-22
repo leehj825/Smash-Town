@@ -27,6 +27,8 @@ export class Human {
   active = false;
   /** A dead civilian is replaced by a new passer-by after this many seconds. */
   respawnT = 0;
+  /** A witness on the phone to the police: seconds until the call goes through (0 = not calling). */
+  calling = 0;
   role: number = Role.Civ;
   x = 0; y = GROUND; z = 0; vy = 0; heading = 0;
   vx = 0; vz = 0; // external velocity (knockback, dodge, lunge)
@@ -84,6 +86,9 @@ export interface HumanHooks {
   onCopDown: (h: Human) => void;
   /** A civilian was killed (not just knocked down). */
   onCivDown?: (h: Human, by: Human | null) => void;
+  /** A witness finished their call to the police. */
+  onWitnessCall?: (h: Human) => void;
+  onWitnessStart?: (h: Human) => void;
   onSwing: (att: Human, atk: Attack) => void;
   onPickup: () => void;
   onStep: () => void;
@@ -833,9 +838,34 @@ export class Humans {
     h.state = St.Walk; h.hp = h.maxHp; h.vx = h.vz = 0; h.fleeing = true;
   }
 
+  /** Civilians nearby who saw a crime take out a phone. Returns how many started calling. */
+  startWitnesses(x: number, z: number, r: number, max: number): number {
+    let n = 0;
+    for (const h of this.list) {
+      if (n >= max) break;
+      if (!h.active || h.role !== Role.Civ || h.state !== St.Walk || h.calling > 0 || h.freeT > 0) continue;
+      if ((h.x - x) ** 2 + (h.z - z) ** 2 > r * r) continue;
+      h.calling = 5; n++;
+      this.hooks.onWitnessStart?.(h);
+    }
+    return n;
+  }
+
+  /** Anyone calling who is no longer standing has been silenced. */
+  private updateWitness(h: Human, dt: number): boolean {
+    if (h.calling <= 0) return false;
+    if (h.state !== St.Walk) { h.calling = 0; return false; }
+    h.calling -= dt;
+    h.speed = 0; h.mvx = h.mvz = 0;
+    h.heading += wrap(Math.atan2(this.player.x - h.x, this.player.z - h.z) - h.heading) * Math.min(1, dt * 6);
+    if (h.calling <= 0) { h.calling = 0; this.hooks.onWitnessCall?.(h); h.fleeing = true; }
+    return true;
+  }
+
   private updateCivilian(h: Human, dt: number): void {
     h.flash = Math.max(0, h.flash - dt);
-    if (h.state !== St.Walk) return;
+    if (h.state !== St.Walk) { h.calling = 0; return; }
+    if (this.updateWitness(h, dt)) return;
     const ctx = this.ctx;
     if (h.freeT > 0) {
       // free-running: away from the hijacked car, then rejoin the crowd somewhere else

@@ -57,7 +57,14 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       H.gunHit(H.player, c, 999, 1, 0, true);
       return { state: c.state, stars: G.stars, heat: G.heat };
     });
-    ok(kill.state === 8 && kill.stars >= 1, 'killing a civilian leaves them dead and gives a wanted level', JSON.stringify(kill));
+    ok(kill.state === 8 && kill.heat >= 20, 'killing a civilian leaves them dead and raises heat', JSON.stringify(kill));
+    const wit = await S(() => {
+      const G = g(); const H = G.humans; const a = window.__a;
+      const calling = H.list.some((q) => q.calling > 0); void a;
+      for (let i = 0; i < 160; i++) H.update(0.05, H.ctx);
+      return { calling, stars: G.stars };
+    });
+    ok(wit.calling && wit.stars >= 1, 'a witness calls the police and the wanted level rises', JSON.stringify(wit));
     // the wanted level survives ten seconds with no police around
     const keep = await S(() => {
       const G = g();

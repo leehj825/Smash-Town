@@ -1314,6 +1314,7 @@ export class Game {
         if (att.role === Role.Player && this.assaultCooldown <= 0) {
           this.addHeat(tgt.role === Role.Cop ? 20 : 8);
           this.assaultCooldown = 0.8;
+          if (tgt.role === Role.Civ && this.stars === 0 && Math.random() < 0.5) this.humans.startWitnesses(tgt.x, tgt.z, 22, 1);
         }
         void killed;
       },
@@ -1337,9 +1338,17 @@ export class Game {
         else this.vfx.emitFire(h.x, 1, h.z, 4, 0.3);
       },
       onCivDown: (h, by) => {
-        if (by && by.role === Role.Player) this.addHeat(35);
+        if (by && by.role === Role.Player) {
+          this.addHeat(20);
+          if (this.stars === 0 && this.humans.startWitnesses(h.x, h.z, 30, 3) === 0) this.popups.spawn(h.x, h.y + 3, h.z, bi('No witnesses', '목격자 없음'), '#9aa0ad');
+        }
         if (this.humans.kids) this.popups.spawn(h.x, h.y + 2.2, h.z, t('pop.ko'), '#8a5cd6');
         else this.popups.spawn(h.x, h.y + 2.2, h.z, bi('Murder!', '살인!'), '#ff3b3b');
+      },
+      onWitnessStart: (h) => this.popups.spawn(h.x, h.y + 2.6, h.z, bi('📞 Calling the cops!', '📞 경찰에 신고 중!'), '#ffd23a'),
+      onWitnessCall: (h) => {
+        this.popups.spawn(h.x, h.y + 2.6, h.z, bi('Reported!', '신고 완료!'), '#ff3b3b');
+        this.addHeat(40);
       },
       onSwing: (att, atk) => {
         this.audio.whoosh(atk.kind !== 'punch');
@@ -1416,7 +1425,8 @@ export class Game {
       for (const off of c.collisionOffsets) {
         const h = this.humans.hitByVehicle(v.x + fxv * off, v.z + fzv * off, c.collisionRadius, c.vx, c.vz);
         if (h && v === this.driving) {
-          this.addHeat((h.role === Role.Cop ? 20 : 15) + (h.state === St.Dead && h.role === Role.Civ ? 25 : 0));
+          this.addHeat((h.role === Role.Cop ? 20 : 15) + (h.state === St.Dead && h.role === Role.Civ ? 5 : 0));
+          if (h.role === Role.Civ && this.stars === 0) this.humans.startWitnesses(h.x, h.z, 30, 3);
           this.audio.thump();
           this.vfx.emitDebris(h.x, 1, h.z, c.vx, c.vz, 0xe85a4f, 4);
           this.cameraRig.shake(0.25);
