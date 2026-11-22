@@ -54,6 +54,8 @@ export interface Landmarks {
 
 export interface World {
   group: THREE.Group;
+  /** Fine building detail; hidden on lower quality settings. */
+  detail: THREE.Group;
   lots: Lot[];
   boxes: BoxCollider[];
   circles: CircleCollider[];
@@ -420,6 +422,8 @@ export function buildWorld(): World {
   const CH = 200;
   const slabChunks = new Map<string, MeshBuilder>();
   const bldChunks = new Map<string, MeshBuilder>();
+  /** Fine architectural detail (trim, shop fronts, roof kit, house porches) lives in its own meshes so lower quality settings can drop it. */
+  const detChunks = new Map<string, MeshBuilder>();
   const chunkOf = (m: Map<string, MeshBuilder>, x: number, z: number): MeshBuilder => {
     const k = `${Math.floor(x / CH)},${Math.floor(z / CH)}`;
     let b = m.get(k);
@@ -612,6 +616,61 @@ export function buildWorld(): World {
       else bld.rotatedBox(2.2, 0.12, sl, cx + dirX * 1.0, 3.7, cz + off, 0, 0, -dirX * 0.38, c);
     }
   };
+  const shade = (c: number, f: number): number => {
+    const r = Math.min(255, Math.round(((c >> 16) & 255) * f)), g = Math.min(255, Math.round(((c >> 8) & 255) * f)), b = Math.min(255, Math.round((c & 255) * f));
+    return (r << 16) | (g << 8) | b;
+  };
+  /**
+   * Architectural trim for one block of a building: a dark plinth at the foot (ground blocks only), a stone cornice at the top,
+   * pilasters up the corners, and a string course every few floors. All of it hugs the footprint so colliders stay valid.
+   */
+  const trim = (w: number, h: number, d: number, x: number, y0: number, z: number, color: number, ground: boolean) => {
+    const keep = bld; bld = chunkOf(detChunks, x, z);
+    const light = shade(color, 1.18), dark = shade(color, 0.62);
+    if (ground) plain(w + 0.3, 1.0, d + 0.3, x, y0 + 0.5, z, dark);
+    plain(w + 0.5, 0.4, d + 0.5, x, y0 + h - 0.2, z, light);
+    plain(w + 0.3, 0.2, d + 0.3, x, y0 + h - 0.5, z, dark);
+    if (w > 5 && d > 5 && h > 6) for (const sx of [-1, 1]) for (const sz of [-1, 1]) plain(0.5, h - 0.4, 0.5, x + sx * (w / 2), y0 + h / 2, z + sz * (d / 2), light);
+    for (let yy = TILE_H * 2; yy < h - 2; yy += TILE_H * 2) plain(w + 0.2, 0.22, d + 0.2, x, y0 + yy, z, light);
+    bld = keep;
+  };
+  /** A shop front on the ground floor of one face: a frame, a glass door and display windows, a step and a little lamp. */
+  const shopFront = (x: number, z: number, w: number, d: number, dirX: number, dirZ: number, color: number) => {
+    const keep = bld; bld = chunkOf(detChunks, x, z);
+    const frame = shade(color, 0.55), glass = 0x35506b, span = dirZ !== 0 ? w : d;
+    const along = (o: number, y: number, ww: number, hh: number, dd: number, c: number) => {
+      if (dirZ !== 0) plain(ww, hh, dd, x + o, y, z + dirZ * (d / 2 + dd / 2 - 0.02), c);
+      else plain(dd, hh, ww, x + dirX * (w / 2 + dd / 2 - 0.02), y, z + o, c);
+      bld = keep;
+  };
+    const winW = Math.min(3.4, span * 0.26);
+    for (const s of [-1, 1]) {
+      const o = s * Math.min(span * 0.28, 5);
+      along(o, 1.75, winW + 0.3, 2.1, 0.14, frame);
+      along(o, 1.75, winW, 1.8, 0.2, glass);
+      along(o, 0.9, winW + 0.3, 0.12, 0.34, 0xe9e4d6); // sill
+    }
+    along(0, 1.3, 1.6, 2.6, 0.16, frame);
+    along(0, 1.25, 1.2, 2.4, 0.22, glass);
+    along(0, 0.1, 2.2, 0.2, 0.7, 0xb9b4a8); // step
+    along(1.45, 2.3, 0.18, 0.18, 0.3, 0xffe9a6); // lamp
+  };
+  /** Things on a flat roof: a stair bulkhead, vents, an antenna, solar panels, a water tank or a satellite dish. */
+  const roofKit = (x: number, z: number, w: number, d: number, top: number) => {
+    const keep = bld; bld = chunkOf(detChunks, x, z);
+    const sp = (f: number) => (rng() - 0.5) * f;
+    const n = 1 + Math.floor(rng() * 3);
+    for (let i = 0; i < n; i++) {
+      const px = x + sp(w * 0.55), pz = z + sp(d * 0.55);
+      const k = Math.floor(rng() * 5);
+      if (k === 0) { plain(2.4, 2.2, 2.2, px, top + 1.1, pz, 0xb7bcc7); plain(0.9, 1.6, 0.1, px, top + 0.8, pz + 1.15, 0x3c4a6b); }
+      else if (k === 1) { plainCyl(0.25, 0.25, 1.6, px, top + 0.8, pz, 0x8d95a3); plainCyl(0.45, 0.25, 0.3, px, top + 1.7, pz, 0x8d95a3); }
+      else if (k === 2) { plainCyl(0.06, 0.06, 5, px, top + 2.5, pz, 0x6b7280); plain(0.2, 0.2, 0.2, px, top + 5.1, pz, 0xff4d4d); plain(1.4, 0.05, 0.05, px, top + 4.2, pz, 0x6b7280); }
+      else if (k === 3) { for (let j = 0; j < 3; j++) bld.rotatedBox(2.0, 0.08, 1.2, px + j * 2.2 - 2.2, top + 0.55, pz, -0.5, 0, 0, 0x27406b); }
+      else { for (const lx of [-0.9, 0.9]) for (const lz of [-0.9, 0.9]) plain(0.15, 1.6, 0.15, px + lx, top + 0.8, pz + lz, 0x5a4632); plainCyl(1.2, 1.2, 1.8, px, top + 2.5, pz, 0x9a6b44); plainCyl(0.1, 1.3, 0.7, px, top + 3.7, pz, 0x6b4a2e); }
+    }
+    bld = keep;
+  };
   const roofExtras = (x: number, z: number, w: number, d: number, h: number) => {
     plain(w + 0.5, 0.55, d + 0.5, x, h + 0.55, z, 0xece6d8); // parapet trim
     if (rng() < 0.8) plain(1.8, 1.0, 1.4, x + rand(-w / 3, w / 3), h + 1.05, z + rand(-d / 3, d / 3), 0x9aa0ad); // AC unit
@@ -626,6 +685,34 @@ export function buildWorld(): World {
     });
     plain(1.1, 2.1, 0.2, x + rand(-w / 4, w / 4), 2.1, z + dirZ * (d / 2 + 0.05), 0x6b4a2e); // front door
     plain(0.5, 2.6, 0.5, x + w / 2 - 1, h + 3.1, z, 0xb08968);                                  // chimney
+    const keepB = bld; bld = chunkOf(detChunks, x, z);
+    plain(0.7, 0.3, 0.7, x + w / 2 - 1, h + rh + 0.9, z, 0x6b5a4a);                             // chimney cap
+    plain(w + 0.3, 0.7, d + 0.3, x, 0.35, z, 0x8a8f99);                                          // stone foundation
+    // a porch over the front door: slab, roof, two posts, steps
+    const fz = z + dirZ * (d / 2);
+    plain(3.2, 0.25, 1.8, x, 0.3, fz + dirZ * 0.9, 0xcfc8b8);
+    plain(3.6, 0.2, 2.2, x, 2.9, fz + dirZ * 1.0, 0x6b4a3e);
+    for (const sx of [-1.4, 1.4]) plain(0.18, 2.6, 0.18, x + sx, 1.6, fz + dirZ * 1.8, 0xffffff);
+    plain(1.6, 0.18, 0.5, x, 0.12, fz + dirZ * 2.2, 0xb9b4a8);
+    // windows with shutters on both long faces and the sides
+    for (const wx of [-w * 0.3, w * 0.3]) for (const f of [1, -1]) {
+      const wz = z + f * (d / 2 + 0.05);
+      if (f === dirZ && Math.abs(wx) < 2) continue;
+      plain(1.5, 1.3, 0.12, x + wx, 2.5, wz, 0xffffff);
+      plain(1.2, 1.0, 0.16, x + wx, 2.5, wz + f * 0.02, 0x4b6a8a);
+      for (const s of [-1, 1]) plain(0.35, 1.2, 0.1, x + wx + s * 0.95, 2.5, wz + f * 0.04, 0x3f6b4a);
+    }
+    for (const sx of [-1, 1]) { plain(0.12, 1.3, 1.5, x + sx * (w / 2 + 0.05), 2.5, z, 0xffffff); plain(0.16, 1.0, 1.2, x + sx * (w / 2 + 0.05), 2.5, z, 0x4b6a8a); }
+    // a garage door and a short drive
+    plain(2.6, 2.1, 0.12, x - w * 0.32, 1.1, z - dirZ * (d / 2 + 0.04), 0xd9d9de);
+    for (let g = 0; g < 4; g++) plain(2.6, 0.06, 0.14, x - w * 0.32, 0.5 + g * 0.5, z - dirZ * (d / 2 + 0.05), 0xaeb2bd);
+    // a picket fence along the front of the garden, a mailbox and a bush
+    const gz = z + dirZ * (d / 2 + 3.4);
+    for (let p = -w / 2 - 1; p <= w / 2 + 1; p += 0.7) { if (Math.abs(p) < 1.4) continue; plain(0.12, 0.9, 0.08, x + p, 0.45, gz, 0xffffff); }
+    plain(w + 2.4, 0.08, 0.06, x, 0.7, gz, 0xffffff);
+    plain(0.08, 1.1, 0.08, x + 2.4, 0.55, gz + dirZ * 0.7, 0x5a4632); plain(0.4, 0.3, 0.25, x + 2.4, 1.2, gz + dirZ * 0.7, 0x2e5fa8);
+    for (const sx of [-1, 1]) plainCyl(0.5, 0.65, 0.8, x + sx * (w / 2 - 0.5), 0.4, fz + dirZ * 0.7, 0x2f7a3b);
+    bld = keepB;
     addBoxCollider(x, z, w, d).h = h + rh + 1;
   };
 
@@ -652,17 +739,24 @@ export function buildWorld(): World {
           let y = 0;
           const h1 = rand(14, 26) * heightScale;
           building(t.w, h1, t.d, t.x, y, t.z, color);
+          trim(t.w, h1, t.d, t.x, y, t.z, color, true);
+          shopFront(t.x, t.z, t.w, t.d, 0, rng() < 0.5 ? -1 : 1, color);
           const towerBox = addBoxCollider(t.x, t.z, t.w, t.d);
           y += h1;
           const h2 = rand(12, 34) * heightScale;
           building(t.w * 0.8, h2, t.d * 0.8, t.x, y, t.z, color);
+          trim(t.w * 0.8, h2, t.d * 0.8, t.x, y, t.z, color, false);
           y += h2;
           if (heightScale > 0.8 && rng() < 0.75) {
             const h3 = rand(10, 26) * heightScale;
             building(t.w * 0.55, h3, t.d * 0.55, t.x, y, t.z, color);
+            trim(t.w * 0.55, h3, t.d * 0.55, t.x, y, t.z, color, false);
             y += h3;
           }
           plain(t.w * 0.3, 2.2, t.d * 0.3, t.x, y + 2.2, t.z, 0x9aa0ad);
+          if (t.w * 0.3 > 2) roofKit(t.x, t.z, t.w * 0.4, t.d * 0.4, y + 0.1);
+          plainCyl(0.07, 0.07, 6, t.x, y + 4.4 + 3, t.z, 0x6b7280);
+          plain(0.22, 0.22, 0.22, t.x, y + 10.5, t.z, 0xff3b3b);
           towerBox.h = y + 4.4;
         }
         break;
@@ -677,17 +771,22 @@ export function buildWorld(): World {
           const x = alongX ? fx0 + w / 2 + s * (w + gap) : cx;
           const z = alongX ? cz : fz0 + d / 2 + s * (d + gap);
           const h = rand(7, 11);
-          building(w, h, d, x, 0, z, pick(PASTELS));
+          const oc = pick(PASTELS);
+          building(w, h, d, x, 0, z, oc);
           const colBox = addBoxCollider(x, z, w, d);
           colBox.h = h + 1.2;
+          trim(w, h, d, x, 0, z, oc, true);
           roofExtras(x, z, w, d, h);
+          roofKit(x, z, w, d, h + 0.55);
           if (alongX) {
             const dirZ = rng() < 0.5 ? -1 : 1;
+            shopFront(x, z, w, d, 0, dirZ, oc);
             roofCands.push({ box: colBox, h, x, z, w, d, nx: 0, nz: dirZ, off: w * 0.36 });
             awning(x, z + dirZ * d / 2, 0, dirZ, w * 0.82);
             addSign(x, z + dirZ * d / 2, 0, dirZ, w);
           } else {
             const dirX = rng() < 0.5 ? -1 : 1;
+            shopFront(x, z, w, d, dirX, 0, oc);
             roofCands.push({ box: colBox, h, x, z, w, d, nx: dirX, nz: 0, off: d * 0.36 });
             awning(x + dirX * w / 2, z, dirX, 0, d * 0.82);
             addSign(x + dirX * w / 2, z, dirX, 0, d);
@@ -753,6 +852,8 @@ export function buildWorld(): World {
           const h = rand(4, 6);
           building(w, h, d, x, 0, z, pick(PASTELS));
           addBoxCollider(x, z, w, d).h = h + 1.2;
+          trim(w, h, d, x, 0, z, 0xf2ead8, true);
+          shopFront(x, z, w, d, 0, 1, 0xf2ead8);
           roofExtras(x, z, w, d, h);
           awning(x, z + d / 2, 0, 1, w * 0.8);
         }
@@ -798,6 +899,14 @@ export function buildWorld(): World {
     m.receiveShadow = true;
     group.add(m);
   }
+  const detail = new THREE.Group();
+  for (const bb of detChunks.values()) {
+    const m = new THREE.Mesh(bb.build(), windowMaterial);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    detail.add(m);
+  }
+  group.add(detail);
   const ramps: Ramp[] = []; // no jump ramps: the city has no stunt wedges on its roads
 
   // ================================================================ shop signboards
@@ -930,7 +1039,7 @@ export function buildWorld(): World {
   }
 
   return {
-    group, lots, boxes, circles, ramps, garages, landmarks, roofs, segments, bounds, width: W, depth: D,
+    group, detail, lots, boxes, circles, ramps, garages, landmarks, roofs, segments, bounds, width: W, depth: D,
     windowMaterial, signMaterial, spawn, minimap: { canvas: mm, scale: MM, pad: PAD },
   };
 }

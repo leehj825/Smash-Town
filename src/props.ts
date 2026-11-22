@@ -54,6 +54,9 @@ function lampPoleGeometry(): THREE.BufferGeometry {
   const b = new MeshBuilder();
   b.cylinder(0.09, 0.15, 7, 6, 0, 3.5, 0, 0x8a8f9c);
   b.cylinder(0.2, 0.2, 0.3, 6, 0, 0.15, 0, 0x6d7280);
+  b.cylinder(0.13, 0.17, 0.12, 6, 0, 0.34, 0, 0x5a606c);
+  b.cylinder(0.11, 0.11, 0.1, 6, 0, 6.0, 0, 0x5a606c);
+  b.box(0.06, 0.06, 0.5, 1.95, 7.05, 0, 0x8a8f9c);
   b.rotatedBox(2.0, 0.1, 0.1, 0.9, 7.05, 0, 0, 0, 0.05, 0x8a8f9c);
   return b.build();
 }
@@ -94,9 +97,14 @@ function treeGeometry(pine: boolean): THREE.BufferGeometry {
 
 function benchGeometry(): THREE.BufferGeometry {
   const b = new MeshBuilder();
-  b.box(1.8, 0.08, 0.5, 0, 0.5, 0, 0x9b6b3f);
-  b.box(1.8, 0.45, 0.07, 0, 0.8, -0.24, 0x9b6b3f);
-  for (const sx of [-1, 1]) b.box(0.08, 0.5, 0.5, sx * 0.8, 0.25, 0, 0x4a4e59);
+  for (let i = 0; i < 3; i++) b.box(1.8, 0.05, 0.14, 0, 0.5, -0.17 + i * 0.17, i % 2 ? 0x8a5c33 : 0x9b6b3f); // seat slats
+  for (let i = 0; i < 3; i++) b.box(1.8, 0.1, 0.05, 0, 0.66 + i * 0.14, -0.25, i % 2 ? 0x8a5c33 : 0x9b6b3f);   // back slats
+  for (const sx of [-1, 1]) {
+    b.box(0.08, 0.5, 0.5, sx * 0.8, 0.25, 0, 0x4a4e59);
+    b.box(0.08, 0.05, 0.5, sx * 0.88, 0.7, 0, 0x4a4e59);      // armrest
+    b.box(0.06, 0.45, 0.05, sx * 0.88, 0.5, 0.2, 0x4a4e59);
+    b.box(0.1, 0.03, 0.55, sx * 0.8, 0.02, 0, 0x2f323a);       // foot
+  }
   return b.build();
 }
 
@@ -113,8 +121,90 @@ function newsstandGeometry(): THREE.BufferGeometry {
 function trashGeometry(): THREE.BufferGeometry {
   const b = new MeshBuilder();
   b.cylinder(0.3, 0.26, 0.8, 8, 0, 0.4, 0, 0x7d8696);
+  for (const y of [0.15, 0.4, 0.65]) b.cylinder(0.31, 0.31, 0.03, 8, 0, y, 0, 0x5a606c);   // bands
+  b.box(0.2, 0.02, 0.02, 0.0, 0.58, 0.3, 0x15151a);                                           // flap
   b.cylinder(0.33, 0.33, 0.07, 8, 0, 0.84, 0, 0x4a4e59);
   b.cylinder(0.06, 0.06, 0.08, 6, 0, 0.9, 0, 0x4a4e59);
+  return b.build();
+}
+
+
+// ---- richer versions of the smashable props, and purely decorative street furniture
+function bushGeometry(): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  for (const [x, y, z, r, c] of [[0, 0.45, 0, 0.6, 0x3f9a4f], [0.5, 0.35, 0.2, 0.42, 0x4cae5c], [-0.45, 0.35, -0.1, 0.45, 0x388c47], [0.1, 0.55, -0.3, 0.38, 0x57b868]] as const) {
+    b.add(new THREE.IcosahedronGeometry(r, 0), c, new THREE.Matrix4().makeTranslation(x, y, z));
+  }
+  for (const [x, z, c] of [[0.2, 0.5, 0xff6b8b], [-0.3, 0.4, 0xffd23a], [0.55, 0.0, 0xffffff]] as const) b.box(0.1, 0.1, 0.1, x, 0.75, z, c);
+  return b.build();
+}
+function planterGeometry(): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  b.box(1.1, 0.6, 1.1, 0, 0.3, 0, 0xb9b4a8);
+  b.box(1.2, 0.08, 1.2, 0, 0.62, 0, 0x8a857a);
+  b.box(0.95, 0.12, 0.95, 0, 0.62, 0, 0x4a3a2a);
+  for (const [x, z, y, r, c] of [[0, 0, 0.95, 0.4, 0x3f9a4f], [0.25, 0.2, 0.8, 0.25, 0x57b868], [-0.25, -0.15, 0.85, 0.28, 0x388c47]] as const) b.add(new THREE.IcosahedronGeometry(r, 0), c, new THREE.Matrix4().makeTranslation(x, y, z));
+  for (const [x, z, c] of [[0.2, -0.25, 0xff5d73], [-0.3, 0.25, 0xffd23a]] as const) b.box(0.12, 0.12, 0.12, x, 1.2, z, c);
+  return b.build();
+}
+function mailboxGeometry(): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  b.box(0.12, 0.55, 0.12, 0, 0.28, 0, 0x4a4e59);
+  b.box(0.55, 0.62, 0.45, 0, 0.88, 0, 0x2e5fa8);
+  b.cylinder(0.225, 0.225, 0.55, 8, 0, 1.19, 0, 0x2e5fa8, 0, 0, Math.PI / 2);
+  b.box(0.35, 0.05, 0.02, 0, 1.0, 0.23, 0x15151a);
+  b.box(0.2, 0.2, 0.02, 0, 0.7, 0.23, 0xf0f0f0);
+  return b.build();
+}
+function bollardGeometry(): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  b.cylinder(0.12, 0.14, 0.8, 8, 0, 0.4, 0, 0x6d7280);
+  b.cylinder(0.125, 0.125, 0.1, 8, 0, 0.62, 0, 0xffd23a);
+  b.add(new THREE.SphereGeometry(0.12, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), 0x6d7280, new THREE.Matrix4().makeTranslation(0, 0.8, 0));
+  return b.build();
+}
+function bikeRackGeometry(): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  for (let i = 0; i < 4; i++) {
+    const x = -0.9 + i * 0.6;
+    b.box(0.05, 0.7, 0.05, x - 0.15, 0.35, 0, 0x8d95a3); b.box(0.05, 0.7, 0.05, x + 0.15, 0.35, 0, 0x8d95a3); b.box(0.35, 0.05, 0.05, x, 0.72, 0, 0x8d95a3);
+  }
+  // one bike locked to it
+  b.cylinder(0.3, 0.3, 0.05, 10, -0.3, 0.32, 0.3, 0x15151a, Math.PI / 2, 0, 0); b.cylinder(0.3, 0.3, 0.05, 10, 0.4, 0.32, 0.3, 0x15151a, Math.PI / 2, 0, 0);
+  b.box(0.8, 0.05, 0.05, 0.05, 0.62, 0.3, 0xd9534f); b.box(0.05, 0.4, 0.05, -0.3, 0.5, 0.3, 0xd9534f); b.box(0.35, 0.05, 0.05, -0.3, 0.8, 0.3, 0x15151a);
+  return b.build();
+}
+function busStopGeometry(): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  b.box(3.2, 0.12, 1.6, 0, 2.55, 0, 0x3c4a6b);
+  for (const sx of [-1.5, 1.5]) b.box(0.1, 2.5, 0.1, sx, 1.25, -0.7, 0x6d7280);
+  b.box(3.0, 1.8, 0.06, 0, 1.5, -0.74, 0x9fd6ff);
+  b.box(3.0, 0.1, 0.06, 0, 0.58, -0.74, 0x3c4a6b);
+  b.box(2.2, 0.08, 0.45, 0, 0.6, -0.35, 0x9b6b3f);
+  for (const sx of [-0.9, 0.9]) b.box(0.06, 0.55, 0.4, sx, 0.3, -0.35, 0x4a4e59);
+  b.box(0.12, 3.2, 0.12, 1.9, 1.6, 0.3, 0x6d7280); b.box(0.5, 0.5, 0.06, 1.9, 3.0, 0.3, 0x35a8ff); b.box(0.28, 0.28, 0.07, 1.9, 3.0, 0.3, 0xffffff);
+  return b.build();
+}
+function trafficConeGeometry(): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  b.box(0.4, 0.04, 0.4, 0, 0.02, 0, 0x2a2a30);
+  b.add(new THREE.ConeGeometry(0.15, 0.6, 8), 0xff7a1a, new THREE.Matrix4().makeTranslation(0, 0.34, 0));
+  b.cylinder(0.1, 0.12, 0.08, 8, 0, 0.3, 0, 0xffffff);
+  return b.build();
+}
+function streetSignGeometry(): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  b.cylinder(0.05, 0.05, 3.2, 6, 0, 1.6, 0, 0x6d7280);
+  b.box(0.9, 0.22, 0.04, 0, 3.0, 0.05, 0x1f7a4a); b.box(0.9, 0.22, 0.04, 0, 2.7, -0.05, 0x1f7a4a);
+  b.box(0.7, 0.05, 0.05, 0, 3.0, 0.08, 0xffffff); b.box(0.7, 0.05, 0.05, 0, 2.7, -0.08, 0xffffff);
+  return b.build();
+}
+function lampPostDetail(): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  b.box(0.35, 0.35, 0.35, 0, 0.55, 0, 0x6d7280);
+  b.cylinder(0.14, 0.2, 0.5, 6, 0, 0.8, 0, 0x6d7280);
+  b.box(0.25, 0.4, 0.04, 0.0, 5.0, 0.12, 0xffd23a);   // banner
+  b.box(0.04, 0.04, 0.4, 0, 5.22, 0.12, 0x6d7280);
   return b.build();
 }
 
@@ -127,6 +217,8 @@ export interface Props {
   smash(ref: SmashRef, x: number, z: number, vx: number, vz: number): number;
   update(dt: number): void;
   setVegetation(f: number): void;
+  /** Show or hide the decorative street furniture (bushes, planters, bollards...). */
+  setDecor(on: boolean): void;
 }
 
 export function buildProps(world: World, vfx: Vfx): Props {
@@ -254,6 +346,47 @@ export function buildProps(world: World, vfx: Vfx): Props {
   const lampHeadMaterial = new THREE.MeshStandardMaterial({ color: 0xfff1c9, emissive: 0xffe2a0, emissiveIntensity: 0.2, flatShading: true });
   const lampHeads = instance(lampHeadGeometry(), lampHeadMaterial, lists.lamp, false);
 
+
+  // ---- decorative street furniture (its own random stream so the smashable props keep their places)
+  const drng = makeRng(4242);
+  const decor: Record<'bush' | 'planter' | 'mailbox' | 'bollard' | 'bikerack' | 'busstop' | 'cone' | 'sign' | 'lampdetail', Placement[]> = { bush: [], planter: [], mailbox: [], bollard: [], bikerack: [], busstop: [], cone: [], sign: [], lampdetail: [] };
+  for (const lot of world.lots) {
+    const { x0, x1, z0, z1, district } = lot;
+    if (district === 'water' || district === 'forest') continue;
+    const lx = (x0 + x1) / 2, lz = (z0 + z1) / 2;
+    const edgeZ = (top: boolean, off: number) => (top ? z0 + EDGE + off : z1 - EDGE - off);
+    const rotOf = (top: boolean) => (top ? 0 : Math.PI);
+    const along = () => x0 + 5 + drng() * (x1 - x0 - 10);
+    if (district === 'park' || district === 'plaza' || district === 'suburb') {
+      const n = district === 'suburb' ? 4 : 8;
+      for (let k = 0; k < n; k++) {
+        const x = x0 + 3 + drng() * (x1 - x0 - 6), z = z0 + 3 + drng() * (z1 - z0 - 6);
+        if (district === 'park' && (Math.abs(x - lx) < 2.8 || Math.abs(z - lz) < 2.8)) continue;
+        if (district === 'plaza' && Math.hypot(x - lx, z - lz) < 6) continue;
+        decor.bush.push({ x, z, rot: drng() * 6.28, scale: 0.8 + drng() * 0.6 });
+      }
+    }
+    if (district === 'downtown' || district === 'oldtown' || district === 'plaza') {
+      for (let n = 0; n < 2; n++) { const top = n === 0; decor.planter.push({ x: along(), z: edgeZ(top, 0.4), rot: 0, scale: 1 }); }
+      decor.mailbox.push({ x: along(), z: edgeZ(drng() < 0.5, 0.5), rot: 0, scale: 1 });
+      const top = drng() < 0.5; const bx = along();
+      for (let k = 0; k < 4; k++) decor.bollard.push({ x: bx + k * 1.4, z: edgeZ(top, 0.1), rot: 0, scale: 1 });
+      decor.bikerack.push({ x: along(), z: edgeZ(!top, 0.5), rot: rotOf(!top), scale: 1 });
+      decor.sign.push({ x: x0 + EDGE, z: z0 + EDGE, rot: 0, scale: 1 });
+      if (drng() < 0.5) decor.busstop.push({ x: along(), z: edgeZ(drng() < 0.5, 1.0), rot: 0, scale: 1 });
+    }
+    if (district === 'harbor') for (let k = 0; k < 5; k++) decor.cone.push({ x: x0 + 6 + drng() * (x1 - x0 - 12), z: edgeZ(drng() < 0.5, 0.4), rot: drng() * 6.28, scale: 1 });
+    if (district === 'downtown' || district === 'oldtown') for (let k = 0; k < 2; k++) decor.cone.push({ x: along(), z: edgeZ(drng() < 0.5, 0.2), rot: drng() * 6.28, scale: 1 });
+    if (district === 'downtown' || district === 'oldtown' || district === 'plaza' || district === 'park') decor.lampdetail.push({ x: x0 + EDGE, z: z0 + EDGE, rot: 0, scale: 1 });
+  }
+  const decorMeshes: THREE.InstancedMesh[] = [];
+  const dgeo = { bush: bushGeometry(), planter: planterGeometry(), mailbox: mailboxGeometry(), bollard: bollardGeometry(), bikerack: bikeRackGeometry(), busstop: busStopGeometry(), cone: trafficConeGeometry(), sign: streetSignGeometry(), lampdetail: lampPostDetail() };
+  for (const k of Object.keys(decor) as (keyof typeof decor)[]) {
+    if (decor[k].length) decorMeshes.push(instance(dgeo[k], mat, decor[k], k !== 'bush' && k !== 'cone'));
+  }
+  const dradius: Partial<Record<keyof typeof decor, number>> = { planter: 0.7, mailbox: 0.35, bollard: 0.2, bikerack: 1.0, busstop: 1.4, sign: 0.15 };
+  for (const k of Object.keys(dradius) as (keyof typeof decor)[]) for (const p of decor[k]) world.circles.push({ x: p.x, z: p.z, r: dradius[k]! });
+
   const radius: Record<PropType, number> = { palm: 0.5, lamp: 0.3, hydrant: 0.35, bench: 0.9, newsstand: 0.85, trash: 0.4 };
   (Object.keys(lists) as PropType[]).forEach((k) => {
     lists[k].forEach((p, index) => {
@@ -356,5 +489,5 @@ export function buildProps(world: World, vfx: Vfx): Props {
     }
   }
 
-  return { group, lampHeadMaterial, smash, update, setVegetation };
+  return { group, lampHeadMaterial, smash, update, setVegetation, setDecor: (on: boolean) => { for (const m of decorMeshes) m.visible = on; } };
 }
