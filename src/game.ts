@@ -18,6 +18,8 @@ import { RangeGig } from './range';
 import { SideQuests } from './sidequests';
 import { Progress, type ProgressSave } from './tracker';
 import { Shops } from './shops';
+import { Climber } from './climb';
+import { StreetLife } from './street';
 import { Medics } from './medics';
 import { Machines } from './machines';
 import { TrafficLights } from './lights';
@@ -26,7 +28,6 @@ import { TaxiJob } from './taxi';
 import { StreetRace } from './race';
 import { settings } from './settings';
 import { Mood } from './mood';
-import type { Roof } from './world';
 import { GUN_ORDER, GUNS, GUN_UP_PRICE, GUN_UP_TIER, Guns, type GunDef, type GunId } from './guns';
 import { BODY_KEYS, BODY_PRICES, MAX_LEVEL, NEONS, NEON_PRICE, PAINTS, PAINT_PRICE, UP_KEYS, UP_PRICES, emptyBody, emptyCar, fineFor, resprayCost, type BodyProgress, type CarProgress } from './upgrades';
 import type { Blip, GarageModel, Hud } from './hud';
@@ -110,7 +111,10 @@ export class Game {
   inside: Room | null = null;
   private ret = { x: 0, z: 0, h: 0 };
   private fading = false;
-  private climb: { t: number; dur: number; fx: number; fz: number; fy: number; tx: number; tz: number; ty: number; roof: Roof; up: boolean } | null = null;
+  /** Ladders and rooftops (see climb.ts). */
+  private climber!: Climber;
+  street!: StreetLife;
+  private get climb(): Climber['state'] { return this.climber.state; }
   readonly heli = new Helicopter();
   private heliTimer = 0;
   /** Road route to the story goal (refreshed a few times a second) and the goal itself. */
@@ -211,6 +215,8 @@ export class Game {
     this.policeFire = new PoliceFire(this);
     this.range = new RangeGig(this);
     this.shops = new Shops(this);
+    this.climber = new Climber(this);
+    this.street = new StreetLife(this);
     this.medics = new Medics(this);
     this.sideQuests = new SideQuests(this);
     this.progress = new Progress(this.save.progress, (m) => this.hud.toast(m, 3600), (n) => { this.cash += n; this.hud.setCash(this.cash); this.saveDirty = true; this.audio.cash(); }, () => { this.saveDirty = true; });
@@ -529,47 +535,6 @@ export class Game {
     }
   }
 
-  // ------------------------------------------------------------------ ladders and rooftops
-  private ladderOption(): { roof: Roof; up: boolean } | null {
-    if (!this.onFoot || this.climb || this.inside || this.state !== 'play') return null;
-    const pl = this.humans.player;
-    if (pl.roof && pl.y >= pl.roof.h - 0.5) {
-      const r = pl.roof;
-      const tx = r.ladder.x - r.ladder.nx * 0.55, tz = r.ladder.z - r.ladder.nz * 0.55;
-      return Math.hypot(pl.x - tx, pl.z - tz) < 2.7 ? { roof: r, up: false } : null;
-    }
-    if (pl.y > 1) return null;
-    for (const r of this.world.roofs) if (Math.hypot(pl.x - r.ladder.x, pl.z - r.ladder.z) < 1.9) return { roof: r, up: true };
-    return null;
-  }
-
-  private startClimb(o: { roof: Roof; up: boolean }): void {
-    const pl = this.humans.player;
-    const r = o.roof, L = r.ladder;
-    this.climb = o.up
-      ? { t: 0, dur: 0.35 + r.h * 0.13, fx: pl.x, fz: pl.z, fy: pl.y, tx: L.x - L.nx * 1.7, tz: L.z - L.nz * 1.7, ty: r.h, roof: r, up: true }
-      : { t: 0, dur: 0.35 + r.h * 0.11, fx: pl.x, fz: pl.z, fy: pl.y, tx: L.x, tz: L.z, ty: 0.1, roof: r, up: false };
-    pl.roof = r;
-    this.audio.step();
-  }
-
-  private applyClimb(dt: number): void {
-    const c = this.climb;
-    if (!c) return;
-    const pl = this.humans.player;
-    c.t += dt;
-    const k = Math.min(1, c.t / c.dur);
-    pl.x = c.fx + (c.tx - c.fx) * k; pl.z = c.fz + (c.tz - c.fz) * k; pl.y = c.fy + (c.ty - c.fy) * k;
-    pl.vy = 0; pl.grounded = true; pl.mvx = pl.mvz = pl.vx = pl.vz = 0; pl.invuln = 0.3; pl.peak = pl.y;
-    pl.heading = Math.atan2(-c.roof.ladder.nx, -c.roof.ladder.nz);
-    if (k >= 1) {
-      this.climb = null;
-      pl.roof = c.up ? c.roof : null;
-      pl.y = c.ty;
-      if (c.up) { this.progress.add('roofs'); this.hud.toast(bi('Rooftop! Golden stars shine from up here.', '옥상이에요! 위에는 황금 별이 빛나요.'), 2200); }
-    }
-  }
-
   // ------------------------------------------------------------------ shops (hidden-pocket interiors)
   static OUTFITS: [number, number][] = [[0xd93636, 0x2a4a8a], [0x2fb87a, 0x23262f], [0xf2a73b, 0x3b3b52], [0x8a5cd6, 0x1a1a24], [0x3b82f6, 0xe8e8ee], [0xf4a7b9, 0x445566], [0x111111, 0x111111], [0xffffff, 0x33415c]];
   applyOutfit(i: number): void {
@@ -779,6 +744,7 @@ export class Game {
         this.humans.ejectDriver(v.x, v.z, v.ctrl.heading, v.isPolice);
         v.ctrl.vx *= 0.2; v.ctrl.vz *= 0.2; // the car rolls to a stop as the driver bails out
       }
+      if (!v.owned && v.ai === 'parked' && !v.isPolice && !hadDriver && Math.random() < 0.3) this.street.carAlarm(v);
       v.ai = 'player';
       v.ensureFull();
       this.driving = v;
@@ -1008,12 +974,12 @@ export class Game {
 
     if (this.state === 'play') {
       if (input.wasPressed('KeyF') || input.wasPressed('KeyE')) {
-        const lo = this.ladderOption();
+        const lo = this.climber.option();
         const door = this.onFoot && !this.climb ? this.interiors.roomAt(this.humans.player.x, this.humans.player.z, 2.6) : null;
         const mach = this.onFoot && !lo && !door ? this.machines.nearest(this.humans.player.x, this.humans.player.z) : null;
         const home = this.onFoot && !lo && !door && !mach && !this.humans.player.roof ? this.homeNear() : -1;
         if (home >= 0) { if (this.ownsHome(home)) this.enterBuilding(this.interiors.rooms.find((r) => r.id === 'home')!); else this.buyHome(home); }
-        else if (lo) this.startClimb(lo);
+        else if (lo) this.climber.start(lo);
         else if (door && !this.humans.player.roof) this.enterBuilding(door);
         else if (mach) this.machines.use(mach);
         else this.enterExit();
@@ -1313,7 +1279,7 @@ export class Game {
       time: this.time,
     };
     this.humans.update(dt, ctx);
-    this.applyClimb(dt);
+    this.climber.apply(dt);
     this.policeFire.update(dt);
     this.cameraRig.ignore = this.onFoot && this.humans.player.roof ? this.humans.player.roof.box : null;
     this.marker.visible = this.onFoot && pl.state !== 8;
@@ -1373,7 +1339,7 @@ export class Game {
         if (att.role === Role.Player && this.assaultCooldown <= 0) {
           this.addHeat(tgt.role === Role.Cop ? 20 : 8);
           this.assaultCooldown = 0.8;
-          if (tgt.role === Role.Civ) this.crowdReacts(tgt.x, tgt.z, 24);
+          if (tgt.role === Role.Civ) this.street.crowdReacts(tgt.x, tgt.z, 24);
           if (tgt.role === Role.Civ && this.stars === 0 && Math.random() < 0.5) this.humans.startWitnesses(tgt.x, tgt.z, 22, 1);
         }
         void killed;
@@ -1399,7 +1365,7 @@ export class Game {
         else this.vfx.emitFire(h.x, 1, h.z, 4, 0.3);
       },
       onCivDown: (h, by) => {
-        this.crowdReacts(h.x, h.z);
+        this.street.crowdReacts(h.x, h.z);
         if (!this.humans.kids) { this.medics.report(h); this.news.report('murder'); }
         if (by && by.role === Role.Player) {
           this.addHeat(20);
@@ -1634,24 +1600,6 @@ export class Game {
     this.hud.setCombo(Math.max(0, this.comboTimer / 4), this.comboCount > 0 ? mult : 1);
   }
 
-  private crowdT = 0;
-  private shotT = 0;
-  /** A gun went off: people nearby panic (at most every 1.5 s). */
-  gunshot(x: number, z: number): void {
-    if (this.time - this.shotT < 1.5) return;
-    this.shotT = this.time;
-    this.crowdReacts(x, z, 28);
-  }
-  private static readonly SHOUTS: [string, string][] = [['Help!', '도와줘요!'], ['Call the police!', '경찰 불러요!'], ['Run!', '도망쳐!'], ['Oh no!', '이럴 수가!'], ['He is crazy!', '미쳤어요!'], ['Somebody stop him!', '누가 좀 말려요!']];
-  /** The people around a crime run, shout, and sometimes scream. */
-  crowdReacts(x: number, z: number, r = 32): void {
-    for (const h of this.humans.panic(x, z, r)) {
-      const [en, ko] = Game.SHOUTS[Math.floor(Math.random() * Game.SHOUTS.length)];
-      this.popups.spawn(h.x, h.y + 2.6, h.z, bi(en, ko), '#ffffff');
-    }
-    if (this.time - this.crowdT > 2.5) { this.crowdT = this.time; if (this.nearPlayer(x, z, 45)) this.audio.scream(); }
-  }
-
   static readonly HOME_PRICE = 20000;
   ownsHome(i: number): boolean { return (this.save.homes ?? []).includes(i); }
   private refreshHomeDoors(): void {
@@ -1812,7 +1760,7 @@ export class Game {
     if (this.state !== 'play') { this.hud.setPrompt(null); return; }
     if (!this.onFoot) this.hud.setActionLabel('F');
     if (this.onFoot) {
-      const lo = this.ladderOption();
+      const lo = this.climber.option();
       const door = this.climb ? null : this.interiors.roomAt(this.humans.player.x, this.humans.player.z, 2.6);
       this.hud.setActionLabel(lo ? bi('CLIMB', '오르기') : door && !this.humans.player.roof ? bi('ENTER', '입장') : 'F');
       if (lo) this.hud.setPrompt(lo.up ? bi('[F] Climb the ladder', '[F] 사다리 오르기') : bi('[F] Climb down', '[F] 내려가기'));
@@ -1830,23 +1778,9 @@ export class Game {
   /** Set by main: lowers the radio under sirens. */
   radioDuck: ((v: number) => void) | null = null;
 
-  private hornT = 6;
   private updateAudio(dt: number): void {
     const d = this.driving;
-    // city hum: more traffic and people around you, more rumble (nothing inside a shop)
-    let near = 0;
-    for (const v of this.vehicles) if (v !== d && Math.abs(v.x - this.focusX) < 70 && Math.abs(v.z - this.focusZ) < 70) near++;
-    this.audio.setCity(this.inside ? 0.05 : Math.min(1, 0.2 + near * 0.06));
-    // now and then a nearby driver leans on the horn, mostly when they are stuck behind something
-    this.hornT -= dt;
-    if (this.hornT <= 0 && !this.inside && this.state === 'play') {
-      this.hornT = 5 + Math.random() * 9;
-      const cands = this.vehicles.filter((v) => v.ai === 'traffic' && !v.isPolice && Math.hypot(v.x - this.focusX, v.z - this.focusZ) < 55 && (v.ctrl.speed < 1.5 || Math.random() < 0.15));
-      if (cands.length) {
-        const v = cands[Math.floor(Math.random() * cands.length)];
-        this.audio.horn(Math.hypot(v.x - this.focusX, v.z - this.focusZ), 0.9 + Math.random() * 0.3);
-      }
-    }
+    this.street.updateAmbience(dt);
     let siren: number | null = null;
     for (const v of this.vehicles) {
       if (v.isPolice && (v.ai === 'police' || (v.ai === 'parked' && this.roadblocks.length))) {

@@ -33,9 +33,9 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     const up = await S(() => {
       const G = g(); const pl = G.humans.player; const r = G.world.roofs[0];
       G.humans.setPlayerActive(true, r.ladder.x + r.ladder.nx * 0.5, r.ladder.z + r.ladder.nz * 0.5, 0);
-      const lo = G.ladderOption();
+      const lo = G.climber.option();
       if (!lo || !lo.up) return { option: false };
-      G.startClimb(lo);
+      G.climber.start(lo);
       for (let i = 0; i < 80; i++) G.update(0.05);
       return { option: true, roof: !!pl.roof, y: Math.round(pl.y * 10) / 10, h: Math.round(r.h * 10) / 10, climbing: !!G.climb };
     });
