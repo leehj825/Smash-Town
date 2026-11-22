@@ -200,6 +200,33 @@ function asphaltTexture(): THREE.CanvasTexture {
   return t;
 }
 
+
+/** Concrete paving slabs with joints (one slab per tile). */
+function pavingTexture(): THREE.CanvasTexture {
+  const S = 128, c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#d6d0c2'; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 260; i++) { g.fillStyle = Math.random() < 0.5 ? 'rgba(120,112,98,0.10)' : 'rgba(255,255,255,0.10)'; g.fillRect(Math.random() * S, Math.random() * S, 2 + Math.random() * 4, 2); }
+  g.fillStyle = '#8a8374'; g.fillRect(0, 0, S, 3); g.fillRect(0, 0, 3, S);        // joints
+  g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(3, 3, S - 3, 2); g.fillRect(3, 3, 2, S - 3);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  return t;
+}
+/** A storm-drain grate. */
+function grateTexture(): THREE.CanvasTexture {
+  const S = 128, c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#6b6558'; g.fillRect(0, 0, S, S);
+  g.fillStyle = '#17171b'; for (let i = 0; i < 7; i++) g.fillRect(10 + i * 16, 12, 9, S - 24);
+  g.strokeStyle = '#3c382f'; g.lineWidth = 6; g.strokeRect(3, 3, S - 6, S - 6);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 /** Axis-aligned flat quad batch (roads segments, crosswalk stripes). */
 class QuadBatch {
   pos: number[] = [];
@@ -551,6 +578,29 @@ export function buildWorld(): World {
       else waterB.box(lot.x1 - lot.x0 - r * 2, 0.05, lot.z1 - lot.z0 - r * 2, lx, SLAB_H + 0.03, lz, 0x2aa7d8);
       boxes.push({ minX: lot.x0 + r * 0.5, maxX: lot.x1 - r * 0.5, minZ: lot.z0 + r * 0.5, maxZ: lot.z1 - r * 0.5 }); // no driving into the water
     }
+  }
+  // ---- paved sidewalk bands, curb stones and storm drains round the hard-surfaced lots
+  {
+    const paving = new QuadBatch(), grates = new QuadBatch();
+    const BAND = 3, WY = SLAB_H + 0.012;
+    for (const lot of lots) {
+      if (!['downtown', 'oldtown', 'plaza', 'harbor', 'beach'].includes(lot.district) || lot.river) continue;
+      const { x0, x1, z0, z1 } = lot;
+      const lx = (x0 + x1) / 2, lz = (z0 + z1) / 2;
+      paving.add(x0, x1, z0, z0 + BAND, WY, true, 3); paving.add(x0, x1, z1 - BAND, z1, WY, true, 3);
+      paving.add(x0, x0 + BAND, z0 + BAND, z1 - BAND, WY, false, 3); paving.add(x1 - BAND, x1, z0 + BAND, z1 - BAND, WY, false, 3);
+      const sb = chunkOf(slabChunks, lx, lz), curb = 0xb9b3a4;
+      sb.box(x1 - x0, 0.1, 0.28, lx, SLAB_H + 0.04, z0 + 0.14, curb); sb.box(x1 - x0, 0.1, 0.28, lx, SLAB_H + 0.04, z1 - 0.14, curb);
+      sb.box(0.28, 0.1, z1 - z0, x0 + 0.14, SLAB_H + 0.04, lz, curb); sb.box(0.28, 0.1, z1 - z0, x1 - 0.14, SLAB_H + 0.04, lz, curb);
+      for (const f of [0.3, 0.72]) {
+        grates.add(x0 + (x1 - x0) * f - 0.5, x0 + (x1 - x0) * f + 0.5, z0 - 0.75, z0 - 0.25, ROAD_Y + 0.01, true, 1);
+        grates.add(x0 + (x1 - x0) * (1 - f) - 0.5, x0 + (x1 - x0) * (1 - f) + 0.5, z1 + 0.25, z1 + 0.75, ROAD_Y + 0.01, true, 1);
+      }
+    }
+    const pm = new THREE.Mesh(paving.geometry(), new THREE.MeshStandardMaterial({ map: pavingTexture(), roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+    pm.receiveShadow = true; group.add(pm);
+    const gm = new THREE.Mesh(grates.geometry(), new THREE.MeshStandardMaterial({ map: grateTexture(), roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+    gm.receiveShadow = true; group.add(gm);
   }
   const waterMesh = new THREE.Mesh(waterB.build(), paletteMaterial({ roughness: 0.3, metalness: 0.1 }));
   waterMesh.receiveShadow = true;
