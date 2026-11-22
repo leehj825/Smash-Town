@@ -154,6 +154,33 @@ function grassGeometry(): THREE.BufferGeometry {
   for (let i = 0; i < 6; i++) { const a = i * 1.05; b.rotatedBox(0.05, 0.45 + (i % 3) * 0.12, 0.03, Math.cos(a) * 0.08, 0.25, Math.sin(a) * 0.08, Math.sin(a) * 0.3, a, Math.cos(a) * 0.3, i % 2 ? 0x3f9a3f : 0x2f8a3a); }
   return b.build();
 }
+function barrierGeometry(): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  for (const sx of [-0.8, 0.8]) b.box(0.08, 0.9, 0.5, sx, 0.45, 0, 0x4a4e59);
+  for (let i = 0; i < 6; i++) { b.box(0.28, 0.2, 0.06, -0.7 + i * 0.28, 0.82, 0.02, i % 2 ? 0xffffff : 0xff6a1a); b.box(0.28, 0.2, 0.06, -0.7 + i * 0.28, 0.5, 0.02, i % 2 ? 0xff6a1a : 0xffffff); }
+  b.box(0.14, 0.14, 0.14, 0, 1.0, 0, 0xffb300);
+  return b.build();
+}
+function dumpsterGeometry(): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  b.box(2.2, 1.0, 1.2, 0, 0.6, 0, 0x2f6b46); b.box(2.3, 0.1, 1.3, 0, 1.15, 0, 0x244f35);
+  for (const sx of [-0.9, 0.9]) b.box(0.15, 0.2, 1.25, sx, 0.15, 0, 0x1a1a1f);
+  b.box(2.24, 0.12, 0.04, 0, 0.9, 0.62, 0xe6c84a);
+  return b.build();
+}
+function craneGeometry(): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  b.box(1.4, 0.6, 1.4, 0, 0.3, 0, 0x6d7280);
+  for (const sx of [-0.45, 0.45]) for (const sz of [-0.45, 0.45]) b.box(0.14, 16, 0.14, sx, 8.6, sz, 0xffb300);
+  for (let y = 1.5; y < 16; y += 2.2) { b.box(1.0, 0.1, 0.1, 0, y, 0.45, 0xffb300); b.box(1.0, 0.1, 0.1, 0, y, -0.45, 0xffb300); b.box(0.1, 0.1, 1.0, 0.45, y, 0, 0xffb300); b.box(0.1, 0.1, 1.0, -0.45, y, 0, 0xffb300); }
+  b.box(1.4, 1.2, 1.6, 0, 16.7, 0.1, 0xeeeeee);
+  b.box(0.3, 0.3, 17, 0, 17.4, -4.5, 0xffb300);          // jib
+  b.box(0.3, 0.3, 6, 0, 17.4, 4.5, 0xffb300);            // counter-jib
+  b.box(1.6, 1.6, 1.6, 0, 16.7, 6.5, 0x6d7280);          // counterweight
+  b.box(0.04, 5, 0.04, 0, 14.5, -9.5, 0x15151a);          // cable
+  b.box(0.7, 0.4, 0.7, 0, 11.8, -9.5, 0xff6a1a);          // hook block
+  return b.build();
+}
 function planterGeometry(): THREE.BufferGeometry {
   const b = new MeshBuilder();
   b.box(1.1, 0.6, 1.1, 0, 0.3, 0, 0xb9b4a8);
@@ -233,6 +260,8 @@ export interface Props {
   smash(ref: SmashRef, x: number, z: number, vx: number, vz: number): number;
   update(dt: number): void;
   setVegetation(f: number): void;
+  /** Autumn and winter tints for the leafy trees. */
+  setSeason(s: 'normal' | 'autumn' | 'winter'): void;
   /** 0 = day, 1 = night: the pools of light under the street lamps. */
   setNight(n: number): void;
   /** 0 = none, 1 = street furniture, 2 = also flowers and grass tufts. */
@@ -367,7 +396,7 @@ export function buildProps(world: World, vfx: Vfx): Props {
 
   // ---- decorative street furniture (its own random stream so the smashable props keep their places)
   const drng = makeRng(4242);
-  const decor: Record<'bush' | 'flower' | 'grass' | 'planter' | 'mailbox' | 'bollard' | 'bikerack' | 'busstop' | 'cone' | 'sign' | 'lampdetail', Placement[]> = { bush: [], flower: [], grass: [], planter: [], mailbox: [], bollard: [], bikerack: [], busstop: [], cone: [], sign: [], lampdetail: [] };
+  const decor: Record<'barrier' | 'dumpster' | 'crane' | 'bush' | 'flower' | 'grass' | 'planter' | 'mailbox' | 'bollard' | 'bikerack' | 'busstop' | 'cone' | 'sign' | 'lampdetail', Placement[]> = { barrier: [], dumpster: [], crane: [], bush: [], flower: [], grass: [], planter: [], mailbox: [], bollard: [], bikerack: [], busstop: [], cone: [], sign: [], lampdetail: [] };
   for (const lot of world.lots) {
     const { x0, x1, z0, z1, district } = lot;
     if (district === 'water' || district === 'forest') continue;
@@ -401,17 +430,25 @@ export function buildProps(world: World, vfx: Vfx): Props {
       decor.sign.push({ x: x0 + EDGE, z: z0 + EDGE, rot: 0, scale: 1 });
       if (drng() < 0.5) decor.busstop.push({ x: along(), z: edgeZ(drng() < 0.5, 1.0), rot: 0, scale: 1 });
     }
+    // road works on the pavement: barriers, cones and a skip in a few downtown and old-town lots
+    if ((district === 'downtown' || district === 'oldtown') && drng() < 0.22) {
+      const top = drng() < 0.5, wx = along();
+      for (let k = 0; k < 3; k++) decor.barrier.push({ x: wx + k * 1.7, z: edgeZ(top, 0.2), rot: 0, scale: 1 });
+      decor.dumpster.push({ x: wx + 5.2, z: edgeZ(top, 0.9), rot: 0, scale: 1 });
+      for (let k = 0; k < 3; k++) decor.cone.push({ x: wx - 1.2 - k * 1.1, z: edgeZ(top, 0.3), rot: drng() * 6.28, scale: 1 });
+    }
+    if (district === 'harbor' && drng() < 0.5) decor.crane.push({ x: x0 + 10 + drng() * (x1 - x0 - 20), z: lz, rot: drng() * 6.28, scale: 1 });
     if (district === 'harbor') for (let k = 0; k < 5; k++) decor.cone.push({ x: x0 + 6 + drng() * (x1 - x0 - 12), z: edgeZ(drng() < 0.5, 0.4), rot: drng() * 6.28, scale: 1 });
     if (district === 'downtown' || district === 'oldtown') for (let k = 0; k < 2; k++) decor.cone.push({ x: along(), z: edgeZ(drng() < 0.5, 0.2), rot: drng() * 6.28, scale: 1 });
     if (district === 'downtown' || district === 'oldtown' || district === 'plaza' || district === 'park') decor.lampdetail.push({ x: x0 + EDGE, z: z0 + EDGE, rot: 0, scale: 1 });
   }
   const decorMeshes: THREE.InstancedMesh[] = [];
   const decorKinds: string[] = [];
-  const dgeo = { bush: bushGeometry(), flower: flowerGeometry(), grass: grassGeometry(), planter: planterGeometry(), mailbox: mailboxGeometry(), bollard: bollardGeometry(), bikerack: bikeRackGeometry(), busstop: busStopGeometry(), cone: trafficConeGeometry(), sign: streetSignGeometry(), lampdetail: lampPostDetail() };
+  const dgeo = { barrier: barrierGeometry(), dumpster: dumpsterGeometry(), crane: craneGeometry(), bush: bushGeometry(), flower: flowerGeometry(), grass: grassGeometry(), planter: planterGeometry(), mailbox: mailboxGeometry(), bollard: bollardGeometry(), bikerack: bikeRackGeometry(), busstop: busStopGeometry(), cone: trafficConeGeometry(), sign: streetSignGeometry(), lampdetail: lampPostDetail() };
   for (const k of Object.keys(decor) as (keyof typeof decor)[]) {
     if (decor[k].length) { decorMeshes.push(instance(dgeo[k], mat, decor[k], k !== 'bush' && k !== 'cone' && k !== 'flower' && k !== 'grass')); decorKinds.push(k); }
   }
-  const dradius: Partial<Record<keyof typeof decor, number>> = { planter: 0.7, mailbox: 0.35, bollard: 0.2, bikerack: 1.0, busstop: 1.4, sign: 0.15 };
+  const dradius: Partial<Record<keyof typeof decor, number>> = { barrier: 1.0, dumpster: 1.3, crane: 1.0, planter: 0.7, mailbox: 0.35, bollard: 0.2, bikerack: 1.0, busstop: 1.4, sign: 0.15 };
   for (const k of Object.keys(dradius) as (keyof typeof decor)[]) for (const p of decor[k]) world.circles.push({ x: p.x, z: p.z, r: dradius[k]! });
 
   // ---- lamp light pools on the ground (additive, only visible at night)
@@ -428,6 +465,17 @@ export function buildProps(world: World, vfx: Vfx): Props {
   lists.lamp.forEach((p, i) => { dummy.position.set(p.x + Math.cos(p.rot) * 1.95, SLAB + 0.05, p.z - Math.sin(p.rot) * 1.95); dummy.rotation.set(0, 0, 0); dummy.scale.setScalar(1); dummy.updateMatrix(); pools.setMatrixAt(i, dummy.matrix); });
   pools.frustumCulled = false; pools.visible = false;
   group.add(pools);
+
+  const setSeason = (s: 'normal' | 'autumn' | 'winter') => {
+    const c = new THREE.Color();
+    for (let i = 0; i < trees.length; i++) {
+      if (s === 'normal') c.setRGB(1, 1, 1);
+      else if (s === 'winter') c.setRGB(2.6, 1.45, 2.4);
+      else { const k = (i * 37) % 3; if (k === 0) c.setRGB(2.6, 1.0, 0.4); else if (k === 1) c.setRGB(3.0, 0.6, 0.4); else c.setRGB(2.2, 1.3, 0.5); }
+      treeMesh.setColorAt(i, c);
+    }
+    if (treeMesh.instanceColor) treeMesh.instanceColor.needsUpdate = true;
+  };
 
   const radius: Record<PropType, number> = { palm: 0.5, lamp: 0.3, hydrant: 0.35, bench: 0.9, newsstand: 0.85, trash: 0.4 };
   (Object.keys(lists) as PropType[]).forEach((k) => {
@@ -531,5 +579,5 @@ export function buildProps(world: World, vfx: Vfx): Props {
     }
   }
 
-  return { group, lampHeadMaterial, smash, update, setVegetation, setNight: (n: number) => { pools.visible = n > 0.05; poolMat.opacity = Math.min(0.75, n * 0.8); }, setDecor: (level: number) => { decorMeshes.forEach((m, i) => { m.visible = decorKinds[i] === 'flower' || decorKinds[i] === 'grass' ? level >= 2 : level >= 1; }); } };
+  return { group, lampHeadMaterial, smash, update, setVegetation, setSeason, setNight: (n: number) => { pools.visible = n > 0.05; poolMat.opacity = Math.min(0.75, n * 0.8); }, setDecor: (level: number) => { decorMeshes.forEach((m, i) => { m.visible = decorKinds[i] === 'flower' || decorKinds[i] === 'grass' ? level >= 2 : level >= 1; }); } };
 }

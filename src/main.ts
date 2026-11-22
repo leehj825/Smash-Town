@@ -80,6 +80,7 @@ const radio = new Radio(game.audio);
 const weather = new Weather(env, game.audio);
 scene.add(weather.group);
 weather.addPuddles(game.world.segments);
+{ const mo = new Date().getMonth(); props.setSeason(mo >= 8 && mo <= 10 ? 'autumn' : mo === 11 || mo <= 1 ? 'winter' : 'normal'); }
 game.radioDuck = (v) => radio.setDuck(v);
 const controlsPanel = new ControlsPanel();
 const howto = new HowToPlay();
@@ -108,7 +109,7 @@ function applyQuality(q: Quality): void {
   bloom.enabled = q === 'high';
   game.useBlob = !shadows;
   game.trafficTarget = TRAFFIC[q];
-  props.setVegetation(q === 'high' ? 1 : q === 'medium' ? 0.5 : 0.3);
+  props.setVegetation(q === 'high' ? 0.9 : q === 'medium' ? 0.5 : 0.3);
   game.world.detail.visible = q === 'high';
   props.setDecor(q === 'high' ? 2 : q === 'medium' ? 1 : 0);
   game.lights.visible = q !== 'low';
