@@ -122,6 +122,22 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     await p.waitForTimeout(400);
     const photo2 = await S(() => ({ hint: !document.getElementById('photo-hint').hidden }));
     ok(!photo2.hint, 'H again leaves photo mode', JSON.stringify(photo2));
+    // backgrounding the app silences the sound and pauses the game
+    await p.keyboard.press('KeyW');
+    await S(() => { const G = g(); G.inside = null; G.state = 'play'; G.audio.init && G.audio.init(); });
+    const bg = await S(async () => {
+      const G = g();
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      await new Promise((r) => setTimeout(r, 300));
+      const ctxState = G.audio.context ? G.audio.context.state : 'none';
+      const paused = !document.getElementById('pause').hidden;
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+      document.dispatchEvent(new Event('visibilitychange'));
+      await new Promise((r) => setTimeout(r, 300));
+      return { ctxState, paused, after: G.audio.context ? G.audio.context.state : 'none' };
+    });
+    ok(bg.paused && (bg.ctxState === 'suspended' || bg.ctxState === 'none'), 'going to the background pauses the game and suspends the sound', JSON.stringify(bg));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();

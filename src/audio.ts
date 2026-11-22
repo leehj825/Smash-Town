@@ -28,6 +28,16 @@ export class AudioEngine {
   volume = 0.8;
 
   get context(): AudioContext | null { return this.ctx; }
+
+  /** The app went to the background (or came back): stop all sound, including the radio and any spoken news, and resume it later. */
+  setBackground(bg: boolean): void {
+    if (bg) {
+      try { window.speechSynthesis?.cancel(); } catch { /* no speech */ }
+      void this.ctx?.suspend();
+    } else {
+      void this.ctx?.resume();
+    }
+  }
   get output(): GainNode | null { return this.ctx ? this.master : null; }
 
   /** Must be called from a user gesture (the PLAY button). */

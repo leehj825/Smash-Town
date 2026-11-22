@@ -217,6 +217,16 @@ function startGame(): void {
     console.warn('Audio unavailable:', err);
   }
 }
+/** Leaving the app (home button, another tab, a locked screen) silences it and pauses the game; coming back resumes the sound. */
+function onVisibility(): void {
+  const hidden = document.hidden;
+  game.audio.setBackground(hidden);
+  if (hidden && state === 'playing') setPaused(true);
+}
+document.addEventListener('visibilitychange', onVisibility);
+window.addEventListener('pagehide', () => { game.audio.setBackground(true); if (state === 'playing') setPaused(true); });
+window.addEventListener('pageshow', () => { if (!document.hidden) game.audio.setBackground(false); });
+
 function setPaused(p: boolean): void {
   if (state === 'title') return;
   state = p ? 'paused' : 'playing';

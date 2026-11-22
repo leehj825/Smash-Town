@@ -149,7 +149,36 @@ const taperTweak = (taper: number) => (p: THREE.BufferAttribute) => {
   }
 };
 
-/** A motorbike with a rider: frame, tank, seat, forks, bars, lamp, exhaust, and a blocky rider in a helmet and jacket. */
+
+/** The rider that sits on a bike, bicycle or scooter while the player is on it: legs, jacket, arms and a helmet, in the player's own clothes. */
+export function riderGeometry(kind: VehicleKind, pants: number, shirt: number, skin: number): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  if (kind === 'motorbike') {
+  b.box(0.2, 0.18, 0.36, 0.1, 0.78, -0.4, pants); b.box(0.2, 0.18, 0.36, -0.1, 0.78, -0.4, pants);   // thighs
+  b.box(0.16, 0.5, 0.16, 0.1, 0.55, -0.15, pants); b.box(0.16, 0.5, 0.16, -0.1, 0.55, -0.15, pants);  // shins on the pegs
+  b.box(0.42, 0.55, 0.26, 0, 1.25, -0.3, shirt);                            // jacket
+  for (const sx of [-1, 1]) b.rotatedBox(0.12, 0.12, 0.62, sx * 0.27, 1.2, 0.02, 0.9, 0, 0, shirt); // arms to the bars
+  b.box(0.3, 0.3, 0.3, 0, 1.68, -0.22, 0x1e2a5a);                              // helmet
+  b.box(0.24, 0.11, 0.05, 0, 1.68, -0.06, 0x9fd6ff);                           // visor
+    b.box(0.2, 0.2, 0.06, 0, 1.6, -0.06, skin);   // face under the visor
+  } else if (kind === 'bicycle') {
+    b.box(0.16, 0.5, 0.16, 0.1, 0.6, -0.1, pants); b.box(0.16, 0.5, 0.16, -0.1, 0.55, -0.02, pants); // legs on the pedals
+    b.box(0.18, 0.18, 0.4, 0.1, 1.15, -0.28, pants); b.box(0.18, 0.18, 0.4, -0.1, 1.15, -0.28, pants); // thighs
+    b.rotatedBox(0.38, 0.55, 0.24, 0, 1.52, -0.18, 0.3, 0, 0, shirt); // torso leaning forward
+    for (const sx of [-1, 1]) b.rotatedBox(0.11, 0.11, 0.6, sx * 0.22, 1.35, 0.3, 0.5, 0, 0, shirt); // arms
+    b.box(0.28, 0.26, 0.28, 0, 1.92, -0.02, 0xffd23a);                   // helmet
+    b.box(0.2, 0.2, 0.06, 0, 1.88, 0.13, skin);
+  } else {
+    b.box(0.17, 0.7, 0.17, 0.1, 0.65, 0.0, pants); b.box(0.17, 0.7, 0.17, -0.1, 0.65, -0.1, pants);
+    b.box(0.42, 0.6, 0.26, 0, 1.3, -0.05, shirt);
+    for (const sx of [-1, 1]) b.rotatedBox(0.11, 0.11, 0.7, sx * 0.24, 1.2, 0.42, 0.25, 0, 0, shirt);
+    b.box(0.3, 0.28, 0.3, 0, 1.78, 0.0, 0x1e2a5a);
+    b.box(0.2, 0.2, 0.06, 0, 1.74, 0.16, skin);
+  }
+  return b.build();
+}
+
+/** A motorbike (no rider; see riderGeometry): frame, tank, seat, forks, bars, lamp, exhaust, and a blocky rider in a helmet and jacket. */
 function buildBike(color: number, bakeWheels: boolean): Built {
   const s = SPECS.motorbike;
   const b = new MeshBuilder();
@@ -163,13 +192,6 @@ function buildBike(color: number, bakeWheels: boolean): Built {
   for (const sx of [-1, 1]) { b.box(0.06, 0.06, 0.16, sx * 0.31, 1.08, 0.82, dark); b.box(0.04, 0.18, 0.1, sx * 0.1, 0.55, -0.2, metal); }
   b.cylinder(0.05, 0.05, 0.7, 7, 0.16, 0.42, -0.55, metal, Math.PI / 2, 0, 0); // exhaust
   b.box(0.1, 0.26, 0.9, 0, 0.47, -0.5, 0x2a2d35);                              // swing arm hint
-  // rider
-  b.box(0.2, 0.18, 0.36, 0.1, 0.78, -0.4, 0x23262f); b.box(0.2, 0.18, 0.36, -0.1, 0.78, -0.4, 0x23262f);   // thighs
-  b.box(0.16, 0.5, 0.16, 0.1, 0.55, -0.15, 0x23262f); b.box(0.16, 0.5, 0.16, -0.1, 0.55, -0.15, 0x23262f);  // shins on the pegs
-  b.box(0.42, 0.55, 0.26, 0, 1.25, -0.3, 0xd62d3a);                            // jacket
-  for (const sx of [-1, 1]) b.rotatedBox(0.12, 0.12, 0.62, sx * 0.27, 1.2, 0.02, 0.9, 0, 0, 0xd62d3a); // arms to the bars
-  b.box(0.3, 0.3, 0.3, 0, 1.68, -0.22, 0x1e2a5a);                              // helmet
-  b.box(0.24, 0.11, 0.05, 0, 1.68, -0.06, 0x9fd6ff);                           // visor
   if (bakeWheels) for (const z of [0.85, -0.85]) {
     b.cylinder(s.wheelR, s.wheelR, 0.16, 10, 0, s.wheelR, z, 0x1a1a1f, 0, 0, Math.PI / 2);
     b.cylinder(s.wheelR * 0.55, s.wheelR * 0.55, 0.18, 8, 0, s.wheelR, z, 0xc9ccd6, 0, 0, Math.PI / 2);
@@ -180,7 +202,7 @@ function buildBike(color: number, bakeWheels: boolean): Built {
   return { chassis: b.build(), head: hb.build(), tail: tb.build(), barRed: null, barBlue: null, lights: lb.build() };
 }
 
-/** A pedal bicycle or a kick scooter with a rider standing or sitting on it. */
+/** A pedal bicycle or a kick scooter (no rider; see riderGeometry). */
 function buildLight(kind: 'bicycle' | 'scooter', color: number, bakeWheels: boolean): Built {
   const s = SPECS[kind];
   const b = new MeshBuilder();
@@ -193,22 +215,11 @@ function buildLight(kind: 'bicycle' | 'scooter', color: number, bakeWheels: bool
     b.box(0.5, 0.04, 0.04, 0, 1.03, 0.62, dark);                         // bars
     b.box(0.14, 0.05, 0.3, 0, 1.12, -0.4, dark);                         // saddle
     b.box(0.18, 0.04, 0.1, 0.12, 0.3, 0.0, dark); b.box(0.18, 0.04, 0.1, -0.12, 0.3, 0.04, dark); // pedals
-    // rider
-    b.box(0.16, 0.5, 0.16, 0.1, 0.6, -0.1, 0x2a4a8a); b.box(0.16, 0.5, 0.16, -0.1, 0.55, -0.02, 0x2a4a8a); // legs on the pedals
-    b.box(0.18, 0.18, 0.4, 0.1, 1.15, -0.28, 0x2a4a8a); b.box(0.18, 0.18, 0.4, -0.1, 1.15, -0.28, 0x2a4a8a); // thighs
-    b.rotatedBox(0.38, 0.55, 0.24, 0, 1.52, -0.18, 0.3, 0, 0, 0x2fb87a); // torso leaning forward
-    for (const sx of [-1, 1]) b.rotatedBox(0.11, 0.11, 0.6, sx * 0.22, 1.35, 0.3, 0.5, 0, 0, 0x2fb87a); // arms
-    b.box(0.28, 0.26, 0.28, 0, 1.92, -0.02, 0xffd23a);                   // helmet
   } else {
     b.box(0.3, 0.08, 0.9, 0, 0.28, 0, color);                            // deck
     b.rotatedBox(0.06, 0.06, 0.95, 0, 0.7, 0.55, -1.15, 0, 0, metal);     // steering column
     b.box(0.5, 0.05, 0.05, 0, 1.12, 0.78, dark);                         // bars
     b.box(0.2, 0.06, 0.3, 0, 0.35, -0.5, dark);                          // rear fender
-    // rider stands on the deck
-    b.box(0.17, 0.7, 0.17, 0.1, 0.65, 0.0, 0x2a4a8a); b.box(0.17, 0.7, 0.17, -0.1, 0.65, -0.1, 0x2a4a8a);
-    b.box(0.42, 0.6, 0.26, 0, 1.3, -0.05, 0xff7a1a);
-    for (const sx of [-1, 1]) b.rotatedBox(0.11, 0.11, 0.7, sx * 0.24, 1.2, 0.42, 0.25, 0, 0, 0xff7a1a);
-    b.box(0.3, 0.28, 0.3, 0, 1.78, 0.0, 0x1e2a5a);
   }
   if (bakeWheels) for (const z of [s.wheelZ, -s.wheelZ]) {
     b.cylinder(s.wheelR, s.wheelR, 0.08, 10, 0, s.wheelR, z, 0x1a1a1f, 0, 0, Math.PI / 2);

@@ -1098,6 +1098,11 @@ export class Game {
     }
 
     // ---- physics
+    // bikes show the player only while the player is riding them
+    {
+      const look = this.humans.player.look;
+      for (const v of this.vehicles) if (v.isBike) v.setRider(v === this.driving && !this.onFoot, look.pants, look.shirt, look.skin);
+    }
     this.medics.update(dt);
     this.lights.update(dt);
     this.news.update(dt);
