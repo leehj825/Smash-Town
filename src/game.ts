@@ -560,6 +560,7 @@ export class Game {
       this.inside = room;
       this.humans.setPlayerActive(true, room.exit.x, room.exit.z - 2.2, Math.PI);
       this.cameraRig.ignore = null;
+      this.syncFoot();
       this.cameraRig.snap();
       this.hud.toast(`${bi(room.en, room.ko)}`, 1800);
     });
@@ -570,11 +571,19 @@ export class Game {
       const r = this.ret;
       this.inside = null;
       this.humans.setPlayerActive(true, r.x, r.z, r.h);
+      this.syncFoot();
       this.cameraRig.snap();
     });
   }
 
   /** Inside a shop only you move: the street is frozen far away. */
+  /** The camera follows this proxy: keep it on the player (inside a shop the street update that normally does it does not run). */
+  private syncFoot(): void {
+    const pl = this.humans.player, f = this.foot;
+    f.position.set(pl.x, pl.y - 0.1, pl.z);
+    f.heading = pl.heading; f.forwardSpeed = pl.speed; f.speed = pl.speed; f.sprinting = pl.speed > 6.2;
+  }
+
   private updateInside(dt: number): void {
     const room = this.inside!;
     const input = this.input;
@@ -586,6 +595,7 @@ export class Game {
       input: playing ? input : this.idleInput, camYaw: this.cameraRig.moveYaw, vehicles: [], wantCops: 0, wantRiot: 0, playerActive: true,
       playerCarX: pl.x, playerCarZ: pl.z, playerCarSpeed: 0, policeCars: [], time: this.time,
     });
+    this.syncFoot();
     this.popups.update(dt);
     this.slash.update(dt);
     this.guns.tick(dt);

@@ -96,7 +96,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     await p.waitForFunction(() => window.__smash.game.inside, null, { timeout: 30000 });
     const hide = await S((pre) => {
       const G = g();
-      const inside = G.inside.id === 'garage';
+      const inside = G.inside.id === 'garage' && G.followable.position.x > 3000; // the camera must follow you into the pocket
       const startStars = G.stars;
       for (let i = 0; i < 400 && G.stars > 0; i++) G.update(0.05);
       return { doorOk: pre.doorOk, inside, startStars, stars: G.stars };
