@@ -138,6 +138,22 @@ function bushGeometry(): THREE.BufferGeometry {
   for (const [x, z, c] of [[0.2, 0.5, 0xff6b8b], [-0.3, 0.4, 0xffd23a], [0.55, 0.0, 0xffffff]] as const) b.box(0.1, 0.1, 0.1, x, 0.75, z, c);
   return b.build();
 }
+function flowerGeometry(): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  const cols = [0xff5d73, 0xffd23a, 0xc86bff, 0xffffff, 0xff8f3a];
+  for (let i = 0; i < 5; i++) {
+    const a = i * 1.3, r = 0.1 + (i % 3) * 0.12, h = 0.2 + (i % 2) * 0.12;
+    b.box(0.025, h, 0.025, Math.cos(a) * r, h / 2, Math.sin(a) * r, 0x2f8f3f);
+    b.box(0.12, 0.05, 0.12, Math.cos(a) * r, h + 0.02, Math.sin(a) * r, cols[i % cols.length]);
+    b.box(0.05, 0.06, 0.05, Math.cos(a) * r, h + 0.05, Math.sin(a) * r, 0xffe27a);
+  }
+  return b.build();
+}
+function grassGeometry(): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  for (let i = 0; i < 6; i++) { const a = i * 1.05; b.rotatedBox(0.05, 0.45 + (i % 3) * 0.12, 0.03, Math.cos(a) * 0.08, 0.25, Math.sin(a) * 0.08, Math.sin(a) * 0.3, a, Math.cos(a) * 0.3, i % 2 ? 0x3f9a3f : 0x2f8a3a); }
+  return b.build();
+}
 function planterGeometry(): THREE.BufferGeometry {
   const b = new MeshBuilder();
   b.box(1.1, 0.6, 1.1, 0, 0.3, 0, 0xb9b4a8);
@@ -349,7 +365,7 @@ export function buildProps(world: World, vfx: Vfx): Props {
 
   // ---- decorative street furniture (its own random stream so the smashable props keep their places)
   const drng = makeRng(4242);
-  const decor: Record<'bush' | 'planter' | 'mailbox' | 'bollard' | 'bikerack' | 'busstop' | 'cone' | 'sign' | 'lampdetail', Placement[]> = { bush: [], planter: [], mailbox: [], bollard: [], bikerack: [], busstop: [], cone: [], sign: [], lampdetail: [] };
+  const decor: Record<'bush' | 'flower' | 'grass' | 'planter' | 'mailbox' | 'bollard' | 'bikerack' | 'busstop' | 'cone' | 'sign' | 'lampdetail', Placement[]> = { bush: [], flower: [], grass: [], planter: [], mailbox: [], bollard: [], bikerack: [], busstop: [], cone: [], sign: [], lampdetail: [] };
   for (const lot of world.lots) {
     const { x0, x1, z0, z1, district } = lot;
     if (district === 'water' || district === 'forest') continue;
@@ -366,6 +382,14 @@ export function buildProps(world: World, vfx: Vfx): Props {
         decor.bush.push({ x, z, rot: drng() * 6.28, scale: 0.8 + drng() * 0.6 });
       }
     }
+    if (district === 'park' || district === 'plaza' || district === 'suburb' || district === 'beach') {
+      for (let k = 0; k < 14; k++) {
+        const x = x0 + 2 + drng() * (x1 - x0 - 4), z = z0 + 2 + drng() * (z1 - z0 - 4);
+        if (district === 'park' && (Math.abs(x - lx) < 2.8 || Math.abs(z - lz) < 2.8)) continue;
+        if (district === 'plaza' && Math.hypot(x - lx, z - lz) < 6) continue;
+        (k % 3 === 0 ? decor.flower : decor.grass).push({ x, z, rot: drng() * 6.28, scale: 0.8 + drng() * 0.8 });
+      }
+    }
     if (district === 'downtown' || district === 'oldtown' || district === 'plaza') {
       for (let n = 0; n < 2; n++) { const top = n === 0; decor.planter.push({ x: along(), z: edgeZ(top, 0.4), rot: 0, scale: 1 }); }
       decor.mailbox.push({ x: along(), z: edgeZ(drng() < 0.5, 0.5), rot: 0, scale: 1 });
@@ -380,9 +404,9 @@ export function buildProps(world: World, vfx: Vfx): Props {
     if (district === 'downtown' || district === 'oldtown' || district === 'plaza' || district === 'park') decor.lampdetail.push({ x: x0 + EDGE, z: z0 + EDGE, rot: 0, scale: 1 });
   }
   const decorMeshes: THREE.InstancedMesh[] = [];
-  const dgeo = { bush: bushGeometry(), planter: planterGeometry(), mailbox: mailboxGeometry(), bollard: bollardGeometry(), bikerack: bikeRackGeometry(), busstop: busStopGeometry(), cone: trafficConeGeometry(), sign: streetSignGeometry(), lampdetail: lampPostDetail() };
+  const dgeo = { bush: bushGeometry(), flower: flowerGeometry(), grass: grassGeometry(), planter: planterGeometry(), mailbox: mailboxGeometry(), bollard: bollardGeometry(), bikerack: bikeRackGeometry(), busstop: busStopGeometry(), cone: trafficConeGeometry(), sign: streetSignGeometry(), lampdetail: lampPostDetail() };
   for (const k of Object.keys(decor) as (keyof typeof decor)[]) {
-    if (decor[k].length) decorMeshes.push(instance(dgeo[k], mat, decor[k], k !== 'bush' && k !== 'cone'));
+    if (decor[k].length) decorMeshes.push(instance(dgeo[k], mat, decor[k], k !== 'bush' && k !== 'cone' && k !== 'flower' && k !== 'grass'));
   }
   const dradius: Partial<Record<keyof typeof decor, number>> = { planter: 0.7, mailbox: 0.35, bollard: 0.2, bikerack: 1.0, busstop: 1.4, sign: 0.15 };
   for (const k of Object.keys(dradius) as (keyof typeof decor)[]) for (const p of decor[k]) world.circles.push({ x: p.x, z: p.z, r: dradius[k]! });

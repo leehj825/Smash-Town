@@ -99,21 +99,25 @@ function windowTextures(): { map: THREE.CanvasTexture; emissive: THREE.CanvasTex
   wg.fillRect(0, 0, S, S);
   gg.fillStyle = '#000000';
   gg.fillRect(0, 0, S, S);
-  // 2x2 window bays per tile; the tile border stays plain wall.
-  const lit = [true, false, true, true];
+  // 2x2 window bays per tile; the tile border stays plain wall. Each bay: stone frame, recessed two-leaf window with a transom,
+  // a protruding sill, and a room behind it (lit and curtained, dark, or half-blinded).
+  const kinds = ['lit', 'dark', 'blind', 'lit'];
   for (let n = 0; n < 4; n++) {
     const cx = (n % 2) * 128;
     const cy = Math.floor(n / 2) * 128;
-    wg.fillStyle = '#5e6d86';
-    wg.fillRect(cx + 26, cy + 24, 76, 80);
-    wg.fillStyle = '#9fb4d4';
-    wg.fillRect(cx + 26, cy + 24, 76, 22);
-    wg.fillStyle = '#e9ecf2';
-    wg.fillRect(cx + 62, cy + 24, 4, 80);
-    if (lit[n]) {
-      gg.fillStyle = '#ffd98a';
-      gg.fillRect(cx + 28, cy + 28, 72, 72);
-    }
+    const x0 = cx + 22, y0 = cy + 18, w = 84, h = 86;
+    wg.fillStyle = '#c9c5bd'; wg.fillRect(x0 - 4, y0 - 4, w + 8, h + 8);               // frame
+    wg.fillStyle = '#8f8b84'; wg.fillRect(x0 - 4, y0 + h + 2, w + 8, 3);               // sill shadow
+    wg.fillStyle = '#e4e0d8'; wg.fillRect(x0 - 8, y0 + h + 4, w + 16, 6);              // sill
+    const k = kinds[n];
+    wg.fillStyle = k === 'lit' ? '#f2d9a0' : '#56667f'; wg.fillRect(x0, y0, w, h);      // pane / room behind
+    if (k !== 'lit') { wg.fillStyle = '#8fa6c8'; wg.fillRect(x0, y0, w, 26); }          // sky reflection
+    if (k === 'lit') { wg.fillStyle = '#e8b86c'; wg.fillRect(x0, y0 + 30, 16, h - 30); wg.fillRect(x0 + w - 16, y0 + 30, 16, h - 30); } // curtains
+    if (k === 'blind') { wg.fillStyle = '#d8d2c4'; wg.fillRect(x0, y0, w, 38); wg.fillStyle = '#b8b2a4'; for (let b = 6; b < 38; b += 8) wg.fillRect(x0, y0 + b, w, 2); }
+    wg.fillStyle = '#4a4742'; wg.fillRect(x0, y0, w, 3); wg.fillRect(x0, y0, 3, h);     // recess shadow (top and left)
+    wg.fillStyle = '#d9d5cc'; wg.fillRect(x0 + w / 2 - 2, y0, 4, h);                    // mullion
+    wg.fillRect(x0, y0 + 30, w, 3);                                                     // transom bar
+    if (k === 'lit') { gg.fillStyle = '#ffd98a'; gg.fillRect(x0 + 3, y0 + 3, w - 3, h - 3); }
   }
   const map = new THREE.CanvasTexture(wall);
   const emissive = new THREE.CanvasTexture(glow);
@@ -655,6 +659,40 @@ export function buildWorld(): World {
     along(0, 0.1, 2.2, 0.2, 0.7, 0xb9b4a8); // step
     along(1.45, 2.3, 0.18, 0.18, 0.3, 0xffe9a6); // lamp
   };
+  /** A zig-zag steel fire escape on one face: a landing and railing per floor, with a sloped stair between landings. */
+  const fireEscape = (x: number, z: number, w: number, d: number, h: number, dirX: number, dirZ: number) => {
+    const keep = bld; bld = chunkOf(detChunks, x, z);
+    const steel = 0x3a3d46, FL = 3.5, floors = Math.min(5, Math.floor((h - 3) / FL));
+    const span = dirZ !== 0 ? w : d;
+    const along = rand(-span * 0.25, span * 0.25);
+    const put = (o: number, y: number, ww: number, hh: number, dd: number, c: number) => {
+      if (dirZ !== 0) plain(ww, hh, dd, x + along + o, y, z + dirZ * (d / 2 + dd / 2), c);
+      else plain(dd, hh, ww, x + dirX * (w / 2 + dd / 2), y, z + along + o, c);
+    };
+    for (let f = 1; f <= floors; f++) {
+      const y = f * FL + 0.4;
+      put(0, y, 2.4, 0.08, 1.2, steel);
+      put(0, y + 0.55, 2.4, 0.05, 0.05, steel);
+      put(-1.17, y + 0.5, 0.05, 1.0, 1.2, steel); put(1.17, y + 0.5, 0.05, 1.0, 1.2, steel);
+      put(0, y + 0.5, 2.4, 0.05, 0.05, steel);
+      if (f < floors) {
+        const sgn = f % 2 ? 1 : -1, slope = Math.atan2(FL, 2.0), len = Math.hypot(FL, 2.0);
+        if (dirZ !== 0) bld.rotatedBox(len, 0.06, 0.6, x + along, y + FL / 2, z + dirZ * (d / 2 + 0.7), 0, 0, sgn * slope, steel);
+        else bld.rotatedBox(0.6, 0.06, len, x + dirX * (w / 2 + 0.7), y + FL / 2, z + along, -sgn * slope, 0, 0, steel);
+      }
+    }
+    bld = keep;
+  };
+  /** A railing round the edge of a flat roof. */
+  const roofRail = (x: number, z: number, w: number, d: number, top: number) => {
+    const keep = bld; bld = chunkOf(detChunks, x, z);
+    const c = 0x6b7280;
+    plain(w, 0.05, 0.05, x, top + 0.9, z + d / 2 - 0.2, c); plain(w, 0.05, 0.05, x, top + 0.9, z - d / 2 + 0.2, c);
+    plain(0.05, 0.05, d, x + w / 2 - 0.2, top + 0.9, z, c); plain(0.05, 0.05, d, x - w / 2 + 0.2, top + 0.9, z, c);
+    plain(w, 0.04, 0.04, x, top + 0.45, z + d / 2 - 0.2, c); plain(w, 0.04, 0.04, x, top + 0.45, z - d / 2 + 0.2, c);
+    for (let p = -w / 2 + 0.2; p <= w / 2; p += 2.5) { plain(0.06, 0.9, 0.06, x + p, top + 0.45, z + d / 2 - 0.2, c); plain(0.06, 0.9, 0.06, x + p, top + 0.45, z - d / 2 + 0.2, c); }
+    bld = keep;
+  };
   /** Things on a flat roof: a stair bulkhead, vents, an antenna, solar panels, a water tank or a satellite dish. */
   const roofKit = (x: number, z: number, w: number, d: number, top: number) => {
     const keep = bld; bld = chunkOf(detChunks, x, z);
@@ -778,6 +816,8 @@ export function buildWorld(): World {
           trim(w, h, d, x, 0, z, oc, true);
           roofExtras(x, z, w, d, h);
           roofKit(x, z, w, d, h + 0.55);
+          roofRail(x, z, w, d, h + 0.55);
+          fireEscape(x, z, w, d, h, alongX ? 1 : 0, alongX ? 0 : 1);
           if (alongX) {
             const dirZ = rng() < 0.5 ? -1 : 1;
             shopFront(x, z, w, d, 0, dirZ, oc);
