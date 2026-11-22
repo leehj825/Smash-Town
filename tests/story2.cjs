@@ -57,7 +57,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       const before = P.daily.done.length;
       const keys = P.daily.ids.slice();
       const c0 = G.cashAmount;
-      for (const k of ['smashes', 'driveM', 'stars', 'copsKO', 'gigs', 'earned', 'roofs', 'quests']) P.add(k, 100000);
+      for (const k of Object.keys(P.stats)) P.add(k, 100000); // every stat, so a new daily challenge can never be missed
       return { ids: keys.length, done: P.daily.done.length, before, gain: G.cashAmount - c0 };
     });
     ok(daily.ids === 3 && daily.done === 3 && daily.gain > 1000, 'three daily challenges complete and pay out', JSON.stringify(daily));
