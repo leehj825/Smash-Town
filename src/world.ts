@@ -53,6 +53,8 @@ export interface Landmarks {
 }
 
 export interface World {
+  /** Houses for sale: where you stand at the front door. */
+  homes: Spot[];
   group: THREE.Group;
   /** Fine building detail; hidden on lower quality settings. */
   detail: THREE.Group;
@@ -785,7 +787,9 @@ export function buildWorld(): World {
     if (rng() < 0.8) plain(1.8, 1.0, 1.4, x + rand(-w / 3, w / 3), h + 1.05, z + rand(-d / 3, d / 3), 0x9aa0ad); // AC unit
   };
   /** A suburban house with a pitched roof (a box whose top edge is collapsed into a ridge). */
+  const homes: Spot[] = [];
   const house = (x: number, z: number, w: number, d: number, dirZ: number) => {
+    if (homes.length < 4) homes.push({ x, z: z + dirZ * (d / 2 + 2.6), door: { x, z: z + dirZ * (d / 2 + 2.6), h: dirZ > 0 ? Math.PI : 0 } });
     const h = rand(3.6, 4.6);
     building(w, h, d, x, 0, z, pick(HOUSE_COLORS));
     const rh = rand(2.2, 3.0);
@@ -1178,7 +1182,7 @@ export function buildWorld(): World {
   }
 
   return {
-    group, detail, lots, boxes, circles, ramps, garages, landmarks, roofs, segments, bounds, width: W, depth: D,
+    group, detail, homes, lots, boxes, circles, ramps, garages, landmarks, roofs, segments, bounds, width: W, depth: D,
     windowMaterial, signMaterial, spawn, minimap: { canvas: mm, scale: MM, pad: PAD },
   };
 }

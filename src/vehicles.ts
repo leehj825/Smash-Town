@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { CarController, type CarEvents } from './carController';
 import type { ControlState } from './input';
 import type { PoliceBrain, TrafficBrain } from './ai';
-import { VehicleFactory, dimsOf, type VehicleKind } from './vehicle';
+import { VehicleFactory, bodyOf, dimsOf, type VehicleKind } from './vehicle';
+import { MeshBuilder, paletteMaterial } from './geo';
 import type { CircleCollider, World } from './world';
 
 export type AIMode = 'player' | 'traffic' | 'police' | 'parked' | 'wreck';
@@ -87,6 +88,34 @@ export class GameVehicle {
     VehicleFactory.dispose(old);
     this.ctrl.useRamps = true;
     if (this.neonColor) this.applyNeon();
+    if (this.modLevel) this.applyMods();
+  }
+
+  private modLevel = 0;
+  private modMesh: THREE.Mesh | null = null;
+  /** Visible tuning that follows the upgrades you have bought (their levels added up): side skirts, then a rear wing, then a hood scoop and racing stripes. */
+  setMods(total: number): void {
+    this.modLevel = total;
+    this.applyMods();
+  }
+  private applyMods(): void {
+    if (this.modMesh) { this.modMesh.removeFromParent(); this.modMesh.geometry.dispose(); this.modMesh = null; }
+    const n = this.modLevel;
+    if (n < 3 || this.kind === 'motorbike' || this.kind === 'scooter' || this.kind === 'bicycle' || this.isPolice) return;
+    const s = bodyOf(this.kind);
+    const b = new MeshBuilder();
+    const dark = 0x15151a, top = s.clr + s.bodyH;
+    for (const sx of [-1, 1]) b.box(0.08, 0.14, s.len * 0.45, sx * (s.w / 2 + 0.03), s.clr + 0.08, 0, dark);        // side skirts
+    if (n >= 6) {
+      for (const sx of [-1, 1]) b.box(0.07, 0.38, 0.24, sx * s.w * 0.36, top + 0.3, -s.len / 2 + 0.2, dark);         // rear wing
+      b.box(s.w * 0.92, 0.06, 0.42, 0, top + 0.5, -s.len / 2 + 0.2, 0x2a2d35);
+    }
+    if (n >= 9) {
+      b.box(0.5, 0.12, 0.6, 0, top + 0.2, s.len / 2 - 0.9, dark);                                                   // hood scoop
+      for (const sx of [-0.16, 0.16]) b.box(0.1, 0.02, s.len * 0.8, sx, top + 0.32, 0, 0xffffff);                    // racing stripes
+    }
+    this.modMesh = new THREE.Mesh(b.build(), paletteMaterial());
+    this.ctrl.model.root.add(this.modMesh);
   }
 
   private neonColor = 0;

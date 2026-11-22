@@ -42,7 +42,7 @@ import type { Vfx } from './vfx';
 import type { CircleCollider, World } from './world';
 
 export const SAVE_KEY = 'smashtown.save.v1';
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; progress?: ProgressSave }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -205,6 +205,7 @@ export class Game {
     {
       const gr = this.interiors.rooms.find((r) => r.id === 'garage');
       if (gr) gr.doors = this.world.garages.map((g) => g.door ?? { x: g.x, z: g.z, h: 0 });
+      this.refreshHomeDoors();
     }
     this.roofDash = new RoofDash(this);
     this.policeFire = new PoliceFire(this);
@@ -586,7 +587,7 @@ export class Game {
 
   private enterBuilding(room: Room): void {
     if (this.fading || this.state !== 'play') return;
-    if (this.stars > 0 && !(room.id === 'garage' && this.canHide())) { this.hud.toast(room.id === 'garage' ? bi('The police are too close to hide!', '경찰이 너무 가까워서 숨을 수 없어요!') : bi('The door is locked - the police are watching!', '문이 잠겨 있어요 - 경찰이 지켜보고 있어요!'), 2400); return; }
+    if (this.stars > 0 && !((room.id === 'garage' || room.id === 'home') && this.canHide())) { this.hud.toast(room.id === 'garage' || room.id === 'home' ? bi('The police are too close to hide!', '경찰이 너무 가까워서 숨을 수 없어요!') : bi('The door is locked - the police are watching!', '문이 잠겨 있어요 - 경찰이 지켜보고 있어요!'), 2400); return; }
     const pl = this.humans.player;
     this.ret = { x: pl.x, z: pl.z, h: pl.heading };
     this.progress.add('shops');
@@ -624,7 +625,7 @@ export class Game {
     this.slash.update(dt);
     this.guns.tick(dt);
     this.interiors.update(dt);
-    if (room.id === 'garage' && this.stars > 0) this.hideDecay(dt);
+    if ((room.id === 'garage' || room.id === 'home') && this.stars > 0) this.hideDecay(dt);
     if (room.id === 'bank') this.shops.updateHeist(dt, room);
     if (playing && (input.wasPressed('KeyF') || input.wasPressed('KeyE'))) {
       if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) this.leaveBuilding();
@@ -826,6 +827,7 @@ export class Game {
     const p = this.carProg(v.kind);
     v.ctrl.setUpgrades(p.up);
     v.setNeon(p.neon);
+    v.setMods(p.up.reduce((a, b) => a + b, 0));
   }
   private applyBody(): void {
     const b = (this.save.body ??= emptyBody());
@@ -1009,7 +1011,9 @@ export class Game {
         const lo = this.ladderOption();
         const door = this.onFoot && !this.climb ? this.interiors.roomAt(this.humans.player.x, this.humans.player.z, 2.6) : null;
         const mach = this.onFoot && !lo && !door ? this.machines.nearest(this.humans.player.x, this.humans.player.z) : null;
-        if (lo) this.startClimb(lo);
+        const home = this.onFoot && !lo && !door && !mach && !this.humans.player.roof ? this.homeNear() : -1;
+        if (home >= 0) { if (this.ownsHome(home)) this.enterBuilding(this.interiors.rooms.find((r) => r.id === 'home')!); else this.buyHome(home); }
+        else if (lo) this.startClimb(lo);
         else if (door && !this.humans.player.roof) this.enterBuilding(door);
         else if (mach) this.machines.use(mach);
         else this.enterExit();
@@ -1648,6 +1652,28 @@ export class Game {
     if (this.time - this.crowdT > 2.5) { this.crowdT = this.time; if (this.nearPlayer(x, z, 45)) this.audio.scream(); }
   }
 
+  static readonly HOME_PRICE = 20000;
+  ownsHome(i: number): boolean { return (this.save.homes ?? []).includes(i); }
+  private refreshHomeDoors(): void {
+    const room = this.interiors.rooms.find((r) => r.id === 'home');
+    if (room) room.doors = this.world.homes.filter((_, i) => this.ownsHome(i)).map((h) => h.door!);
+  }
+  /** Index of the house whose front door you are standing at (-1 = none). */
+  homeNear(): number {
+    const p = this.humans.player;
+    for (let i = 0; i < this.world.homes.length; i++) if (Math.hypot(this.world.homes[i].x - p.x, this.world.homes[i].z - p.z) < 2.6) return i;
+    return -1;
+  }
+  buyHome(i: number): void {
+    if (this.ownsHome(i)) return;
+    if (!this.pay(Game.HOME_PRICE)) return;
+    (this.save.homes ??= []).push(i);
+    this.refreshHomeDoors();
+    this.progress.add('shops');
+    this.flushSave();
+    this.hud.toast(bi('You bought a house! A bed to rest and a place to hide.', '집을 샀어요! 쉴 수 있고 숨을 수도 있어요.'), 3200);
+  }
+
   /** True when no police car or cop is close enough to see you slip into a garage. */
   canHide(): boolean {
     for (const v of this.policeVehicles()) if (Math.hypot(v.x - this.focusX, v.z - this.focusZ) < 28) return false;
@@ -1793,7 +1819,8 @@ export class Game {
       else if (door && !this.humans.player.roof) this.hud.setPrompt(`${bi('[F] Enter', '[F] 들어가기')} ${bi(door.en, door.ko)}`);
       else {
         const mach = this.machines.nearest(this.humans.player.x, this.humans.player.z);
-        this.hud.setPrompt(mach ? this.machines.prompt(mach) : this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
+        const hm = mach ? -1 : this.homeNear();
+        this.hud.setPrompt(mach ? this.machines.prompt(mach) : hm >= 0 ? (this.ownsHome(hm) ? bi('[F] Go home', '[F] 집에 들어가기') : `${bi('[F] Buy this house', '[F] 이 집 사기')} - $${Game.HOME_PRICE.toLocaleString('en-US')}`) : this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
       }
     }
     else if (this.driving && this.driving.ctrl.speed < 2.5 && this.stars === 0) this.hud.setPrompt(t('ui.hint.exit_car'));
@@ -1833,6 +1860,7 @@ export class Game {
   private buildBlips(): void {
     this.blipCount = 0;
     for (const g of this.world.garages) this.pushBlip(g.x, g.z, '#3dff8a', false, 5);
+    this.world.homes.forEach((h, i) => this.pushBlip(h.x, h.z, this.ownsHome(i) ? '#ffd23a' : '#6bd1ff', false, 4.5));
     this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
     if (this.hunter) this.pushBlip(this.hunter.x, this.hunter.z, '#ff9a3d', true, 5);

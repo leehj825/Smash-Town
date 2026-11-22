@@ -70,6 +70,12 @@ const SPECS: Record<VehicleKind, Spec> = {
   armored: { w: 2.4, len: 5.8, bodyH: 1.25, clr: 0.5, hoodLen: 1.5, wedge: false, trunkLen: 0.3, cabinLen: 3.6, cabinH: 0.6, cabinZ: -0.6, taper: 0.9, cabinColor: null, wheelR: 0.55, wheelX: 1.15, wheelZ: 1.9, bar: true, plating: true },
 };
 
+/** Body size for the tuning parts (width, length, floor clearance, body height). */
+export function bodyOf(kind: VehicleKind): { w: number; len: number; clr: number; bodyH: number } {
+  const s = SPECS[kind];
+  return { w: s.w, len: s.len, clr: s.clr, bodyH: s.bodyH };
+}
+
 export function dimsOf(kind: VehicleKind): { radius: number; offsets: number[]; len: number } {
   const s = SPECS[kind];
   const radius = s.w * 0.5 + 0.1;

@@ -6,7 +6,7 @@ import type { BoxCollider, World } from './world';
 // Enterable shops. Each room is a small set built far outside the city (a "hidden pocket"); stepping through a door fades out and
 // teleports the player there, so street traffic, police and cameras can never interfere. Walls are ordinary box colliders.
 
-export type ShopKind = 'donut' | 'gun' | 'clothes' | 'arcade' | 'motel' | 'bank' | 'garage';
+export type ShopKind = 'donut' | 'gun' | 'clothes' | 'arcade' | 'motel' | 'bank' | 'garage' | 'home';
 export interface Room {
   id: ShopKind;
   en: string; ko: string;
@@ -34,6 +34,7 @@ const DEFS: { id: ShopKind; en: string; ko: string; color: number; css: string; 
   { id: 'arcade', en: 'Arcade', ko: '오락실', color: 0x35e0ff, css: '#35e0ff', floor: 0x1d1f33, wall: 0x2c3057, frac: 0.7 },
   { id: 'bank', en: 'Smash Bank', ko: '스매시 은행', color: 0xffd23a, css: '#ffd23a', floor: 0xcfd3da, wall: 0x3c4a6b, frac: 0.86 },
   { id: 'garage', en: 'Garage', ko: '차고', color: 0x3dff8a, css: '#3dff8a', floor: 0x3a3d46, wall: 0x56606f, frac: -3 },
+  { id: 'home', en: 'Your House', ko: '우리 집', color: 0x6bd1ff, css: '#6bd1ff', floor: 0xb08a5a, wall: 0xe9dcc6, frac: -3 },
   { id: 'motel', en: '24h Motel', ko: '24시 모텔', color: 0x7dff6a, css: '#7dff6a', floor: 0xcdb99a, wall: 0xd9c9a8, frac: -2 },
 ];
 
@@ -68,6 +69,13 @@ export class Interiors {
       const ownable = d.id === 'donut' || d.id === 'motel' || d.id === 'arcade' || d.id === 'bank';
       if (ownable) { b.box(1.9, 0.95, 0.9, ox + 4.6, 0.48, oz - 3.8, 0x3b3f55); b.box(0.7, 0.08, 0.5, ox + 4.6, 1.0, oz - 3.8, 0xffd23a); }
       if (d.id === 'arcade') for (let i = 0; i < 4; i++) b.box(1.0, 2.0, 0.9, ox - 4.5 + i * 3, 1.0, oz + 2.8, [0xff4d6d, 0x35e0ff, 0xffd23a, 0x7dff6a][i]);
+      if (d.id === 'home') {
+        b.box(2.2, 0.5, 3.0, ox + 4.6, 0.25, oz - 3.0, 0xf4f4f4); b.box(2.2, 0.9, 0.2, ox + 4.6, 0.6, oz - 4.4, 0x8b5a2b); b.box(1.0, 0.18, 0.6, ox + 4.6, 0.6, oz - 3.9, 0xffffff);   // bed
+        b.box(3.0, 0.5, 1.1, ox - 3.0, 0.3, oz + 3.6, 0x3b82f6); b.box(3.0, 0.7, 0.3, ox - 3.0, 0.65, oz + 4.1, 0x2c64c0);                           // sofa
+        b.box(1.8, 0.9, 0.5, ox - 3.0, 0.45, oz + 1.2, 0x6b4a2e); b.box(1.4, 0.8, 0.1, ox - 3.0, 1.6, oz + 1.0, 0x15151a);                         // TV stand and screen
+        b.box(3.4, 0.03, 2.4, ox, 0.03, oz + 0.6, 0xd9534f);                                                                                         // rug
+        b.box(0.9, 1.8, 0.5, ox + 5.6, 0.9, oz + 3.6, 0x8b5a2b);                                                                                     // wardrobe
+      }
       if (d.id === 'garage') {
         // two car lifts, a tool bench, tyre stacks, oil drums, hazard stripes by the door
         for (const sx of [-1, 1]) { b.box(0.3, 2.4, 0.3, ox + sx * 3.2, 1.2, oz + 1.6, 0xffd23a); b.box(0.3, 2.4, 0.3, ox + sx * 3.2, 1.2, oz + 3.6, 0xffd23a); b.box(0.4, 0.2, 2.5, ox + sx * 3.2, 0.5, oz + 2.6, 0x6d7280); }

@@ -96,6 +96,23 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { near, stars, loot, again: !!G.shops.heist };
     });
     ok(heist.near && heist.stars >= 3 && heist.loot >= 3500 && !heist.again, 'cracking the bank vault sets off the alarm, pays out, then the vault stays empty', JSON.stringify(heist));
+    const homeBuy = await S(() => {
+      const G = g(); const h = G.world.homes[0];
+      G.stars = 0; G.cash = 30000; G.save.homes = []; G.inside = null; G.driving = null; G.onFoot = true; G.state = 'play';
+      G.humans.setPlayerActive(true, h.x, h.z, 0);
+      const near = G.homeNear() === 0;
+      G.buyHome(0);
+      const room = G.interiors.rooms.find((r) => r.id === 'home');
+      return { homes: G.world.homes.length, near, owned: G.ownsHome(0), doors: room.doors.length, cash: G.cash };
+    });
+    ok(homeBuy.homes >= 3 && homeBuy.near && homeBuy.owned && homeBuy.doors === 1 && homeBuy.cash === 10000, 'houses are for sale and the one you buy gets a door you can enter', JSON.stringify(homeBuy));
+    const mods = await S(() => {
+      const G = g(); const v = G.vehicles.find((q) => q.kind === 'sports') || G.spawnVehicle('sports', 0xffd500, 0, 0, 0, 'parked', true);
+      v.setMods(0); const none = !v.modMesh;
+      v.setMods(10); const full = !!v.modMesh;
+      return { none, full };
+    });
+    ok(mods.none && mods.full, 'upgrades add visible tuning parts to the car', JSON.stringify(mods));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();
