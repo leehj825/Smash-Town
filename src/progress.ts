@@ -1,8 +1,8 @@
 // Long-term progress: lifetime stats, achievements, daily challenges and shop ownership.
 
-export type StatKey = 'smashes' | 'stars' | 'copsKO' | 'gigs' | 'earned' | 'driveM' | 'playSec' | 'roofs' | 'shops' | 'quests';
+export type StatKey = 'smashes' | 'stars' | 'copsKO' | 'gigs' | 'earned' | 'driveM' | 'playSec' | 'roofs' | 'shops' | 'quests' | 'fares' | 'races' | 'heists' | 'bounties' | 'hides';
 export type Stats = Record<StatKey, number>;
-export const emptyStats = (): Stats => ({ smashes: 0, stars: 0, copsKO: 0, gigs: 0, earned: 0, driveM: 0, playSec: 0, roofs: 0, shops: 0, quests: 0 });
+export const emptyStats = (): Stats => ({ smashes: 0, stars: 0, copsKO: 0, gigs: 0, earned: 0, driveM: 0, playSec: 0, roofs: 0, shops: 0, quests: 0, fares: 0, races: 0, heists: 0, bounties: 0, hides: 0 });
 
 export interface Achievement { id: string; en: string; ko: string; key: StatKey; target: number }
 export const ACHIEVEMENTS: Achievement[] = [
@@ -17,6 +17,11 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'drive20', en: 'Road Tripper: drive 20 km', ko: '드라이버: 20km 주행', key: 'driveM', target: 20000 },
   { id: 'roofs5', en: 'Rooftop Runner: climb 5 times', ko: '옥상 러너: 사다리 5번 오르기', key: 'roofs', target: 5 },
   { id: 'shops10', en: 'Regular: visit shops 10 times', ko: '단골: 상점 10번 방문', key: 'shops', target: 10 },
+  { id: 'fares5', en: 'Cabbie: finish 5 taxi fares', ko: '택시 기사: 손님 5명 태우기', key: 'fares', target: 5 },
+  { id: 'races3', en: 'Street Racer: win 3 street races', ko: '스트리트 레이서: 레이스 3번 우승', key: 'races', target: 3 },
+  { id: 'heist1', en: 'Master Thief: crack the bank vault', ko: '대도: 은행 금고 털기', key: 'heists', target: 1 },
+  { id: 'bounty1', en: 'Hunter Hunted: wreck a bounty hunter', ko: '사냥꾼 사냥: 현상금 사냥꾼 격파', key: 'bounties', target: 1 },
+  { id: 'hide3', en: 'Lie Low: hide from the police 3 times', ko: '잠수: 경찰 피해 3번 숨기', key: 'hides', target: 3 },
   { id: 'quests5', en: 'Helpful Neighbour: finish 5 street quests', ko: '이웃 도우미: 거리 퀘스트 5번', key: 'quests', target: 5 },
 ];
 
@@ -30,6 +35,8 @@ const DAILY_POOL: DailyTemplate[] = [
   { id: 'd-gigs', en: 'Finish 2 side jobs', ko: '부업 2번 완료하기', key: 'gigs', target: 2, reward: 1000 },
   { id: 'd-earn', en: 'Earn $3,000', ko: '$3,000 벌기', key: 'earned', target: 3000, reward: 800 },
   { id: 'd-roof', en: 'Climb 2 ladders', ko: '사다리 2번 오르기', key: 'roofs', target: 2, reward: 500 },
+  { id: 'd-fare', en: 'Finish 2 taxi fares', ko: '택시 손님 2명 태우기', key: 'fares', target: 2, reward: 900 },
+  { id: 'd-race', en: 'Win a street race', ko: '스트리트 레이스 우승', key: 'races', target: 1, reward: 1200 },
   { id: 'd-quest', en: 'Finish 2 street quests', ko: '거리 퀘스트 2번 완료하기', key: 'quests', target: 2, reward: 900 },
 ];
 

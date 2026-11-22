@@ -126,6 +126,7 @@ export class StreetRace {
         const pay = Math.round(600 + Math.max(0, this.time) * 12);
         G.addCash(pay, 'gigs');
         G.progress.add('gigs');
+        G.progress.add('races');
         this.done++;
         const prev = this.best[this.which];
         if (prev === undefined || this.elapsed < prev) this.best[this.which] = this.elapsed;

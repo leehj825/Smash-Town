@@ -100,6 +100,7 @@ export class TaxiJob {
       const fare = Math.max(40, Math.round(base + bonus - damage * 250));
       G.addCash(fare, 'gigs');
       G.progress.add('gigs');
+      G.progress.add('fares');
       this.fares++;
       G.popups.spawn(d!.x, 3, d!.z, `+$${fare}`, '#ffd23a');
       G.hud.toast(`${bi('Fare paid', '요금')} $${fare}${bonus > 20 ? ` (${bi('tip!', '팁!')})` : ''}`, 2600);

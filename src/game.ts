@@ -1476,7 +1476,7 @@ export class Game {
         if (v === this.driving) continue; // handled by the state machine
         if (v.ai === 'police') {
           this.addCash(v === this.hunter ? 1700 : 200, 'police'); this.addHeat(30);
-          if (v === this.hunter) { this.popups.spawn(v.x, 3, v.z, bi('BOUNTY $1,500!', '현상금 $1,500!'), '#ffd23a'); this.hunter = null; }
+          if (v === this.hunter) { this.popups.spawn(v.x, 3, v.z, bi('BOUNTY $1,500!', '현상금 $1,500!'), '#ffd23a'); this.hunter = null; this.progress.add('bounties'); }
         }
         v.ai = 'wreck';
         v.wreckTimer = 8;
@@ -1677,7 +1677,7 @@ export class Game {
     if (s < this.stars) {
       this.stars = s;
       this.hud.setWanted(s);
-      if (s === 0) { this.hud.toast(t('ui.toast.lost')); this.clearWanted(); }
+      if (s === 0) { this.hud.toast(t('ui.toast.lost')); this.clearWanted(); this.progress.add('hides'); }
     }
   }
 

@@ -38,6 +38,7 @@ export class Shops {
       G.hud.showGig(false);
       G.addCash(loot, 'other');
       G.progress.add('gigs');
+      G.progress.add('heists');
       const pl = G.humans.player;
       G.popups.spawn(pl.x, 3, pl.z, `+$${loot.toLocaleString('en-US')}`, '#ffd23a');
       G.hud.toast(bi('The vault is open! Grab the cash and get out!', '금고가 열렸어요! 돈을 챙겨 도망가세요!'), 3000);
