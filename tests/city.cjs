@@ -138,6 +138,25 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { ctxState, paused, after: G.audio.context ? G.audio.context.state : 'none' };
     });
     ok(bg.paused && (bg.ctxState === 'suspended' || bg.ctxState === 'none'), 'going to the background pauses the game and suspends the sound', JSON.stringify(bg));
+    const rivals = await S(() => {
+      // debug
+      const G = g(); const R = G.race;
+      G.stars = 0; G.heat = 0; G.humans.setPlayerActive(false, 0, 0, 0);
+      const st = R.starts[1];
+      const v = G.spawnVehicle('sports', 0xffd500, st.x, st.z, 0, 'player', true);
+      G.driving = v; G.onFoot = false; G.state = 'play'; G.inside = null; R.cooldown = 0;
+      for (let i = 0; i < 4; i++) G.update(0.05);
+      const dbg = { phase: R.phase, state: G.state, stars: G.stars, cd: R.cooldown, inside: !!G.inside, onFoot: G.onFoot, drv: !!G.driving, sp: G.driving && G.driving.ctrl.speed, d: G.driving && Math.hypot(st.x - G.driving.x, st.z - G.driving.z) };
+      console.log('DBG', JSON.stringify(dbg));
+      const rivals = R.rivals.length;
+      for (let i = 0; i < 1400; i++) { G.update(0.05); v.ctrl.vx = v.ctrl.vz = 0; }
+      const prog = R.rivals.map((r) => r.idx + (r.done ? 100 : 0));
+      const riv = (R.rivals.map((r) => ({ sp: Math.round(r.v.ctrl.speed), x: Math.round(r.v.x), z: Math.round(r.v.z), cp: R.cp[r.idx] && [Math.round(R.cp[r.idx].x), Math.round(R.cp[r.idx].z)], thr: r.v.control.throttle, st: r.v.control.steer, hb: r.v.control.handbrake, rt: r.route && r.route.length, ai: r.v.ai, phase: R.phase })));
+      const trail = R.trail.count, arrow = R.arrow.visible;
+      R.stop && R.stop();
+      return { riv, rivals, prog, trail, arrow, left: G.vehicles.filter((q) => q.isGigTarget).length };
+    });
+    ok(rivals.rivals === 2 && Math.max(...rivals.prog) >= 2 && rivals.trail > 5 && rivals.arrow, 'rival racers drive the course on their own while road chevrons and an arrow show the way', JSON.stringify(rivals));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();

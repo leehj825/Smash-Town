@@ -125,7 +125,7 @@ export class Game {
   /** Road route to the story goal (refreshed a few times a second) and the goal itself. */
   route: Route | null = null;
   goal: { x: number; z: number; label: string; prop?: boolean } | null = null;
-  private nav = new Navigator();
+  nav = new Navigator();
   private routeT = 0;
   readonly collectibles: Collectibles;
   smashTotal = 0;
@@ -1104,6 +1104,7 @@ export class Game {
       for (const v of this.vehicles) if (v.isBike) v.setRider(v === this.driving && !this.onFoot, look.pants, look.shirt, look.skin);
     }
     this.medics.update(dt);
+    this.race.drive(dt);
     this.lights.update(dt);
     this.news.update(dt);
     const fx = this.fx;
@@ -1164,7 +1165,7 @@ export class Game {
 
   /** Story guidance: road route to the goal, the guide arrow and its distance. */
   private updateGuide(dt: number): void {
-    const o = this.story.objective();
+    const o = this.race.active ? this.race.guideGoal() : this.story.objective();
     this.goal = o;
     if (!o) { this.route = null; this.hud.setNav(null, ''); this.hud.setRoute(null); return; }
     const fx = this.focusX, fz = this.focusZ;
@@ -1886,7 +1887,7 @@ export class Game {
     this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
     if (this.hunter) this.pushBlip(this.hunter.x, this.hunter.z, '#ff9a3d', true, 5);
-    for (const m of this.race.markers()) this.pushBlip(m.x, m.z, '#ff9a3d', m.flash, 5);
+    for (const m of this.race.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5);
     for (const m of this.taxi.markers()) this.pushBlip(m.x, m.z, m.color, true, 5.5);
     for (const m of this.range.markers()) this.pushBlip(m.x, m.z, '#ff9a3d', m.active, m.active ? 5 : 4);
     for (const m of this.roofDash.markers()) this.pushBlip(m.x, m.z, '#4dd2ff', false, m.active ? 5.5 : 4);
