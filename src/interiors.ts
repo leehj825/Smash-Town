@@ -79,7 +79,7 @@ export class Interiors {
       if (d.id === 'garage') {
         // two car lifts, a tool bench, tyre stacks, oil drums, hazard stripes by the door
         for (const sx of [-1, 1]) { b.box(0.3, 2.4, 0.3, ox + sx * 3.2, 1.2, oz + 1.6, 0xffd23a); b.box(0.3, 2.4, 0.3, ox + sx * 3.2, 1.2, oz + 3.6, 0xffd23a); b.box(0.4, 0.2, 2.5, ox + sx * 3.2, 0.5, oz + 2.6, 0x6d7280); }
-        b.box(2.6, 0.9, 0.7, ox - 5.4, 0.45, oz - 1.0, 0x8a5a33); b.box(2.6, 0.1, 0.8, ox - 5.4, 0.95, oz - 1.0, 0xcfc8b8);
+        b.box(2.6, 0.9, 0.7, ox - 5.4, 0.45, oz - 4.3, 0x8a5a33); b.box(2.6, 0.1, 0.8, ox - 5.4, 0.95, oz - 4.3, 0xcfc8b8);
         for (let i = 0; i < 4; i++) b.cylinder(0.45, 0.45, 0.28, 10, ox + 5.5, 0.15 + i * 0.3, oz + 3.8, 0x1a1a1f);
         for (let i = 0; i < 3; i++) b.cylinder(0.35, 0.35, 0.9, 8, ox + 5.5 - i * 0.8, 0.45, oz - 4.4, [0x2f6bd6, 0xd62d3a, 0x2fb87a][i]);
         for (let k = 0; k < 8; k++) b.box(0.9, 0.03, 0.4, ox - 3.6 + k * 1.0, 0.03, oz + D / 2 - 0.5, k % 2 ? 0xffd23a : 0x222222);

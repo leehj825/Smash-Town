@@ -76,6 +76,11 @@ export interface GameDeps {
 }
 
 /** Owns the simulation: vehicles, AI, wanted level, combos, gigs, garage and persistence. */
+/** Where the car stands in the garage, in front of the entrance (offset from the room centre along z). */
+const BAY_Z = -1.0;
+/** ...and to the left of centre, so the menu panel on the right never covers it. */
+const BAY_X = -3.3;
+
 export class Game {
   readonly scene: THREE.Scene;
   readonly world: World;
@@ -558,6 +563,7 @@ export class Game {
     this.progress.add('shops');
     this.fadeThen(() => {
       this.inside = room;
+      if (room.id === 'garage') this.parkCarInBay(room);
       this.humans.setPlayerActive(true, room.exit.x, room.exit.z - 2.2, Math.PI);
       this.cameraRig.ignore = null;
       this.syncFoot();
@@ -569,11 +575,59 @@ export class Game {
   private leaveBuilding(): void {
     this.fadeThen(() => {
       const r = this.ret;
+      if (this.inside?.id === 'garage') this.returnCarToStreet();
       this.inside = null;
       this.humans.setPlayerActive(true, r.x, r.z, r.h);
       this.syncFoot();
       this.cameraRig.snap();
     });
+  }
+
+  /** The turntable sits in front of the entrance, between you and the counter. */
+  private bayCircle: { x: number; z: number; r: number } | null = null;
+  /** Where the car in the garage bay stood outside, so it goes back there when you leave. */
+  private garageHome: { x: number; z: number; h: number } | null = null;
+  private bayCar(): GameVehicle | null {
+    return this.driving && this.garageTemp ? this.driving : this.garageVehicle;
+  }
+  /** The garage shows your car on the turntable: the one you drove up in, or your nearest own car. */
+  private parkCarInBay(room: Room): void {
+    let v = this.garageVehicle && !this.garageVehicle.ctrl.wrecked ? this.garageVehicle : null;
+    if (!v) {
+      let bd = 80;
+      for (const q of this.vehicles) { if (!q.owned || q.ctrl.wrecked) continue; const k = Math.hypot(q.x - this.ret.x, q.z - this.ret.z); if (k < bd) { bd = k; v = q; } }
+    }
+    if (!v) { this.garageHome = null; return; }
+    this.garageVehicle = v;
+    this.garageHome = { x: v.x, z: v.z, h: v.ctrl.heading };
+    v.ctrl.display = true;
+    v.ctrl.reset(room.ox + BAY_X, room.oz + BAY_Z, 2.6);
+    this.bayCircle = { x: room.ox + BAY_X, z: room.oz + BAY_Z, r: 2.1 };
+    this.world.circles.push(this.bayCircle);
+    v.ctrl.vx = v.ctrl.vz = 0;
+    v.ctrl.update(0.001, v.control, null);
+  }
+  private returnCarToStreet(): void {
+    const v = this.bayCar();
+    const h = this.garageHome;
+    if (v) v.ctrl.display = false;
+    if (v && h) { v.ctrl.reset(h.x, h.z, h.h); v.ctrl.vx = v.ctrl.vz = 0; v.ctrl.update(0.001, v.control, null); }
+    this.garageVehicle = v;
+    this.garageHome = null;
+    if (this.bayCircle) { const i = this.world.circles.indexOf(this.bayCircle); if (i >= 0) this.world.circles.splice(i, 1); this.bayCircle = null; }
+  }
+  /** A slow turn on the turntable; whatever the menu changes (car, paint, neon, parts) shows on the car right away. */
+  private spinBayCar(dt: number): void {
+    const v = this.bayCar();
+    const room = this.inside;
+    if (!v || !room || room.id !== 'garage' || !this.garageHome) return;
+    const c = v.ctrl;
+    c.display = true; // a swapped-in car joins the turntable
+    if (Math.hypot(v.x - (room.ox + BAY_X), v.z - (room.oz + BAY_Z)) > 3) { c.reset(room.ox + BAY_X, room.oz + BAY_Z, c.heading); } // a swapped-in car appears on the turntable too
+    c.vx = c.vz = 0;
+    c.heading += dt * 0.5;
+    v.control.throttle = 0; v.control.steer = 0; v.control.handbrake = true;
+    c.update(0.001, v.control, null);
   }
 
   /** Inside a shop only you move: the street is frozen far away. */
@@ -596,6 +650,7 @@ export class Game {
       playerCarX: pl.x, playerCarZ: pl.z, playerCarSpeed: 0, policeCars: [], time: this.time,
     });
     this.syncFoot();
+    this.spinBayCar(dt);
     this.popups.update(dt);
     this.slash.update(dt);
     this.guns.tick(dt);
@@ -852,6 +907,8 @@ export class Game {
 
   openGarage(mode: 'garage' | 'arms' = 'garage'): void {
     this.state = 'garage';
+    // inside the garage building the menu slides to the side so you can watch the car change
+    document.getElementById('garage')?.classList.toggle('in-garage', this.inside?.id === 'garage');
     const d = this.driving;
     if (d && mode === 'garage') d.ctrl.vx = d.ctrl.vz = 0;
     const refresh = () => this.hud.refreshGarage(this.garageModel());
@@ -945,6 +1002,7 @@ export class Game {
   closeGarage(): void {
     if (this.state !== 'garage') return;
     this.hud.closeGarage();
+    document.getElementById('garage')?.classList.remove('in-garage');
     if (this.garageTemp) {
       const v = this.driving;
       this.driving = null; this.garageTemp = false;

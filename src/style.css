@@ -337,3 +337,8 @@ body.can-reload #touch .gunrow #btn-reload { visibility: visible; }
   #stick { width: 100px; height: 100px; }
   #status { transform: scale(.66); }
 }
+
+/* Inside the garage building the menu sits on the right and the car turns on its stand on the left */
+#garage.in-garage { place-items: center end; padding-right: 10px; background: linear-gradient(90deg, rgba(5,8,20,0) 35%, rgba(5,8,20,.5)); pointer-events: none; }
+#garage.in-garage .garage-panel { pointer-events: auto; width: min(54vw, 430px); max-height: 94vh; padding: 16px 18px; }
+@media (max-width: 700px) { #garage.in-garage { place-items: end center; padding: 0 0 6px; background: linear-gradient(0deg, rgba(5,8,20,.5), rgba(5,8,20,0) 45%); } #garage.in-garage .garage-panel { width: 96vw; max-height: 52vh; } }

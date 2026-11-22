@@ -260,7 +260,11 @@ export class CarController {
     }
   }
 
+  /** A car on a showroom stand (the garage turntable) ignores the world: the room is outside the city's bounds. */
+  display = false;
+
   private collide(): void {
+    if (this.display) return;
     const b = this.world.bounds;
     if (this.position.x < b.minX) { this.position.x = b.minX; this.bounce(1, 0); }
     if (this.position.x > b.maxX) { this.position.x = b.maxX; this.bounce(-1, 0); }
