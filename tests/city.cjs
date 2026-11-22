@@ -113,6 +113,15 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { none, full };
     });
     ok(mods.none && mods.full, 'upgrades add visible tuning parts to the car', JSON.stringify(mods));
+    await S(() => { const G = g(); G.inside = null; G.state = 'play'; G.humans.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0); G.onFoot = true; });
+    await p.keyboard.press('KeyH');
+    await p.waitForTimeout(400);
+    const photo = await S(() => ({ hint: !document.getElementById('photo-hint').hidden, hud: document.getElementById('hud').style.visibility }));
+    ok(photo.hint && photo.hud === 'hidden', 'H opens photo mode and hides the HUD', JSON.stringify(photo));
+    await p.keyboard.press('KeyH');
+    await p.waitForTimeout(400);
+    const photo2 = await S(() => ({ hint: !document.getElementById('photo-hint').hidden }));
+    ok(!photo2.hint, 'H again leaves photo mode', JSON.stringify(photo2));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();

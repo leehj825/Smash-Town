@@ -99,6 +99,17 @@ let quality: Quality = 'high';
 /** On phones the game steps the graphics down by itself when the frame rate stays low (until the player picks a setting by hand). */
 let autoQuality = isMobile;
 let slowT = 0;
+/** Photo mode (H): the HUD hides, the world freezes, you look around freely and Enter saves a picture. */
+let photo = false;
+let photoSave = false;
+function setPhoto(on: boolean): void {
+  photo = on;
+  const hudEl = document.getElementById('hud')!, hint = document.getElementById('photo-hint')!;
+  hudEl.style.visibility = on ? 'hidden' : '';
+  hint.hidden = !on;
+  hint.textContent = bi('PHOTO MODE - move the mouse to look, [Enter] save a picture, [H] exit', '사진 모드 - 마우스로 둘러보기, [Enter] 사진 저장, [H] 종료');
+}
+
 function applyQuality(q: Quality): void {
   quality = q;
   storedSet(QUALITY_KEY, q);
@@ -322,7 +333,13 @@ function tick(): void {
   if (state === 'title' && input.wasPressed('Enter')) startGame();
 
   const modal = openModal();
-  if (modal) {
+  if (photo) {
+    if (input.wasPressed('KeyH') || input.wasPressed('Escape')) setPhoto(false);
+    if (input.wasPressed('Enter')) photoSave = true;
+    const lk = input.takeLook();
+    cameraRig.applyLook(lk.x, lk.y);
+    dt = 0;
+  } else if (modal) {
     if (!controlsPanel.isCapturing) {
       if (input.wasPressed('Escape') || (modal === bigmap && (input.wasPressed('KeyP') || input.wasPressed('KeyM'))) || (modal === howto && (input.wasPressed('Enter') || input.wasPressed('Space')))) modal.close();
     }
@@ -332,6 +349,7 @@ function tick(): void {
     if (input.wasPressed('KeyM')) toggleMap();
     else if (game.state !== 'garage' && game.state !== 'dialog' && (input.wasPressed('Escape') || input.wasPressed('KeyP'))) setPaused(true);
     if (input.wasPressed('KeyT')) applyTime(env.cycleTime());
+    if (input.wasPressed('KeyH') && !game.inside && game.state === 'play') setPhoto(true);
     if (input.wasPressed('KeyN')) { const order: RadioChoice[] = ['off', '0', '1', '2']; applyRadio(order[(order.indexOf(radioChoice()) + 1) % order.length], true); }
   } else if (state === 'paused') {
     if (input.wasPressed('Escape') || input.wasPressed('KeyP')) setPaused(false);
@@ -368,6 +386,18 @@ function tick(): void {
   weather.update(Math.max(dt, 0.001), camera);
   env.update(Math.max(dt, 0.016), game.followable.position, camera);
   composer.render();
+  if (photoSave) {
+    photoSave = false;
+    renderer.domElement.toBlob((blob) => {
+      if (!blob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `smash-town-${Date.now()}.png`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      hud.toast(bi('Picture saved', '사진을 저장했어요'), 1500);
+    });
+  }
   input.endFrame();
 }
 frame();
