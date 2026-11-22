@@ -183,6 +183,18 @@ function buildGeometry(kind: VehicleKind, color: number, bakeWheels: boolean): B
   if (s.bar) {
     b.box(s.w * 0.6, 0.1, 0.4, 0, cabinTop + 0.07, s.cabinZ, DARK);
   }
+  // wheel arches, door seams and handles, side mirrors, a grille and number plates
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) b.box(0.04, s.wheelR * 1.3, s.wheelR * 2.4, sx * (s.w / 2 + 0.012), s.clr + s.wheelR * 1.0, sz * s.wheelZ, 0x15151a);
+    const dx = sx * (s.w / 2 + 0.014);
+    for (const k of [0.5, -0.02]) b.box(0.02, s.bodyH * 0.75, 0.03, dx, s.clr + s.bodyH * 0.5, s.cabinZ + s.cabinLen * k, 0x1c1c22);
+    b.box(0.03, 0.04, 0.2, dx + sx * 0.01, s.clr + s.bodyH * 0.72, s.cabinZ + s.cabinLen * 0.42, 0xaeb4c0);
+    b.box(0.22, 0.12, 0.14, sx * (s.w * 0.43 + 0.16), top + 0.14, s.cabinZ + s.cabinLen / 2 - 0.1, body);
+    b.box(0.03, 0.08, 0.1, sx * (s.w * 0.43 + 0.1), top + 0.14, s.cabinZ + s.cabinLen / 2 - 0.1, 0x1c1c22);
+  }
+  b.box(s.w * 0.5, 0.14, 0.04, 0, s.clr + s.bodyH * 0.5, s.len / 2 + 0.01, 0x1a1a1f);
+  for (let g = 0; g < 4; g++) b.box(s.w * 0.5, 0.012, 0.045, 0, s.clr + s.bodyH * 0.5 - 0.045 + g * 0.03, s.len / 2 + 0.012, 0x6b7280);
+  for (const zz of [s.len / 2 + 0.14, -s.len / 2 - 0.14]) { b.box(0.52, 0.13, 0.03, 0, s.clr + 0.13, zz, 0xf2f2f2); b.box(0.38, 0.045, 0.035, 0, s.clr + 0.13, zz + Math.sign(zz) * 0.002, 0x2a2f45); }
   // bumpers / exhausts
   b.box(s.w + 0.05, 0.22, 0.25, 0, s.clr + 0.1, s.len / 2, DARK);
   b.box(s.w + 0.05, 0.22, 0.25, 0, s.clr + 0.1, -s.len / 2, DARK);
@@ -192,6 +204,8 @@ function buildGeometry(kind: VehicleKind, color: number, bakeWheels: boolean): B
     for (const [x, z] of [[1, 1], [-1, 1], [1, -1], [-1, -1]] as const) {
       b.cylinder(s.wheelR, s.wheelR, 0.32, 8, x * s.wheelX, s.wheelR, z * s.wheelZ, 0x1a1a1f, 0, 0, Math.PI / 2);
       b.cylinder(s.wheelR * 0.55, s.wheelR * 0.55, 0.34, 6, x * s.wheelX, s.wheelR, z * s.wheelZ, 0xc9ccd6, 0, 0, Math.PI / 2);
+      for (let k = 0; k < 5; k++) b.rotatedBox(0.36, s.wheelR * 0.12, s.wheelR * 1.0, x * s.wheelX + x * 0.01, s.wheelR, z * s.wheelZ, k * Math.PI / 5, 0, 0, 0x6b7280);
+      b.cylinder(s.wheelR * 0.16, s.wheelR * 0.16, 0.37, 6, x * s.wheelX, s.wheelR, z * s.wheelZ, 0x2a2d35, 0, 0, Math.PI / 2);
     }
   }
 
@@ -242,6 +256,8 @@ export class VehicleFactory {
       const b = new MeshBuilder();
       b.cylinder(1, 1, 0.32, 10, 0, 0, 0, 0x1a1a1f, 0, 0, Math.PI / 2);
       b.cylinder(0.58, 0.58, 0.34, 8, 0, 0, 0, 0xc9ccd6, 0, 0, Math.PI / 2);
+      for (let k = 0; k < 5; k++) b.rotatedBox(0.36, 0.12, 1.0, 0, 0, 0, k * Math.PI / 5, 0, 0, 0x6b7280);
+      b.cylinder(0.16, 0.16, 0.37, 6, 0, 0, 0, 0x2a2d35, 0, 0, Math.PI / 2);
       this.wheelGeo = b.build();
     }
     return this.wheelGeo;
