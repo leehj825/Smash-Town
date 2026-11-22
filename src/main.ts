@@ -120,7 +120,7 @@ function applyQuality(q: Quality): void {
   bloom.enabled = q === 'high';
   game.useBlob = !shadows;
   game.trafficTarget = TRAFFIC[q];
-  props.setVegetation(q === 'high' ? 0.9 : q === 'medium' ? 0.5 : 0.3);
+  props.setVegetation(q === 'high' ? 0.7 : q === 'medium' ? 0.4 : 0.25);
   game.world.detail.visible = q === 'high';
   props.setDecor(q === 'high' ? 2 : q === 'medium' ? 1 : 0);
   game.lights.visible = q !== 'low';

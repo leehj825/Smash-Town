@@ -82,11 +82,11 @@ function hydrantGeometry(): THREE.BufferGeometry {
 
 function treeGeometry(pine: boolean): THREE.BufferGeometry {
   const b = new MeshBuilder();
-  b.cylinder(0.2, 0.3, 2.4, 6, 0, 1.2, 0, 0x7a5a3a);
+  b.cylinder(0.2, 0.3, 2.4, 5, 0, 1.2, 0, 0x7a5a3a);
   if (pine) {
     for (let k = 0; k < 3; k++) {
       const r = 1.7 - k * 0.45;
-      b.add(new THREE.ConeGeometry(r, 2.2, 7), k % 2 ? 0x2f7d46 : 0x2a6f3f, new THREE.Matrix4().makeTranslation(0, 2.6 + k * 1.3, 0));
+      b.add(new THREE.ConeGeometry(r, 2.2, 6), k % 2 ? 0x2f7d46 : 0x2a6f3f, new THREE.Matrix4().makeTranslation(0, 2.6 + k * 1.3, 0));
     }
   } else {
     b.add(new THREE.IcosahedronGeometry(1.7, 0), 0x57b368, new THREE.Matrix4().makeTranslation(0, 3.3, 0));
