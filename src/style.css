@@ -342,3 +342,15 @@ body.can-reload #touch .gunrow #btn-reload { visibility: visible; }
 #garage.in-garage { place-items: center end; padding-right: 10px; background: linear-gradient(90deg, rgba(5,8,20,0) 35%, rgba(5,8,20,.5)); pointer-events: none; }
 #garage.in-garage .garage-panel { pointer-events: auto; width: min(54vw, 430px); max-height: 94vh; padding: 16px 18px; }
 @media (max-width: 700px) { #garage.in-garage { place-items: end center; padding: 0 0 6px; background: linear-gradient(0deg, rgba(5,8,20,.5), rgba(5,8,20,0) 45%); } #garage.in-garage .garage-panel { width: 96vw; max-height: 52vh; } }
+
+/* ---- accessibility: large text and a colour-blind-safe palette (blue / orange instead of red / green) */
+html.big-ui #hud, html.big-ui #toast, html.big-ui #news, html.big-ui .panel, html.big-ui #photo-hint { zoom: 1.25; }
+html.big-ui #hud { zoom: 1.18; }
+html.cb-safe #cash { color: #ffe27a; }
+html.cb-safe .fill.hp { background: linear-gradient(90deg, #3a8dff, #8ed0ff); }
+html.cb-safe .fill.hp.low { background: #ff9a1f; }
+html.cb-safe #news { background: rgba(20,60,140,.92); }
+html.cb-safe #news b { color: #14378c; }
+
+.pbar { display: block; height: 5px; margin-top: 4px; border-radius: 3px; background: rgba(255,255,255,.14); overflow: hidden; }
+.pbar > i { display: block; height: 100%; background: linear-gradient(90deg, #ffd23a, #ff9a3d); border-radius: 3px; }

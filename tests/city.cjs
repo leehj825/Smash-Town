@@ -186,6 +186,28 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     ok(robbery.can && robbery.first >= 300 && robbery.stars >= 2 && !robbery.again, 'robbing a till with a gun pays out, raises the alarm, and the till stays empty', JSON.stringify(robbery));
     const taxiTypes = await S(() => { const G = g(); const T = G.taxi; return { hasKind: 'kind' in T, hasLegs: 'legs' in T }; });
     ok(taxiTypes.hasKind && taxiTypes.hasLegs, 'taxi passengers come in kinds (rush, VIP, group)', JSON.stringify(taxiTypes));
+    const login = await S(() => {
+      const G = g();
+      G.save.login = undefined;
+      const day1 = new Date(2030, 0, 10);
+      const a = G.claimLogin(day1);
+      const again = G.claimLogin(day1);
+      const b = G.claimLogin(new Date(2030, 0, 11));
+      const c = G.claimLogin(new Date(2030, 0, 13));
+      return { a, again, b, c };
+    });
+    ok(login.a === 150 && login.again === 0 && login.b === 300 && login.c === 150, 'the daily login bonus grows with a streak and resets after a missed day', JSON.stringify(login));
+    const a11y = await S(() => {
+      const btn = document.querySelector('.seg.a11y[data-a="bigUi"][data-v="1"]');
+      btn.click();
+      const big = document.documentElement.classList.contains('big-ui');
+      document.querySelector('.seg.a11y[data-a="bigUi"][data-v="0"]').click();
+      document.querySelector('.seg.a11y[data-a="colorSafe"][data-v="1"]').click();
+      const cb = document.documentElement.classList.contains('cb-safe');
+      document.querySelector('.seg.a11y[data-a="colorSafe"][data-v="0"]').click();
+      return { big, cb, off: !document.documentElement.classList.contains('big-ui') && !document.documentElement.classList.contains('cb-safe') };
+    });
+    ok(a11y.big && a11y.cb && a11y.off, 'large text and colour-blind palette switches work', JSON.stringify(a11y));
     // savings, houses and race records survive a reload
     await S(() => { const G = g(); G.save.bank = 4321; G.save.homes = [1, 2]; G.save.raceBest = [0, 77.5]; G.flushSave(); });
     await p.reload();

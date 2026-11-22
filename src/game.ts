@@ -18,6 +18,7 @@ import { RangeGig } from './range';
 import { SideQuests } from './sidequests';
 import { Progress, type ProgressSave } from './tracker';
 import { Shops } from './shops';
+import { todayKey } from './progress';
 import { Climber } from './climb';
 import { StreetLife } from './street';
 import { Medics } from './medics';
@@ -44,7 +45,7 @@ import type { Vfx } from './vfx';
 import type { CircleCollider, World } from './world';
 
 export const SAVE_KEY = 'smashtown.save.v1';
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; progress?: ProgressSave }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; login?: { day: string; streak: number }; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -282,7 +283,8 @@ export class Game {
       const bank = typeof s.bank === 'number' && s.bank > 0 ? Math.floor(s.bank) : 0;
       const homes = Array.isArray(s.homes) ? s.homes.filter((n: unknown) => Number.isInteger(n)) as number[] : [];
       const raceBest = Array.isArray(s.raceBest) ? s.raceBest.map((n: unknown) => (typeof n === 'number' && n > 0 ? n : 0)) : [];
-      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, progress: s.progress };
+      const login = s.login && typeof s.login.day === 'string' ? { day: s.login.day, streak: Number(s.login.streak) || 1 } : undefined;
+      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, login, progress: s.progress };
     } catch {
       return fallback;
     }
@@ -1686,6 +1688,21 @@ export class Game {
     }
     const mult = Math.min(10, 1 + Math.floor(this.comboCount / 2));
     this.hud.setCombo(Math.max(0, this.comboTimer / 4), this.comboCount > 0 ? mult : 1);
+  }
+
+  /** Once a day: a login bonus that grows with the streak of days in a row (up to a week). Returns the amount, or 0 if already claimed today. */
+  claimLogin(now = new Date()): number {
+    const today = todayKey(now);
+    const prev = this.save.login;
+    if (prev?.day === today) return 0;
+    const y = new Date(now); y.setDate(y.getDate() - 1);
+    const streak = prev && prev.day === todayKey(y) ? Math.min(7, prev.streak + 1) : 1;
+    this.save.login = { day: today, streak };
+    const bonus = 150 * streak;
+    this.addCash(bonus, 'other');
+    this.flushSave();
+    this.hud.toast(`${bi('Daily bonus', '출석 보너스')} $${bonus} · ${bi(`day ${streak} in a row`, `${streak}일 연속`)}`, 3600);
+    return bonus;
   }
 
   static readonly HOME_PRICE = 20000;

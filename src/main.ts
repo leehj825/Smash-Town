@@ -210,6 +210,7 @@ function startGame(): void {
   titleEl.hidden = true;
   hudEl.hidden = false;
   if (!settings.tutorialDone) howto.open();
+  if (!navigator.webdriver) window.setTimeout(() => game.claimLogin(), 1200); // (automated test browsers skip the bonus so cash totals stay exact)
   try {
     game.audio.init(); // needs a user gesture
     applyRadio(radioChoice());
@@ -260,6 +261,17 @@ function wireSeg(cls: 'sens' | 'aimSens' | 'fov' | 'shake'): void {
   }));
 }
 wireSeg('sens'); wireSeg('aimSens'); wireSeg('fov'); wireSeg('shake');
+/** Accessibility switches: large text and a colour-blind palette. */
+function applyA11y(): void {
+  document.documentElement.classList.toggle('big-ui', settings.bigUi);
+  document.documentElement.classList.toggle('cb-safe', settings.colorSafe);
+  document.querySelectorAll<HTMLElement>('.seg.a11y').forEach((b) => b.classList.toggle('sel', (b.dataset.v === '1') === !!settings[b.dataset.a as 'bigUi' | 'colorSafe']));
+}
+document.querySelectorAll<HTMLElement>('.seg.a11y').forEach((b) => b.addEventListener('click', () => {
+  settings[b.dataset.a as 'bigUi' | 'colorSafe'] = b.dataset.v === '1';
+  saveSettings(); applyA11y();
+}));
+applyA11y();
 const syncAuto = () => document.querySelectorAll<HTMLElement>('.autoaim').forEach((b) => b.classList.toggle('sel', (b.dataset.a === '1') === game.autoAim));
 document.querySelectorAll<HTMLElement>('.autoaim').forEach((b) => b.addEventListener('click', () => { game.setAutoAim(b.dataset.a === '1', false); syncAuto(); }));
 syncAuto();

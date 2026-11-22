@@ -32,10 +32,13 @@ export interface Settings {
   shake: number; // screen-shake multiplier (0 = off)
   binds: Record<string, string>; // action id -> physical key code
   tutorialDone: boolean;
+  /** Accessibility: bigger HUD text, and a colour-blind-safe palette (blue and orange instead of red and green). */
+  bigUi: boolean;
+  colorSafe: boolean;
 }
 
 const KEY = 'smashtown.settings.v1';
-const DEFAULTS: Settings = { sens: 1, aimSens: 0.85, fov: 0, shake: 1, binds: {}, tutorialDone: false };
+const DEFAULTS: Settings = { sens: 1, aimSens: 0.85, fov: 0, shake: 1, binds: {}, tutorialDone: false, bigUi: false, colorSafe: false };
 
 function load(): Settings {
   try {
@@ -49,7 +52,7 @@ function load(): Settings {
         aimSens: typeof s.aimSens === 'number' ? s.aimSens : 0.85,
         fov: typeof s.fov === 'number' ? s.fov : 0,
         shake: typeof s.shake === 'number' ? s.shake : 1,
-        binds, tutorialDone: !!s.tutorialDone,
+        binds, tutorialDone: !!s.tutorialDone, bigUi: !!s.bigUi, colorSafe: !!s.colorSafe,
       };
     }
   } catch { /* storage unavailable */ }
