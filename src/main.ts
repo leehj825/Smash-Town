@@ -79,6 +79,7 @@ const bigmap = new BigMap(game);
 const radio = new Radio(game.audio);
 const weather = new Weather(env, game.audio);
 scene.add(weather.group);
+weather.addPuddles(game.world.segments);
 game.radioDuck = (v) => radio.setDuck(v);
 const controlsPanel = new ControlsPanel();
 const howto = new HowToPlay();
@@ -169,7 +170,7 @@ document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.classList.togg
 applyAudio(storedGet(AUDIO_KEY) !== '0');
 document.querySelectorAll<HTMLElement>('.radio').forEach((b) => b.classList.toggle('sel', b.dataset.r === radioChoice()));
 const savedW = storedGet(WEATHER_KEY);
-applyWeather(savedW === 'clear' || savedW === 'rain' || savedW === 'fog' || savedW === 'storm' ? savedW : 'auto');
+applyWeather(savedW === 'clear' || savedW === 'rain' || savedW === 'fog' || savedW === 'storm' || savedW === 'snow' ? savedW : 'auto');
 
 /** Kids Play (default ON): nobody dies - defeated cops and the player are only knocked out. */
 function applyKids(on: boolean): void {
@@ -348,6 +349,7 @@ function tick(): void {
 
   cameraRig.update(state === 'title' ? 0.016 : dt || 0.0001, game.followable);
   weather.indoors = !!game.inside;
+  game.humans.raining = weather.rainAmount > 0.3 && !game.inside;
   weather.update(Math.max(dt, 0.001), camera);
   env.update(Math.max(dt, 0.016), game.followable.position, camera);
   composer.render();

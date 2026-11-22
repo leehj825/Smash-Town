@@ -123,6 +123,8 @@ export class Humans {
   guns: boolean[] = [true, false, false, false, false, false];
   /** Kids Play: nobody dies. Defeated cops and the player are only knocked out. */
   kids = true;
+  /** Set by the game while it rains: passers-by put up umbrellas. */
+  raining = false;
   copsDefeated = 0;
   combatTimer = 0;
 
@@ -1152,7 +1154,7 @@ export class Humans {
     if (h.weapon !== h.prevWeapon) { h.prevWeapon = h.weapon; h.equipT = 0.15; }
     h.equipT = Math.max(0, h.equipT - dt);
     const pop = 1 + (h.equipT / 0.15) * 0.7;
-    this.renderer.draw(h.slot, h.x, h.y, h.z, h.heading, h.scale, 0, h.anim.out, h.look.cap, h.weapon, pop, h.riot && h.role === Role.Cop);
+    this.renderer.draw(h.slot, h.x, h.y, h.z, h.heading, h.scale, 0, h.anim.out, h.look.cap, h.weapon, pop, h.riot && h.role === Role.Cop, this.raining && h.role === Role.Civ && (h.state === St.Walk || h.state === St.Idle) && h.calling <= 0);
     h.rendered = true;
   }
 
