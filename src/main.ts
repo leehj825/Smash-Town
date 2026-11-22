@@ -95,6 +95,9 @@ composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
 let quality: Quality = 'high';
+/** On phones the game steps the graphics down by itself when the frame rate stays low (until the player picks a setting by hand). */
+let autoQuality = isMobile;
+let slowT = 0;
 function applyQuality(q: Quality): void {
   quality = q;
   storedSet(QUALITY_KEY, q);
@@ -222,7 +225,7 @@ function toggleMap(): void {
 document.getElementById('btn-map')!.addEventListener('click', toggleMap);
 document.getElementById('btn-resume')!.addEventListener('click', () => setPaused(false));
 document.querySelectorAll<HTMLElement>('.lang').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang as Lang)));
-document.querySelectorAll<HTMLElement>('.quality').forEach((b) => b.addEventListener('click', () => applyQuality(b.dataset.q as Quality)));
+document.querySelectorAll<HTMLElement>('.quality').forEach((b) => b.addEventListener('click', () => { autoQuality = false; slowT = 0; applyQuality(b.dataset.q as Quality); }));
 document.querySelectorAll<HTMLElement>('.tod').forEach((b) => b.addEventListener('click', () => applyTime(b.dataset.t as TimeOfDay)));
 document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.addEventListener('click', () => applyAudio(b.dataset.a === '1')));
 document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.addEventListener('click', () => applyKids(b.dataset.k === '1')));
@@ -339,6 +342,16 @@ function tick(): void {
   if (game.hitStop > 0) {
     game.hitStop -= dt;
     dt = 0;
+  }
+
+  if (autoQuality && state === 'playing' && !modal && rawDt > 0 && rawDt < 1) {
+    slowT = rawDt > 1 / 24 ? slowT + rawDt : Math.max(0, slowT - rawDt * 2);
+    if (slowT > 6 && quality !== 'low') {
+      slowT = 0;
+      const next: Quality = quality === 'high' ? 'medium' : 'low';
+      applyQuality(next);
+      hud.toast(bi(`Graphics lowered to ${next} to keep the game smooth`, `부드럽게 하려고 화질을 ${next === 'medium' ? '중간' : '낮음'}으로 낮췄어요`), 3000);
+    }
   }
 
   if (state === 'playing' && dt > 0) {
