@@ -22,6 +22,7 @@ export class AudioEngine {
   private sirenOsc!: OscillatorNode;
   private sirenGain!: GainNode;
   private rainGain!: GainNode;
+  private cityGain!: GainNode;
   private t = 0;
   enabled = true;
   volume = 0.8;
@@ -67,6 +68,13 @@ export class AudioEngine {
     const rf = ctx.createBiquadFilter(); rf.type = 'bandpass'; rf.frequency.value = 3600; rf.Q.value = 0.5;
     this.rainGain = ctx.createGain(); this.rainGain.gain.value = 0;
     rain.connect(rf); rf.connect(this.rainGain); this.rainGain.connect(this.master);
+
+    // the city: a low rumble of distant traffic and crowds (looping noise through a low-pass), louder downtown
+    const city = ctx.createBufferSource(); city.buffer = this.noiseBuf; city.loop = true;
+    const cf = ctx.createBiquadFilter(); cf.type = 'lowpass'; cf.frequency.value = 260;
+    this.cityGain = ctx.createGain(); this.cityGain.gain.value = 0;
+    city.connect(cf); cf.connect(this.cityGain); this.cityGain.connect(this.master);
+    city.start();
     rain.start();
 
     // siren
@@ -162,6 +170,30 @@ export class AudioEngine {
   tink(): void { this.burst(0.03, 6800, 0.1); }
   click(): void { this.burst(0.03, 5200, 0.25); }
   reload(): void { this.burst(0.05, 4000, 0.25); window.setTimeout(() => this.burst(0.05, 3000, 0.3), 280); }
+  /** Background city hum 0..1 (traffic and crowds near you). */
+  setCity(level: number): void {
+    if (this.ctx) this.cityGain.gain.setTargetAtTime(level * 0.09, this.ctx.currentTime, 0.8);
+  }
+  /** A car horn heard from `dist` metres away (two close tones, a short double honk). */
+  horn(dist: number, pitch = 1): void {
+    if (!this.ctx || dist > 70) return;
+    const ctx = this.ctx;
+    const vol = 0.13 * Math.max(0.05, 1 - dist / 70);
+    for (const [f, d] of [[0, 0], [0, 0.32]] as const) {
+      for (const base of [392, 494]) {
+        const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = base * pitch;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, ctx.currentTime + d);
+        g.gain.exponentialRampToValueAtTime(vol, ctx.currentTime + d + 0.02);
+        g.gain.setValueAtTime(vol, ctx.currentTime + d + 0.18);
+        g.gain.exponentialRampToValueAtTime(0.0005, ctx.currentTime + d + 0.26);
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800;
+        o.connect(lp); lp.connect(g); g.connect(this.master);
+        o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.3);
+      }
+      void f;
+    }
+  }
   /** Rain loudness 0..1. */
   setRain(level: number): void {
     if (this.ctx) this.rainGain.gain.setTargetAtTime(level * 0.1, this.ctx.currentTime, 0.4);

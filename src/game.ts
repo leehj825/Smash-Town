@@ -1830,8 +1830,23 @@ export class Game {
   /** Set by main: lowers the radio under sirens. */
   radioDuck: ((v: number) => void) | null = null;
 
+  private hornT = 6;
   private updateAudio(dt: number): void {
     const d = this.driving;
+    // city hum: more traffic and people around you, more rumble (nothing inside a shop)
+    let near = 0;
+    for (const v of this.vehicles) if (v !== d && Math.abs(v.x - this.focusX) < 70 && Math.abs(v.z - this.focusZ) < 70) near++;
+    this.audio.setCity(this.inside ? 0.05 : Math.min(1, 0.2 + near * 0.06));
+    // now and then a nearby driver leans on the horn, mostly when they are stuck behind something
+    this.hornT -= dt;
+    if (this.hornT <= 0 && !this.inside && this.state === 'play') {
+      this.hornT = 5 + Math.random() * 9;
+      const cands = this.vehicles.filter((v) => v.ai === 'traffic' && !v.isPolice && Math.hypot(v.x - this.focusX, v.z - this.focusZ) < 55 && (v.ctrl.speed < 1.5 || Math.random() < 0.15));
+      if (cands.length) {
+        const v = cands[Math.floor(Math.random() * cands.length)];
+        this.audio.horn(Math.hypot(v.x - this.focusX, v.z - this.focusZ), 0.9 + Math.random() * 0.3);
+      }
+    }
     let siren: number | null = null;
     for (const v of this.vehicles) {
       if (v.isPolice && (v.ai === 'police' || (v.ai === 'parked' && this.roadblocks.length))) {
