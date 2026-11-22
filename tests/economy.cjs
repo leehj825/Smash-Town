@@ -77,10 +77,10 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
 
     // fines: floor under $500, otherwise a share
     const f = await S(() => {
-      const G = g(); const out = {};
+      const G = g(); const out = {}; G.bustRoll = 0.9;
       G.cash = 300; G.busted(); out.low = 300 - G.cashAmount;
       G.state = 'play'; G.cash = 5000; G.busted(); out.mid = 5000 - G.cashAmount;
-      G.state = 'play'; return out;
+      G.state = 'play'; G.bustRoll = null; return out;
     });
     ok(f.low === 0 && f.mid === 500, 'bail is $0 under $500 and 10% above', JSON.stringify(f));
 

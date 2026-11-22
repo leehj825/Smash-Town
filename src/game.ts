@@ -1661,11 +1661,13 @@ export class Game {
 
   private fineText(n: number): string { return n > 0 ? tf('ui.toast.busted', { n }) : bi('Bail waived - you are nearly broke', '보석금 면제 - 거의 파산 상태예요'); }
 
+  /** Fixes the station outcome (for tests): 0-0.2 warning, 0.2-0.5 bribe, above that full bail. */
+  bustRoll: number | null = null;
   private busted(): void {
     this.state = 'busted';
     this.stateTimer = 2.8;
     // the station: usually you pay bail, sometimes the officer takes a bribe instead (half), and now and then you are let off with a warning
-    const roll = Math.random();
+    const roll = this.bustRoll ?? Math.random();
     let fine = fineFor(this.cash, 0.1, 2500); // bail: 10% of cash, free under $500
     let note = '';
     if (fine > 0 && roll < 0.2) { fine = 0; note = bi(' - The officer lets you off with a warning.', ' - 경찰이 경고만 주고 풀어줬어요.'); }
