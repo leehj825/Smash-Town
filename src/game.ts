@@ -1660,11 +1660,16 @@ export class Game {
   private busted(): void {
     this.state = 'busted';
     this.stateTimer = 2.8;
-    const fine = fineFor(this.cash, 0.1, 2500); // bail: 10% of cash, free under $500
+    // the station: usually you pay bail, sometimes the officer takes a bribe instead (half), and now and then you are let off with a warning
+    const roll = Math.random();
+    let fine = fineFor(this.cash, 0.1, 2500); // bail: 10% of cash, free under $500
+    let note = '';
+    if (fine > 0 && roll < 0.2) { fine = 0; note = bi(' - The officer lets you off with a warning.', ' - 경찰이 경고만 주고 풀어줬어요.'); }
+    else if (fine > 0 && roll < 0.5) { fine = Math.round(fine / 2); note = bi(' - You slipped the officer a bribe: half price.', ' - 경찰에게 뇌물을 줘서 절반만 냈어요.'); }
     this.cash -= fine;
     this.saveDirty = true;
     this.hud.setCash(this.cash);
-    this.hud.setOverlay('ui.busted', this.fineText(fine));
+    this.hud.setOverlay('ui.busted', fine === 0 && note ? note.replace(/^ - /, '') : this.fineText(fine) + note);
     this.audio.thump();
   }
 
