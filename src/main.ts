@@ -108,6 +108,7 @@ function applyQuality(q: Quality): void {
   props.setVegetation(q === 'high' ? 1 : q === 'medium' ? 0.5 : 0.3);
   game.world.detail.visible = q === 'high';
   props.setDecor(q === 'high' ? 2 : q === 'medium' ? 1 : 0);
+  game.lights.visible = q !== 'low';
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, q === 'low' ? 1.25 : 2));
   resize();
   scene.traverse((o) => {

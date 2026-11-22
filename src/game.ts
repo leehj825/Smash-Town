@@ -20,6 +20,7 @@ import { Progress, type ProgressSave } from './tracker';
 import { Shops } from './shops';
 import { Medics } from './medics';
 import { Machines } from './machines';
+import { TrafficLights } from './lights';
 import { settings } from './settings';
 import { Mood } from './mood';
 import type { Roof } from './world';
@@ -95,6 +96,7 @@ export class Game {
   readonly shops: Shops;
   readonly medics: Medics;
   machines!: Machines;
+  lights!: TrafficLights;
   readonly sideQuests: SideQuests;
   readonly progress: Progress;
   readonly mood: Mood;
@@ -189,6 +191,8 @@ export class Game {
     this.heli.attach(this.scene);
     this.interiors = new Interiors(d.world, this.scene);
     this.machines = new Machines(this);
+    this.lights = new TrafficLights();
+    this.scene.add(this.lights.group);
     {
       const gr = this.interiors.rooms.find((r) => r.id === 'garage');
       if (gr) gr.doors = this.world.garages.map((g) => g.door ?? { x: g.x, z: g.z, h: 0 });
@@ -1028,6 +1032,7 @@ export class Game {
 
     // ---- physics
     this.medics.update(dt);
+    this.lights.update(dt);
     const fx = this.fx;
     for (const v of this.vehicles) {
       const near = this.nearPlayer(v.x, v.z, 60);
