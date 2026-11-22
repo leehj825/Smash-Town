@@ -27,6 +27,7 @@ import type { Blip, GarageModel, Hud } from './hud';
 import type { Input } from './input';
 import { bi, t, tf } from './i18n';
 import { Humans, Role, type HumanCtx, type HumanHooks } from './humans';
+import { St } from './combat';
 import { Popups, SlashTrail } from './effects';
 import type { Props } from './props';
 import { CIVILIAN_COLORS, CIVILIAN_KINDS, PLAYER_ROSTER, STATS, VehicleFactory, type VehicleKind } from './vehicle';
@@ -125,6 +126,8 @@ export class Game {
 
   // wanted
   private heat = 0;
+  /** Seconds since the last crime: the police do not give up while it is fresh. */
+  private crimeT = 0;
   stars = 0;
   private unseen = 0;
   private minHeat = 0;
@@ -387,6 +390,7 @@ export class Game {
 
   // ------------------------------------------------------------------ wanted
   addHeat(n: number): void {
+    if (n > 0) this.crimeT = 0;
     this.heat = Math.min(400, Math.max(this.heat + n, this.minHeat));
     const prev = this.stars;
     let s = 0;
@@ -1332,6 +1336,11 @@ export class Game {
         if (this.humans.kids) this.popups.spawn(h.x, h.y + 2.2, h.z, t('pop.ko'), '#8a5cd6'); // knocked out, not killed
         else this.vfx.emitFire(h.x, 1, h.z, 4, 0.3);
       },
+      onCivDown: (h, by) => {
+        if (by && by.role === Role.Player) this.addHeat(35);
+        if (this.humans.kids) this.popups.spawn(h.x, h.y + 2.2, h.z, t('pop.ko'), '#8a5cd6');
+        else this.popups.spawn(h.x, h.y + 2.2, h.z, bi('Murder!', '살인!'), '#ff3b3b');
+      },
       onSwing: (att, atk) => {
         this.audio.whoosh(atk.kind !== 'punch');
         if (atk.kind === 'swing' && att.role === Role.Player) this.slash.fire(att.x, att.y + 1.1, att.z, att.heading);
@@ -1407,7 +1416,7 @@ export class Game {
       for (const off of c.collisionOffsets) {
         const h = this.humans.hitByVehicle(v.x + fxv * off, v.z + fzv * off, c.collisionRadius, c.vx, c.vz);
         if (h && v === this.driving) {
-          this.addHeat(h.role === Role.Cop ? 20 : 15);
+          this.addHeat((h.role === Role.Cop ? 20 : 15) + (h.state === St.Dead && h.role === Role.Civ ? 25 : 0));
           this.audio.thump();
           this.vfx.emitDebris(h.x, 1, h.z, c.vx, c.vz, 0xe85a4f, 4);
           this.cameraRig.shake(0.25);
@@ -1495,9 +1504,10 @@ export class Game {
     if (this.stars === 0) { this.managePolice(dt); return; }
     let nearest = Infinity;
     for (const v of this.policeVehicles()) nearest = Math.min(nearest, Math.hypot(v.x - this.focusX, v.z - this.focusZ));
+    this.crimeT += dt;
     this.unseen = nearest > 85 ? this.unseen + dt : 0;
-    if (this.unseen > 4 && this.heat > this.minHeat) {
-      this.heat = Math.max(this.minHeat, this.heat - 22 * dt);
+    if (this.unseen > 6 && this.crimeT > 12 && this.heat > this.minHeat) {
+      this.heat = Math.max(this.minHeat, this.heat - 12 * dt);
       let s = 0;
       for (let i = 0; i < STAR_HEAT.length; i++) if (this.heat >= STAR_HEAT[i]) s = i + 1;
       if (s < this.stars) {

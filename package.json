@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "postinstall": "node scripts/render-build.mjs",
-    "test": "node tests/smoke.cjs && node tests/economy.cjs && node tests/pickups.cjs && node tests/guns.cjs && node tests/police.cjs && node tests/vertical.cjs && node tests/story2.cjs && node tests/weather.cjs && node tests/perf.cjs && node tests/gunanims.cjs && node tests/crosshair.cjs && node tests/touch.cjs && node tests/policefire.cjs && node tests/gunfeel.cjs && node tests/gunplus.cjs"
+    "test": "node tests/smoke.cjs && node tests/economy.cjs && node tests/pickups.cjs && node tests/guns.cjs && node tests/police.cjs && node tests/vertical.cjs && node tests/story2.cjs && node tests/weather.cjs && node tests/perf.cjs && node tests/gunanims.cjs && node tests/crosshair.cjs && node tests/touch.cjs && node tests/policefire.cjs && node tests/gunfeel.cjs && node tests/gunplus.cjs && node tests/aftermath.cjs"
   },
   "dependencies": {
     "three": "^0.187.0"

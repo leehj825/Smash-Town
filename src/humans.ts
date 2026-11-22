@@ -25,6 +25,8 @@ const TWO_PI = Math.PI * 2;
 
 export class Human {
   active = false;
+  /** A dead civilian is replaced by a new passer-by after this many seconds. */
+  respawnT = 0;
   role: number = Role.Civ;
   x = 0; y = GROUND; z = 0; vy = 0; heading = 0;
   vx = 0; vz = 0; // external velocity (knockback, dodge, lunge)
@@ -80,6 +82,8 @@ export interface HumanHooks {
   onVehicleHit: (att: Human, v: GameVehicle, ix: number, iz: number, atk: Attack) => void;
   onPlayerHurt: (dmg: number) => void;
   onCopDown: (h: Human) => void;
+  /** A civilian was killed (not just knocked down). */
+  onCivDown?: (h: Human, by: Human | null) => void;
   onSwing: (att: Human, atk: Attack) => void;
   onPickup: () => void;
   onStep: () => void;
@@ -496,7 +500,7 @@ export class Humans {
     t.hp -= take;
     t.flash = 0.14;
     let killed = t.hp <= 0;
-    if (t.role === Role.Civ && killed) { t.hp = 1; killed = false; }
+    if (t.role === Role.Civ && killed && this.kids) { t.hp = 1; killed = false; this.hooks.onCivDown?.(t, att); } // Kids Play: nobody dies, but it still counts as a crime
     // Kids Play: a defeated cop is knocked out (hp stays above 0 so they get up and leave); nobody ever enters the Dead state
     if (this.kids && killed && t.role === Role.Cop) t.hp = 1, t.ko = true;
     const heavy = (a.heavy && !blocked) || killed;
@@ -511,8 +515,8 @@ export class Humans {
       else t.fallClip = 'proDieFront';
     }
     if (heavy) {
-      t.state = killed && t.role !== Role.Civ && !this.kids ? St.Dead : St.Down;
-      t.stateDur = t.stateT = killed ? 2.4 : 1.4;
+      t.state = killed && !this.kids ? St.Dead : St.Down;
+      t.stateDur = t.stateT = killed ? (t.role === Role.Civ ? 9 : 2.4) : 1.4; // a dead civilian lies there for a while
       t.vx = nx * a.push; t.vz = nz * a.push;
       t.vy = Math.max(a.up, 2.6);
       t.grounded = false;
@@ -526,6 +530,7 @@ export class Humans {
     const hx = (att.x + t.x) / 2, hz = (att.z + t.z) / 2;
     this.hooks.onHit(att, t, a, hx, t.y + 1.2, hz, killed);
     if (killed && t.role === Role.Cop) { this.copsDefeated++; this.hooks.onCopDown(t); this.dropBaton(t.x, t.z); }
+    else if (killed && t.role === Role.Civ) this.hooks.onCivDown?.(t, att);
     return true;
   }
 
@@ -536,10 +541,11 @@ export class Humans {
       if (Math.abs(t.x - cx) > r + 0.7 || Math.abs(t.z - cz) > r + 0.7) continue;
       if (Math.hypot(t.x - cx, t.z - cz) > r + 0.45) continue;
       t.attack = null;
-      const killed = t.role === Role.Cop && (t.hp -= 40) <= 0;
-      if (this.kids && killed) { t.hp = 1; t.ko = true; }
+      const fast = Math.hypot(vx, vz) > 9;
+      let killed = (t.role === Role.Cop || t.role === Role.Civ) && (t.hp -= fast || t.role === Role.Cop ? 40 : 12) <= 0;
+      if (this.kids && killed) { t.hp = 1; killed = false; if (t.role === Role.Cop) t.ko = true; else this.hooks.onCivDown?.(t, null); }
       t.state = killed && !this.kids ? St.Dead : St.Down;
-      t.stateDur = t.stateT = killed ? 2.4 : 2.0;
+      t.stateDur = t.stateT = killed ? (t.role === Role.Civ ? 9 : 2.4) : 2.0;
       // Kids Play: cars only bump people over gently
       const k = this.kids ? 0.5 : 1.05;
       t.vx = vx * k + (this.rng() - 0.5) * 3;
@@ -548,7 +554,8 @@ export class Humans {
       t.grounded = false;
       t.flash = 0.14;
       t.fleeing = true;
-      if (killed) { this.copsDefeated++; this.hooks.onCopDown(t); this.dropBaton(t.x, t.z); }
+      if (killed && t.role === Role.Cop) { this.copsDefeated++; this.hooks.onCopDown(t); this.dropBaton(t.x, t.z); }
+      else if (killed) this.hooks.onCivDown?.(t, null);
       return t;
     }
     return null;
@@ -793,15 +800,37 @@ export class Humans {
           if (h.role === Role.Civ) {
             h.hp = h.maxHp;
             if (h.freeT > 0) { h.state = St.Walk; h.fleeing = true; } // an ejected driver runs off the road
-            else { this.assign(h, this.ctx.playerCarX, this.ctx.playerCarZ); h.fleeing = true; }
+            else this.snapToPath(h);
           }
         }
         break;
       case St.Dead:
         if (h.grounded) h.stateT -= dt;
-        if (h.stateT <= 0) { h.active = false; this.hide(h); }
+        if (h.stateT <= 0) { h.active = false; this.hide(h); if (h.role === Role.Civ) h.respawnT = 20 + this.rng() * 15; }
         break;
     }
+  }
+
+  /** A civilian who got up goes on from the spot where they fell: join the nearest footpath and run. */
+  private snapToPath(h: Human): void {
+    let best = Infinity, bl = h.lot, bs = h.s, bd = h.dir;
+    for (const lot of this.walkLots) {
+      const p = this.perim(lot);
+      const [sx, sz] = this.pointOn(p, 0);
+      if (Math.hypot(sx - h.x, sz - h.z) > p.P * 0.5 + 6) continue;
+      for (let k = 0; k < 64; k++) {
+        const s = (p.P * k) / 64;
+        const [x, z] = this.pointOn(p, s);
+        const d = (x - h.x) ** 2 + (z - h.z) ** 2;
+        if (d < best) { best = d; bl = lot; bs = s; }
+      }
+    }
+    h.lot = bl; h.s = bs;
+    const [ax, az] = this.pointOn(this.perim(bl), bs + 1);
+    const [px, pz] = this.pointOn(this.perim(bl), bs);
+    const away = (ax - px) * (h.x - this.player.x) + (az - pz) * (h.z - this.player.z); // run along the path, away from the player
+    h.dir = away >= 0 ? 1 : -1; void bd;
+    h.state = St.Walk; h.hp = h.maxHp; h.vx = h.vz = 0; h.fleeing = true;
   }
 
   private updateCivilian(h: Human, dt: number): void {
@@ -838,6 +867,7 @@ export class Humans {
     const p = this.player;
     this.manageCops(dt);
     for (const h of this.list) {
+      if (!h.active && h.role === Role.Civ && h.respawnT > 0) { h.respawnT -= dt; if (h.respawnT <= 0) this.assign(h, p.x, p.z); continue; }
       if (!h.active) continue;
       // far-away civilians are frozen and not drawn
       if (h.role === Role.Civ && Math.abs(h.x - p.x) + Math.abs(h.z - p.z) > 190
