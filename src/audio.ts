@@ -200,6 +200,22 @@ export class AudioEngine {
     this.thud(bat ? 180 : kind === 'kick' ? 95 : 130, bat ? 0.14 : 0.2, bat ? 0.4 : 0.55);
     this.burst(bat ? 0.09 : 0.07, bat ? 5200 : 2600, bat ? 0.4 : 0.3);
   }
+  /** A short, rising scream-like warble. */
+  scream(): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const o = ctx.createOscillator(); o.type = 'sawtooth';
+    const g = ctx.createGain();
+    o.frequency.setValueAtTime(520, ctx.currentTime);
+    o.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.25);
+    o.frequency.linearRampToValueAtTime(700, ctx.currentTime + 0.5);
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.07, ctx.currentTime + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400;
+    o.connect(f); f.connect(g); g.connect(this.master);
+    o.start(); o.stop(ctx.currentTime + 0.6);
+  }
   /** A short news-flash jingle. */
   jingle(): void {
     if (!this.ctx) return;

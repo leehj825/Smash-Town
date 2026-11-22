@@ -840,6 +840,18 @@ export class Humans {
     h.state = St.Walk; h.hp = h.maxHp; h.vx = h.vz = 0; h.fleeing = true;
   }
 
+  /** Civilians within `r` of a crime run for it; returns up to two of them who shout something. */
+  panic(x: number, z: number, r: number): Human[] {
+    const shouters: Human[] = [];
+    for (const h of this.list) {
+      if (!h.active || h.role !== Role.Civ || h.state !== St.Walk) continue;
+      if ((h.x - x) ** 2 + (h.z - z) ** 2 > r * r) continue;
+      h.fleeing = true;
+      if (shouters.length < 2 && Math.random() < 0.5) shouters.push(h);
+    }
+    return shouters;
+  }
+
   /** Civilians nearby who saw a crime take out a phone. Returns how many started calling. */
   startWitnesses(x: number, z: number, r: number, max: number): number {
     let n = 0;

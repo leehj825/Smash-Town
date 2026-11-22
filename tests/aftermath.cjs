@@ -83,8 +83,8 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     ok(amb.vanSeen && amb.took, 'an ambulance arrives and takes the body away', JSON.stringify(amb));
     // the wanted level survives ten seconds with no police around
     const keep = await S(() => {
-      const G = g();
-      for (let i = 0; i < 200; i++) G.updateWanted(0.05);
+      const G = g(); G.addHeat(100); G.crimeT = 0; // a fresh crime: the earlier steps ran long enough for the old one to cool off
+      for (let i = 0; i < 180; i++) G.updateWanted(0.05);
       return { stars: G.stars };
     });
     ok(keep.stars >= 1, 'the wanted level does not vanish right after a crime', JSON.stringify(keep));

@@ -1369,6 +1369,7 @@ export class Game {
         if (att.role === Role.Player && this.assaultCooldown <= 0) {
           this.addHeat(tgt.role === Role.Cop ? 20 : 8);
           this.assaultCooldown = 0.8;
+          if (tgt.role === Role.Civ) this.crowdReacts(tgt.x, tgt.z, 24);
           if (tgt.role === Role.Civ && this.stars === 0 && Math.random() < 0.5) this.humans.startWitnesses(tgt.x, tgt.z, 22, 1);
         }
         void killed;
@@ -1394,6 +1395,7 @@ export class Game {
         else this.vfx.emitFire(h.x, 1, h.z, 4, 0.3);
       },
       onCivDown: (h, by) => {
+        this.crowdReacts(h.x, h.z);
         if (!this.humans.kids) { this.medics.report(h); this.news.report('murder'); }
         if (by && by.role === Role.Player) {
           this.addHeat(20);
@@ -1626,6 +1628,24 @@ export class Game {
     }
     const mult = Math.min(10, 1 + Math.floor(this.comboCount / 2));
     this.hud.setCombo(Math.max(0, this.comboTimer / 4), this.comboCount > 0 ? mult : 1);
+  }
+
+  private crowdT = 0;
+  private shotT = 0;
+  /** A gun went off: people nearby panic (at most every 1.5 s). */
+  gunshot(x: number, z: number): void {
+    if (this.time - this.shotT < 1.5) return;
+    this.shotT = this.time;
+    this.crowdReacts(x, z, 28);
+  }
+  private static readonly SHOUTS: [string, string][] = [['Help!', '도와줘요!'], ['Call the police!', '경찰 불러요!'], ['Run!', '도망쳐!'], ['Oh no!', '이럴 수가!'], ['He is crazy!', '미쳤어요!'], ['Somebody stop him!', '누가 좀 말려요!']];
+  /** The people around a crime run, shout, and sometimes scream. */
+  crowdReacts(x: number, z: number, r = 32): void {
+    for (const h of this.humans.panic(x, z, r)) {
+      const [en, ko] = Game.SHOUTS[Math.floor(Math.random() * Game.SHOUTS.length)];
+      this.popups.spawn(h.x, h.y + 2.6, h.z, bi(en, ko), '#ffffff');
+    }
+    if (this.time - this.crowdT > 2.5) { this.crowdT = this.time; if (this.nearPlayer(x, z, 45)) this.audio.scream(); }
   }
 
   /** True when no police car or cop is close enough to see you slip into a garage. */
