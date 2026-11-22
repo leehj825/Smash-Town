@@ -31,6 +31,28 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { heads, junctions: heads / 4 };
     });
     ok(lights.heads > 100, 'junctions have traffic light heads', JSON.stringify(lights));
+    const news = await S(() => {
+      const G = g(); G.news.report('murder', true);
+      const el = document.getElementById('news');
+      return { shown: el.classList.contains('show'), text: el.textContent, n: G.news.log.length };
+    });
+    ok(news.shown && /BREAKING NEWS|속보/.test(news.text) && news.n === 1, 'a breaking-news banner reports what you did', JSON.stringify(news));
+    const taxi = await S(() => {
+      const G = g(); const T = G.taxi; const sp = G.world.spawn;
+      G.humans.setPlayerActive(false, 0, 0, 0);
+      const v = G.spawnVehicle('taxi', 0xffc400, sp.x, sp.z, sp.heading, 'player', true);
+      G.driving = v; G.onFoot = false; G.state = 'play'; G.inside = null; G.stars = 0;
+      for (let i = 0; i < 160 && !T.active; i++) T.update(0.05);
+      const started = T.active;
+      v.ctrl.position.x = T.from.x; v.ctrl.position.z = T.from.z; v.ctrl.vx = v.ctrl.vz = 0;
+      T.update(0.05);
+      const riding = T.phase === 'ride';
+      const cash0 = G.cash;
+      v.ctrl.position.x = T.to.x; v.ctrl.position.z = T.to.z; v.ctrl.vx = v.ctrl.vz = 0;
+      T.update(0.05);
+      return { started, riding, paid: G.cash - cash0, fares: T.completed };
+    });
+    ok(taxi.started && taxi.riding && taxi.paid >= 40 && taxi.fares === 1, 'a taxi gets a fare, picks them up and is paid at the destination', JSON.stringify(taxi));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();

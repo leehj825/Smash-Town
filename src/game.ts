@@ -21,6 +21,8 @@ import { Shops } from './shops';
 import { Medics } from './medics';
 import { Machines } from './machines';
 import { TrafficLights } from './lights';
+import { News } from './news';
+import { TaxiJob } from './taxi';
 import { settings } from './settings';
 import { Mood } from './mood';
 import type { Roof } from './world';
@@ -97,6 +99,8 @@ export class Game {
   readonly medics: Medics;
   machines!: Machines;
   lights!: TrafficLights;
+  news!: News;
+  taxi!: TaxiJob;
   readonly sideQuests: SideQuests;
   readonly progress: Progress;
   readonly mood: Mood;
@@ -191,6 +195,8 @@ export class Game {
     this.heli.attach(this.scene);
     this.interiors = new Interiors(d.world, this.scene);
     this.machines = new Machines(this);
+    this.news = new News(this);
+    this.taxi = new TaxiJob(this);
     this.lights = new TrafficLights();
     this.scene.add(this.lights.group);
     {
@@ -413,6 +419,7 @@ export class Game {
       if (prev === 0) this.policeSpawnTimer = Math.max(this.policeSpawnTimer, 3); // first cruiser arrives after a short delay
       this.stars = s;
       this.hud.toast(tf('ui.toast.wanted', { n: s }), 1600);
+      if (s >= 5) this.news.report('wanted5', true); else if (s >= 3) this.news.report('wanted3');
     }
     this.hud.setWanted(this.stars);
   }
@@ -1033,6 +1040,7 @@ export class Game {
     // ---- physics
     this.medics.update(dt);
     this.lights.update(dt);
+    this.news.update(dt);
     const fx = this.fx;
     for (const v of this.vehicles) {
       const near = this.nearPlayer(v.x, v.z, 60);
@@ -1054,7 +1062,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);
@@ -1357,13 +1365,14 @@ export class Game {
       onCopDown: (h) => {
         this.addCash(150, 'police');
         this.progress.add('copsKO');
+        if (this.humans.copsDefeated % 6 === 0) this.news.report('police');
         if (Math.random() < 0.55) this.pickups.drop(h.x, h.z, (['cash', 'health', 'ammo'] as const)[Math.floor(Math.random() * 3)], 120);
         this.addHeat(15);
         if (this.humans.kids) this.popups.spawn(h.x, h.y + 2.2, h.z, t('pop.ko'), '#8a5cd6'); // knocked out, not killed
         else this.vfx.emitFire(h.x, 1, h.z, 4, 0.3);
       },
       onCivDown: (h, by) => {
-        if (!this.humans.kids) this.medics.report(h);
+        if (!this.humans.kids) { this.medics.report(h); this.news.report('murder'); }
         if (by && by.role === Role.Player) {
           this.addHeat(20);
           if (this.stars === 0 && this.humans.startWitnesses(h.x, h.z, 30, 3) === 0) this.popups.spawn(h.x, h.y + 3, h.z, bi('No witnesses', '목격자 없음'), '#9aa0ad');
@@ -1549,7 +1558,7 @@ export class Game {
       if (s < this.stars) {
         this.stars = s;
         this.hud.setWanted(s);
-        if (s === 0) { this.hud.toast(t('ui.toast.lost')); this.clearWanted(); }
+        if (s === 0) { this.hud.toast(t('ui.toast.lost')); this.clearWanted(); this.news.report('escaped'); }
       }
     }
     // survival bonus at high heat
@@ -1781,6 +1790,7 @@ export class Game {
     for (const g of this.world.garages) this.pushBlip(g.x, g.z, '#3dff8a', false, 5);
     this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
+    for (const m of this.taxi.markers()) this.pushBlip(m.x, m.z, m.color, true, 5.5);
     for (const m of this.range.markers()) this.pushBlip(m.x, m.z, '#ff9a3d', m.active, m.active ? 5 : 4);
     for (const m of this.roofDash.markers()) this.pushBlip(m.x, m.z, '#4dd2ff', false, m.active ? 5.5 : 4);
     for (const m of this.sideQuests.markers()) this.pushBlip(m.x, m.z, m.color, true, 5);

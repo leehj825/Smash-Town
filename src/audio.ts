@@ -200,6 +200,20 @@ export class AudioEngine {
     this.thud(bat ? 180 : kind === 'kick' ? 95 : 130, bat ? 0.14 : 0.2, bat ? 0.4 : 0.55);
     this.burst(bat ? 0.09 : 0.07, bat ? 5200 : 2600, bat ? 0.4 : 0.3);
   }
+  /** A short news-flash jingle. */
+  jingle(): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    [[523, 0], [659, 0.12], [784, 0.24], [1046, 0.36]].forEach(([f, d]) => {
+      const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = f;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + d);
+      g.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + d + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d + 0.14);
+      o.connect(g); g.connect(this.master);
+      o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.16);
+    });
+  }
   cash(): void {
     if (!this.ctx) return;
     const ctx = this.ctx;
