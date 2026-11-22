@@ -13,6 +13,8 @@ export interface Room {
   color: number; css: string;
   /** Door on the street (where the beacon stands). */
   door: { x: number; z: number; h: number };
+  /** The bank's vault door (where you crack the safe). */
+  vault?: { x: number; z: number };
   /** The garage has several street doors (one per garage building). */
   doors?: { x: number; z: number; h: number }[];
   /** Room centre in the pocket and its counter / exit positions. */
@@ -74,6 +76,12 @@ export class Interiors {
         for (let i = 0; i < 3; i++) b.cylinder(0.35, 0.35, 0.9, 8, ox + 5.5 - i * 0.8, 0.45, oz - 4.4, [0x2f6bd6, 0xd62d3a, 0x2fb87a][i]);
         for (let k = 0; k < 8; k++) b.box(0.9, 0.03, 0.4, ox - 3.6 + k * 1.0, 0.03, oz + D / 2 - 0.5, k % 2 ? 0xffd23a : 0x222222);
       }
+      if (d.id === 'bank') {
+        b.cylinder(1.5, 1.5, 0.4, 20, ox - 4.6, 1.6, oz - D / 2 + 0.25, 0x8d95a3, Math.PI / 2, 0, 0);
+        b.cylinder(1.15, 1.15, 0.45, 20, ox - 4.6, 1.6, oz - D / 2 + 0.27, 0x6b7280, Math.PI / 2, 0, 0);
+        b.box(1.7, 0.14, 0.5, ox - 4.6, 1.6, oz - D / 2 + 0.35, 0xd8c36a); b.box(0.14, 1.7, 0.5, ox - 4.6, 1.6, oz - D / 2 + 0.35, 0xd8c36a);
+        b.cylinder(0.28, 0.28, 0.55, 12, ox - 4.6, 1.6, oz - D / 2 + 0.4, 0xffd23a, Math.PI / 2, 0, 0);
+      }
       if (d.id === 'bank') for (let i = 0; i < 3; i++) b.box(1.4, 1.1, 1.4, ox - 4.5 + i * 2, 0.55, oz + 2.8, 0xb7bcc7);
       if (d.id === 'motel') b.box(2.2, 0.7, 3.4, ox + 4.5, 0.35, oz + 2, 0xf4f4f4);
       if (d.id === 'clothes') for (let i = 0; i < 4; i++) b.box(0.7, 1.8, 0.5, ox - 4.5 + i * 3, 0.9, oz + 2.8, [0xd93636, 0x3b82f6, 0x2fb87a, 0xf2a73b][i]);
@@ -94,6 +102,7 @@ export class Interiors {
       this.group.add(beacon.group);
       this.rooms.push({
         id: d.id, en: d.en, ko: d.ko, color: d.color, css: d.css, door: { x: 0, z: 0, h: 0 },
+        vault: d.id === 'bank' ? { x: ox - 4.6, z: oz - D / 2 + 1.6 } : undefined,
         ox, oz, counter: { x: ox, z: oz - 3.4 }, exit: { x: ox, z: oz + D / 2 - 0.9 }, desk: ownable ? { x: ox + 4.6, z: oz - 2.6 } : undefined, light, beacon,
       });
     });

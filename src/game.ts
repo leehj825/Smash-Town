@@ -625,8 +625,10 @@ export class Game {
     this.guns.tick(dt);
     this.interiors.update(dt);
     if (room.id === 'garage' && this.stars > 0) this.hideDecay(dt);
+    if (room.id === 'bank') this.shops.updateHeist(dt, room);
     if (playing && (input.wasPressed('KeyF') || input.wasPressed('KeyE'))) {
       if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) this.leaveBuilding();
+      else if (room.id === 'bank' && this.shops.vaultNear(room)) this.shops.startHeist();
       else if (this.shops.deskNear(room)) this.shops.deskAction(room);
       else if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shops.action(room);
     }

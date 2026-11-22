@@ -81,6 +81,21 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { counting, running, paid: G.cash - cash0, done: R.completed, best: Object.keys(R.best).length };
     });
     ok(race.counting && race.running && race.paid >= 600 && race.done === 1 && race.best === 1, 'a street race counts down, runs through checkpoints and pays the winner', JSON.stringify(race));
+    const heist = await S(() => {
+      const G = g(); const r = G.interiors.rooms.find((q) => q.id === 'bank');
+      G.stars = 0; G.heat = 0; G.driving = null; G.onFoot = true; G.state = 'play';
+      G.inside = r; G.humans.setPlayerActive(true, r.vault.x, r.vault.z + 1.4, 0);
+      const near = G.shops.vaultNear(r);
+      G.shops.startHeist();
+      const stars = G.stars;
+      const cash0 = G.cash;
+      for (let i = 0; i < 400 && G.shops.heist; i++) G.shops.updateHeist(0.05, r);
+      const loot = G.cash - cash0;
+      G.shops.startHeist(); // the vault is empty for a while
+      G.inside = null;
+      return { near, stars, loot, again: !!G.shops.heist };
+    });
+    ok(heist.near && heist.stars >= 3 && heist.loot >= 3500 && !heist.again, 'cracking the bank vault sets off the alarm, pays out, then the vault stays empty', JSON.stringify(heist));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();
