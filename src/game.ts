@@ -23,6 +23,7 @@ import { Machines } from './machines';
 import { TrafficLights } from './lights';
 import { News } from './news';
 import { TaxiJob } from './taxi';
+import { StreetRace } from './race';
 import { settings } from './settings';
 import { Mood } from './mood';
 import type { Roof } from './world';
@@ -101,6 +102,7 @@ export class Game {
   lights!: TrafficLights;
   news!: News;
   taxi!: TaxiJob;
+  race!: StreetRace;
   readonly sideQuests: SideQuests;
   readonly progress: Progress;
   readonly mood: Mood;
@@ -197,6 +199,7 @@ export class Game {
     this.machines = new Machines(this);
     this.news = new News(this);
     this.taxi = new TaxiJob(this);
+    this.race = new StreetRace(this);
     this.lights = new TrafficLights();
     this.scene.add(this.lights.group);
     {
@@ -461,8 +464,25 @@ export class Game {
     v.police = new PoliceBrain(role, this.rng);
   }
 
+  /** A bounty hunter: a black muscle car that joins a chase at four stars. Wreck it for a $1,500 bounty. */
+  hunter: GameVehicle | null = null;
+  private hunterTimer = 20;
+  private spawnHunter(): void {
+    const px = this.focusX, pz = this.focusZ;
+    let p = TrafficBrain.randomPlacement(this.rng, px, pz, 90);
+    for (let i = 0; i < 8 && Math.hypot(p.x - px, p.z - pz) > 200; i++) p = TrafficBrain.randomPlacement(this.rng, px, pz, 90);
+    const v = this.spawnVehicle('muscle', 0x0d0d12, p.x, p.z, Math.atan2(px - p.x, pz - p.z), 'police');
+    v.police = new PoliceBrain('interceptor', this.rng);
+    v.ctrl.stats = { ...v.ctrl.stats, maxSpeed: v.ctrl.stats.maxSpeed * 0.97 };
+    this.hunter = v;
+    this.hud.toast(bi('A bounty hunter is after you!', '현상금 사냥꾼이 쫓아와요!'), 2600);
+    this.news.report('bounty');
+  }
+
   private managePolice(dt: number): void {
-    if (this.stars === 0) return;
+    if (this.stars === 0) { this.hunterTimer = Math.max(this.hunterTimer, 15); return; }
+    if (this.hunter && (!this.vehicles.includes(this.hunter) || this.hunter.ctrl.wrecked || this.hunter.ai !== 'police')) this.hunter = null;
+    if (this.stars >= 4 && !this.hunter) { this.hunterTimer -= dt; if (this.hunterTimer <= 0) { this.hunterTimer = 90; this.spawnHunter(); } }
     const comp = COMPOSITION[this.stars];
     // while you are evading (police exist but are far behind) no reinforcements are sent, so a clean getaway is possible
     const evading = this.vehicles.some((v) => v.ai === 'police') && this.unseen > 2;
@@ -1062,7 +1082,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);
@@ -1480,7 +1500,10 @@ export class Game {
         this.vfx.explosion(v.x, v.z);
         if (this.nearPlayer(v.x, v.z, 70)) { this.audio.explosion(); this.cameraRig.shake(0.5); }
         if (v === this.driving) continue; // handled by the state machine
-        if (v.ai === 'police') { this.addCash(200, 'police'); this.addHeat(30); }
+        if (v.ai === 'police') {
+          this.addCash(v === this.hunter ? 1700 : 200, 'police'); this.addHeat(30);
+          if (v === this.hunter) { this.popups.spawn(v.x, 3, v.z, bi('BOUNTY $1,500!', '현상금 $1,500!'), '#ffd23a'); this.hunter = null; }
+        }
         v.ai = 'wreck';
         v.wreckTimer = 8;
       }
@@ -1790,6 +1813,8 @@ export class Game {
     for (const g of this.world.garages) this.pushBlip(g.x, g.z, '#3dff8a', false, 5);
     this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
+    if (this.hunter) this.pushBlip(this.hunter.x, this.hunter.z, '#ff9a3d', true, 5);
+    for (const m of this.race.markers()) this.pushBlip(m.x, m.z, '#ff9a3d', m.flash, 5);
     for (const m of this.taxi.markers()) this.pushBlip(m.x, m.z, m.color, true, 5.5);
     for (const m of this.range.markers()) this.pushBlip(m.x, m.z, '#ff9a3d', m.active, m.active ? 5 : 4);
     for (const m of this.roofDash.markers()) this.pushBlip(m.x, m.z, '#4dd2ff', false, m.active ? 5.5 : 4);

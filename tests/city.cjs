@@ -53,6 +53,34 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { started, riding, paid: G.cash - cash0, fares: T.completed };
     });
     ok(taxi.started && taxi.riding && taxi.paid >= 40 && taxi.fares === 1, 'a taxi gets a fare, picks them up and is paid at the destination', JSON.stringify(taxi));
+    const hunt = await S(() => {
+      const G = g(); G.taxi.cancel && G.taxi.cancel();
+      G.humans.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0); G.onFoot = true; G.driving = null; G.state = 'play';
+      G.stars = 4; G.heat = 270; G.hunterTimer = 0; G.crimeT = 0;
+      for (let i = 0; i < 20 && !G.hunter; i++) G.update(0.05);
+      const spawned = !!G.hunter;
+      const cash0 = G.cash;
+      if (G.hunter) G.hunter.ctrl.hp = 0;
+      for (let i = 0; i < 10; i++) G.update(0.05);
+      return { spawned, gained: G.cash - cash0, cleared: !G.hunter };
+    });
+    ok(hunt.spawned && hunt.gained >= 1500 && hunt.cleared, 'a bounty hunter joins a four-star chase and pays a bounty when wrecked', JSON.stringify(hunt));
+    const race = await S(() => {
+      const G = g(); const R = G.race;
+      G.stars = 0; G.heat = 0; G.humans.setPlayerActive(false, 0, 0, 0);
+      const st = R.starts[0];
+      const v = G.spawnVehicle('sports', 0xffd500, st.x, st.z, 0, 'player', true);
+      G.driving = v; G.onFoot = false; G.state = 'play'; G.inside = null; R.cooldown = 0;
+      R.update(0.05);
+      const counting = R.phase === 'count';
+      for (let i = 0; i < 80; i++) R.update(0.05);
+      const running = R.phase === 'run';
+      const cash0 = G.cash;
+      let n = 0;
+      while (R.phase === 'run' && n++ < 20) { const c = R.cp[R.idx]; v.ctrl.position.x = c.x; v.ctrl.position.z = c.z; R.update(0.05); }
+      return { counting, running, paid: G.cash - cash0, done: R.completed, best: Object.keys(R.best).length };
+    });
+    ok(race.counting && race.running && race.paid >= 600 && race.done === 1 && race.best === 1, 'a street race counts down, runs through checkpoints and pays the winner', JSON.stringify(race));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();

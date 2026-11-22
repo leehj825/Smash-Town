@@ -63,7 +63,7 @@ export class TaxiJob {
     if (G.stars > 0 && this.phase !== 'idle') { this.cancel(bi('Fare cancelled - the police are after you', '경찰이 쫓아와서 손님이 내렸어요')); return; }
     if (this.phase === 'idle') {
       this.cooldown -= dt;
-      if (this.cooldown > 0 || G.stars > 0 || G.gigs.active || G.range.running) return;
+      if (this.cooldown > 0 || G.stars > 0 || G.gigs.active || G.range.running || G.race.active) return;
       const p = this.roadPoint(60, 160);
       if (!p) { this.cooldown = 5; return; }
       this.from = p; this.phase = 'pickup';
