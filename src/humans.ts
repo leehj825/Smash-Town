@@ -845,6 +845,7 @@ export class Humans {
       if (n >= max) break;
       if (!h.active || h.role !== Role.Civ || h.state !== St.Walk || h.calling > 0 || h.freeT > 0) continue;
       if ((h.x - x) ** 2 + (h.z - z) ** 2 > r * r) continue;
+      if ((h.x - this.player.x) ** 2 + (h.z - this.player.z) ** 2 > 120 * 120) continue; // frozen, far-away people never see it
       h.calling = 5; n++;
       this.hooks.onWitnessStart?.(h);
     }

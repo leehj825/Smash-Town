@@ -44,7 +44,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     // knock one out without killing: it gets up where it fell and keeps its place
     const ko = await S(() => {
       const G = g(); const H = G.humans; const a = window.__a;
-      const x0 = a.x, z0 = a.z; H.player.x = a.x - 2; H.player.z = a.z; window.__c.x = a.x + 3; window.__c.z = a.z + 3;
+      const x0 = a.x, z0 = a.z; H.player.x = a.x - 2; H.player.z = a.z; window.__c.x = a.x + 3; window.__c.z = a.z + 3; H.snapToPath(window.__c);
       H.gunHit(H.player, a, 10, 1, 0, true);
       return { down: a.state, x0, z0 };
     });
@@ -53,7 +53,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     ok(after.state === 1 && after.active && Math.hypot(after.x - ko.x0, after.z - ko.z0) < 12, 'a knocked-out civilian gets up near where they fell', JSON.stringify({ ko, after }));
     // kill one: dead, murder wanted level, stays down
     const kill = await S(() => {
-      const G = g(); const H = G.humans; const c = window.__c; H.kids = false;
+      const G = g(); const H = G.humans; const c = window.__c; H.kids = false; const w = window.__a; w.state = 1; w.freeT = 0; w.x = c.x + 2; w.z = c.z + 2;
       H.gunHit(H.player, c, 999, 1, 0, true);
       return { state: c.state, stars: G.stars, heat: G.heat };
     });
@@ -62,9 +62,25 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       const G = g(); const H = G.humans; const a = window.__a;
       const calling = H.list.some((q) => q.calling > 0); void a;
       for (let i = 0; i < 160; i++) H.update(0.05, H.ctx);
-      return { calling, stars: G.stars };
+      const left = H.list.filter((q) => q.calling > 0).map((q) => ({ c: q.calling, d: Math.round(Math.hypot(q.x - H.player.x, q.z - H.player.z)), st: q.state, act: q.active, ft: q.freeT, pa: H.ctx && H.ctx.playerActive })); return { calling, stars: G.stars, left, heat: G.heat, near: H.list.filter((q) => q.active && q.role === 0 && Math.hypot(q.x - H.player.x, q.z - H.player.z) < 40).length };
     });
     ok(wit.calling && wit.stars >= 1, 'a witness calls the police and the wanted level rises', JSON.stringify(wit));
+    // an ambulance comes for the body and takes it away
+    const amb = await S(() => {
+      const G = g(); const H = G.humans; H.kids = false;
+      const pl = H.player; const sp = G.world.spawn; H.setPlayerActive(true, sp.x, sp.z, 0);
+      const civ = H.list.find((h) => h.active && h.maxHp === 30 && h.state === 1);
+      civ.x = sp.x + 4; civ.z = sp.z + 4;
+      H.gunHit(pl, civ, 999, 1, 0, true);
+      let vanSeen = false, took = false;
+      for (let i = 0; i < 900; i++) {
+        G.update(0.05);
+        if (G.vehicles.some((v) => v.kind === 'ambulance')) vanSeen = true;
+        if (vanSeen && civ.state !== 8) { took = true; break; }
+      }
+      return { vanSeen, took, state: civ.state };
+    });
+    ok(amb.vanSeen && amb.took, 'an ambulance arrives and takes the body away', JSON.stringify(amb));
     // the wanted level survives ten seconds with no police around
     const keep = await S(() => {
       const G = g();

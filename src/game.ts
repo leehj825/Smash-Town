@@ -18,6 +18,7 @@ import { RangeGig } from './range';
 import { SideQuests } from './sidequests';
 import { Progress, type ProgressSave } from './tracker';
 import { Shops } from './shops';
+import { Medics } from './medics';
 import { settings } from './settings';
 import { Mood } from './mood';
 import type { Roof } from './world';
@@ -91,6 +92,7 @@ export class Game {
   readonly policeFire: PoliceFire;
   readonly range: RangeGig;
   readonly shops: Shops;
+  readonly medics: Medics;
   readonly sideQuests: SideQuests;
   readonly progress: Progress;
   readonly mood: Mood;
@@ -188,6 +190,7 @@ export class Game {
     this.policeFire = new PoliceFire(this);
     this.range = new RangeGig(this);
     this.shops = new Shops(this);
+    this.medics = new Medics(this);
     this.sideQuests = new SideQuests(this);
     this.progress = new Progress(this.save.progress, (m) => this.hud.toast(m, 3600), (n) => { this.cash += n; this.hud.setCash(this.cash); this.saveDirty = true; this.audio.cash(); }, () => { this.saveDirty = true; });
     this.mood = new Mood(this);
@@ -309,7 +312,7 @@ export class Game {
     return v;
   }
 
-  private removeVehicle(v: GameVehicle): void {
+  removeVehicle(v: GameVehicle): void {
     v.remove();
     const i = this.vehicles.indexOf(v);
     if (i >= 0) this.vehicles.splice(i, 1);
@@ -344,7 +347,7 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ events
-  private nearPlayer(x: number, z: number, r: number): boolean {
+  nearPlayer(x: number, z: number, r: number): boolean {
     return Math.hypot(x - this.focusX, z - this.focusZ) < r;
   }
 
@@ -1008,6 +1011,7 @@ export class Game {
     }
 
     // ---- physics
+    this.medics.update(dt);
     const fx = this.fx;
     for (const v of this.vehicles) {
       const near = this.nearPlayer(v.x, v.z, 60);
@@ -1338,6 +1342,7 @@ export class Game {
         else this.vfx.emitFire(h.x, 1, h.z, 4, 0.3);
       },
       onCivDown: (h, by) => {
+        if (!this.humans.kids) this.medics.report(h);
         if (by && by.role === Role.Player) {
           this.addHeat(20);
           if (this.stars === 0 && this.humans.startWitnesses(h.x, h.z, 30, 3) === 0) this.popups.spawn(h.x, h.y + 3, h.z, bi('No witnesses', '목격자 없음'), '#9aa0ad');
@@ -1627,7 +1632,7 @@ export class Game {
     this.props.lampHeadMaterial.emissiveIntensity = 0.15 + n * 3.2;
     VehicleFactory.sharedHead.emissiveIntensity = 0.6 + n * 2.6;
     const flash = Math.floor(this.time * 7) % 2 === 0;
-    const sirens = this.stars > 0 || this.roadblocks.length > 0;
+    const sirens = this.stars > 0 || this.roadblocks.length > 0 || this.medics.active;
     VehicleFactory.sirenRed.emissiveIntensity = sirens ? (flash ? 3.4 : 0.15) : 0.2;
     VehicleFactory.sirenBlue.emissiveIntensity = sirens ? (flash ? 0.15 : 3.4) : 0.2;
     const d = this.driving;

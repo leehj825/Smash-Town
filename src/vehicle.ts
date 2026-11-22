@@ -4,7 +4,7 @@ import type { I18nKey } from './i18n';
 
 export type VehicleKind =
   | 'sports' | 'supercar' | 'muscle' | 'sedan' | 'taxi' | 'pickup' | 'limo' | 'monster'
-  | 'police' | 'interceptor' | 'swat' | 'armored';
+  | 'police' | 'interceptor' | 'swat' | 'armored' | 'ambulance';
 
 export interface VehicleStats {
   maxSpeed: number; // m/s
@@ -29,6 +29,7 @@ export const STATS: Record<VehicleKind, VehicleStats> = {
   monster:     { maxSpeed: 31, accel: 24, grip: 7,   dmg: 0.35, mass: 3.0, name: 'veh.monster', price: 60000, color: 0xff7a1a },
   police:      { maxSpeed: 36, accel: 28, grip: 9,   dmg: 0.9, mass: 1.2, name: null, price: 0, color: 0x1a1a24 },
   interceptor: { maxSpeed: 42, accel: 34, grip: 10,  dmg: 0.9, mass: 1.1, name: null, price: 0, color: 0x1a1a24 },
+  ambulance:   { maxSpeed: 30, accel: 22, grip: 8, dmg: 0.6, mass: 1.8, name: null, price: 0, color: 0xf4f4f4 },
   swat:        { maxSpeed: 33, accel: 24, grip: 7.5, dmg: 0.6, mass: 2.2, name: null, price: 0, color: 0x23262f },
   armored:     { maxSpeed: 30, accel: 20, grip: 7,   dmg: 0.35, mass: 3.2, name: null, price: 0, color: 0x3a4658 },
 };
@@ -58,6 +59,7 @@ const SPECS: Record<VehicleKind, Spec> = {
   monster: { w: 2.3, len: 5.4, bodyH: 0.85, clr: 1.0, hoodLen: 1.5, wedge: false, trunkLen: 1.8, cabinLen: 1.7, cabinH: 0.7, cabinZ: 0.2, taper: 0.82, cabinColor: DARK, wheelR: 0.95, wheelX: 1.25, wheelZ: 1.7, bed: true, stripe: 0x1a1a24 },
   police:  { w: 1.9, len: 4.7, bodyH: 0.62, clr: 0.3, hoodLen: 1.3, wedge: false, trunkLen: 1.1, cabinLen: 2.2, cabinH: 0.62, cabinZ: -0.1, taper: 0.8, cabinColor: DARK, wheelR: 0.39, wheelX: 0.95, wheelZ: 1.45, bar: true, police: true },
   interceptor: { w: 1.95, len: 4.6, bodyH: 0.5, clr: 0.28, hoodLen: 1.7, wedge: true, trunkLen: 1.2, cabinLen: 1.9, cabinH: 0.52, cabinZ: -0.15, taper: 0.7, cabinColor: DARK, wheelR: 0.39, wheelX: 0.98, wheelZ: 1.4, bar: true, police: true, spoiler: true },
+  ambulance: { w: 2.1, len: 5.4, bodyH: 0.95, clr: 0.42, hoodLen: 1.2, wedge: false, trunkLen: 0.2, cabinLen: 4.0, cabinH: 0.8, cabinZ: -0.55, taper: 0.97, cabinColor: null, wheelR: 0.46, wheelX: 1.02, wheelZ: 1.7, bar: true },
   swat:    { w: 2.15, len: 5.4, bodyH: 0.95, clr: 0.45, hoodLen: 1.2, wedge: false, trunkLen: 0.2, cabinLen: 4.0, cabinH: 0.95, cabinZ: -0.55, taper: 0.97, cabinColor: null, wheelR: 0.5, wheelX: 1.05, wheelZ: 1.7, bar: true, plating: true },
   armored: { w: 2.4, len: 5.8, bodyH: 1.25, clr: 0.5, hoodLen: 1.5, wedge: false, trunkLen: 0.3, cabinLen: 3.6, cabinH: 0.6, cabinZ: -0.6, taper: 0.9, cabinColor: null, wheelR: 0.55, wheelX: 1.15, wheelZ: 1.9, bar: true, plating: true },
 };
@@ -138,7 +140,7 @@ const taperTweak = (taper: number) => (p: THREE.BufferAttribute) => {
 function buildGeometry(kind: VehicleKind, color: number, bakeWheels: boolean): Built {
   const s = SPECS[kind];
   const b = new MeshBuilder();
-  const body = s.police ? DARK : kind === 'swat' ? 0x23262f : kind === 'armored' ? 0x3a4658 : color;
+  const body = s.police ? DARK : kind === 'ambulance' ? 0xf4f4f4 : kind === 'swat' ? 0x23262f : kind === 'armored' ? 0x3a4658 : color;
   const top = s.clr + s.bodyH;
   b.box(s.w, s.bodyH, s.len, 0, s.clr + s.bodyH / 2, 0, body);
   // hood
@@ -165,6 +167,17 @@ function buildGeometry(kind: VehicleKind, color: number, bakeWheels: boolean): B
     b.box(s.w + 0.03, s.bodyH * 0.5, s.cabinLen + 0.8, 0, s.clr + s.bodyH * 0.52, s.cabinZ, 0xffffff);
     b.box(0.35, 0.12, 0.7, 0, s.clr + s.bodyH + 0.02, -s.len / 2 + 0.6, 0xffffff);
     b.box(s.w - 0.3, 0.35, 0.22, 0, s.clr + 0.32, s.len / 2 + 0.1, DARK); // push bumper
+  }
+  if (kind === 'ambulance') {
+    const RED = 0xe0243c;
+    for (const sx of [-1, 1]) {
+      b.box(0.03, 0.14, s.len * 0.8, sx * (s.w / 2 + 0.015), s.clr + s.bodyH * 0.35, -0.1, RED);
+      b.box(0.03, 0.5, 0.14, sx * (s.w / 2 + 0.02), s.clr + s.bodyH * 0.72, s.cabinZ - 0.4, RED);       // cross
+      b.box(0.03, 0.14, 0.5, sx * (s.w / 2 + 0.02), s.clr + s.bodyH * 0.72, s.cabinZ - 0.4, RED);
+    }
+    b.box(0.5, 0.04, 0.14, 0, top + s.cabinH + 0.04, s.cabinZ, RED); b.box(0.14, 0.04, 0.5, 0, top + s.cabinH + 0.04, s.cabinZ, RED); // roof cross
+    b.box(s.w * 0.8, 0.5, 0.04, 0, s.clr + s.bodyH * 0.65, -s.len / 2 - 0.02, 0xdde2ea);                   // rear doors
+    b.box(0.04, 0.46, 0.04, 0, s.clr + s.bodyH * 0.65, -s.len / 2 - 0.04, 0x8a8f99);
   }
   if (s.plating) {
     for (const sx of [-1, 1]) b.box(0.08, s.bodyH * 0.7, s.len * 0.7, sx * (s.w / 2 + 0.02), s.clr + s.bodyH * 0.55, -0.2, 0x5b6678);
