@@ -41,7 +41,7 @@ export class StreetRace {
   private count = 0;
   private cooldown = 0;
   private done = 0;
-  /** Best time of this session per start, in seconds. */
+  /** Best winning time per start, in seconds (saved). */
   readonly best: Record<number, number> = {};
   private which = 0;
   private elapsed = 0;
@@ -57,6 +57,7 @@ export class StreetRace {
   private tmp = new THREE.Object3D();
 
   constructor(private game: Game) {
+    (game.save.raceBest ?? []).forEach((t, i) => { if (t > 0) this.best[i] = t; });
     game.scene.add(this.beacon.group, this.beacon2.group);
     this.beacon.visible = false; this.beacon2.visible = false;
     const segs = game.world.segments.filter((s) => s.len >= 44 && s.hw >= 6);
@@ -99,6 +100,15 @@ export class StreetRace {
     if (this.cp[this.idx]) out.push({ ...this.cp[this.idx], flash: true, color: '#ff9a3d' });
     for (const r of this.rivals) out.push({ x: r.v.x, z: r.v.z, flash: false, color: r.color });
     return out;
+  }
+
+  /** The top pill during a race: the course, your position and the best time. */
+  pillInfo(): { title: string; text: string } {
+    const best = this.best[this.which];
+    const bestTxt = best !== undefined ? ` · ${bi('Best', '최고')} ${Math.floor(best / 60)}:${String(Math.floor(best % 60)).padStart(2, '0')}` : '';
+    const place = this.game.driving ? this.rank(this.game.driving) : 1;
+    const ord = ['1st', '2nd', '3rd'][place - 1] ?? `${place}th`;
+    return { title: `${bi('STREET RACE', '스트리트 레이스')} · ${bi('Course', '코스')} ${this.which + 1}${bestTxt}`, text: `${bi('Checkpoint', '체크포인트')} ${Math.min(this.idx + 1, this.cp.length)}/${this.cp.length} · ${ord}/${this.rivals.length + 1}` };
   }
 
   /** Where the HUD guide arrow and the minimap route should lead (the next checkpoint) while a race is on. */
@@ -330,7 +340,13 @@ export class StreetRace {
         G.progress.add('gigs');
         if (placeAtFinish === 1) { G.progress.add('races'); this.done++; }
         const prev = this.best[this.which];
-        if (placeAtFinish === 1 && (prev === undefined || this.elapsed < prev)) this.best[this.which] = this.elapsed;
+        if (placeAtFinish === 1 && (prev === undefined || this.elapsed < prev)) {
+          this.best[this.which] = this.elapsed;
+          const arr = (G.save.raceBest ??= []);
+          arr[this.which] = this.elapsed;
+          G.flushSave();
+          if (prev !== undefined) G.hud.toast(bi('New course record!', '코스 신기록!'), 2400);
+        }
         G.popups.spawn(d!.x, 3, d!.z, `+$${pay}`, '#ff9a3d');
         const ordF = ['1st', '2nd', '3rd'][placeAtFinish - 1] ?? `${placeAtFinish}th`;
         G.hud.toast(`${placeAtFinish === 1 ? bi('You won the race!', '레이스 우승!') : `${ordF} ${bi('place', '등')}`} $${pay} · ${this.elapsed.toFixed(1)}s`, 3400);

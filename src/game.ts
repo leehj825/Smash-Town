@@ -43,7 +43,7 @@ import type { Vfx } from './vfx';
 import type { CircleCollider, World } from './world';
 
 export const SAVE_KEY = 'smashtown.save.v1';
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; progress?: ProgressSave }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -276,7 +276,10 @@ export class Game {
       const gunUp: Partial<Record<GunId, [number, number]>> = {};
       for (const g of GUN_ORDER) { const u = s.gunUp?.[g]; if (Array.isArray(u)) gunUp[g] = [Number(u[0]) || 0, Number(u[1]) || 0]; }
       const outfit = Number.isInteger(s.outfit) ? Number(s.outfit) : 0;
-      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, progress: s.progress };
+      const bank = typeof s.bank === 'number' && s.bank > 0 ? Math.floor(s.bank) : 0;
+      const homes = Array.isArray(s.homes) ? s.homes.filter((n: unknown) => Number.isInteger(n)) as number[] : [];
+      const raceBest = Array.isArray(s.raceBest) ? s.raceBest.map((n: unknown) => (typeof n === 'number' && n > 0 ? n : 0)) : [];
+      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, progress: s.progress };
     } catch {
       return fallback;
     }
@@ -1148,7 +1151,7 @@ export class Game {
     const d = this.driving;
     this.hud.update(this.followable, d ? d.ctrl.hp : 1, d ? d.ctrl.nitro : 1, d ? d.ctrl.nitroActive : false, this.blips.slice(0, this.blipCount), dt);
     const pl = this.humans.player;
-    this.hud.setStory(this.story.hudInfo());
+    this.hud.setStory(this.race.active ? this.race.pillInfo() : this.story.hudInfo());
     this.hud.setStoryProgress(this.story.progressText());
     this.hud.setTelemetryVisible(!!d);
     this.hud.setFootMode(this.onFoot, pl.weapon, this.humans.ownedFlags());

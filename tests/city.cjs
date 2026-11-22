@@ -157,6 +157,14 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { riv, rivals, prog, trail, arrow, left: G.vehicles.filter((q) => q.isGigTarget).length };
     });
     ok(rivals.rivals === 2 && Math.max(...rivals.prog) >= 2 && rivals.trail > 5 && rivals.arrow, 'rival racers drive the course on their own while road chevrons and an arrow show the way', JSON.stringify(rivals));
+    // savings, houses and race records survive a reload
+    await S(() => { const G = g(); G.save.bank = 4321; G.save.homes = [1, 2]; G.save.raceBest = [0, 77.5]; G.flushSave(); });
+    await p.reload();
+    await p.waitForFunction(() => window.__smash);
+    await S(() => window.__smash.startGame());
+    await p.waitForTimeout(600);
+    const kept = await S(() => { const G = g(); return { bank: G.save.bank, homes: G.save.homes, best: G.race.best[1] }; });
+    ok(kept.bank === 4321 && kept.homes.length === 2 && kept.best === 77.5, 'savings, houses and race records survive a reload', JSON.stringify(kept));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();
