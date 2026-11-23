@@ -4,7 +4,7 @@ import type { I18nKey } from './i18n';
 
 export type VehicleKind =
   | 'sports' | 'supercar' | 'muscle' | 'sedan' | 'taxi' | 'pickup' | 'limo' | 'monster'
-  | 'police' | 'interceptor' | 'swat' | 'armored' | 'ambulance' | 'motorbike' | 'scooter' | 'bicycle' | 'bus';
+  | 'police' | 'interceptor' | 'swat' | 'armored' | 'ambulance' | 'firetruck' | 'motorbike' | 'scooter' | 'bicycle' | 'bus' | 'boat' | 'helicopter';
 
 export interface VehicleStats {
   maxSpeed: number; // m/s
@@ -29,11 +29,14 @@ export const STATS: Record<VehicleKind, VehicleStats> = {
   monster:     { maxSpeed: 31, accel: 24, grip: 7,   dmg: 0.35, mass: 3.0, name: 'veh.monster', price: 60000, color: 0xff7a1a },
   police:      { maxSpeed: 36, accel: 28, grip: 9,   dmg: 0.9, mass: 1.2, name: null, price: 0, color: 0x1a1a24 },
   interceptor: { maxSpeed: 42, accel: 34, grip: 10,  dmg: 0.9, mass: 1.1, name: null, price: 0, color: 0x1a1a24 },
+  helicopter:  { maxSpeed: 42, accel: 16, grip: 3, dmg: 0.5, mass: 2.0, name: null, price: 0, color: 0xe8ecf4 },
+  boat:        { maxSpeed: 26, accel: 15, grip: 2.2, dmg: 0.5, mass: 1.6, name: null, price: 0, color: 0xf2f2f2 },
   bus:         { maxSpeed: 20, accel: 12, grip: 7, dmg: 0.3, mass: 3.5, name: null, price: 0, color: 0x2f78d6 },
   scooter:     { maxSpeed: 22, accel: 18, grip: 7, dmg: 0.3, mass: 0.35, name: 'veh.scooter', price: 600, color: 0x2fb87a },
   bicycle:     { maxSpeed: 11, accel: 9, grip: 8, dmg: 0.2, mass: 0.25, name: 'veh.bicycle', price: 150, color: 0xff7a1a },
   motorbike:   { maxSpeed: 46, accel: 40, grip: 7, dmg: 0.4, mass: 0.45, name: 'veh.motorbike', price: 2500, color: 0xe0243c },
   ambulance:   { maxSpeed: 30, accel: 22, grip: 8, dmg: 0.6, mass: 1.8, name: null, price: 0, color: 0xf4f4f4 },
+  firetruck:   { maxSpeed: 27, accel: 18, grip: 7, dmg: 0.4, mass: 3.0, name: null, price: 0, color: 0xd62d2d },
   swat:        { maxSpeed: 33, accel: 24, grip: 7.5, dmg: 0.6, mass: 2.2, name: null, price: 0, color: 0x23262f },
   armored:     { maxSpeed: 30, accel: 20, grip: 7,   dmg: 0.35, mass: 3.2, name: null, price: 0, color: 0x3a4658 },
 };
@@ -63,11 +66,14 @@ const SPECS: Record<VehicleKind, Spec> = {
   monster: { w: 2.3, len: 5.4, bodyH: 0.85, clr: 1.0, hoodLen: 1.5, wedge: false, trunkLen: 1.8, cabinLen: 1.7, cabinH: 0.7, cabinZ: 0.2, taper: 0.82, cabinColor: DARK, wheelR: 0.95, wheelX: 1.25, wheelZ: 1.7, bed: true, stripe: 0x1a1a24 },
   police:  { w: 1.9, len: 4.7, bodyH: 0.62, clr: 0.3, hoodLen: 1.3, wedge: false, trunkLen: 1.1, cabinLen: 2.2, cabinH: 0.62, cabinZ: -0.1, taper: 0.8, cabinColor: DARK, wheelR: 0.39, wheelX: 0.95, wheelZ: 1.45, bar: true, police: true },
   interceptor: { w: 1.95, len: 4.6, bodyH: 0.5, clr: 0.28, hoodLen: 1.7, wedge: true, trunkLen: 1.2, cabinLen: 1.9, cabinH: 0.52, cabinZ: -0.15, taper: 0.7, cabinColor: DARK, wheelR: 0.39, wheelX: 0.98, wheelZ: 1.4, bar: true, police: true, spoiler: true },
+  helicopter: { w: 2.4, len: 7.5, bodyH: 1.2, clr: 0.5, hoodLen: 1.2, wedge: false, trunkLen: 0.8, cabinLen: 2, cabinH: 0.7, cabinZ: 0.5, taper: 0.8, cabinColor: null, wheelR: 0.05, wheelX: 0.05, wheelZ: 0.05 },
+  boat: { w: 2.3, len: 6.0, bodyH: 0.55, clr: 0.12, hoodLen: 1.2, wedge: false, trunkLen: 0.8, cabinLen: 1.6, cabinH: 0.7, cabinZ: -0.3, taper: 0.8, cabinColor: null, wheelR: 0.05, wheelX: 0.05, wheelZ: 0.05 },
   bus: { w: 2.4, len: 9, bodyH: 1.5, clr: 0.45, hoodLen: 0.3, wedge: false, trunkLen: 0.2, cabinLen: 8.2, cabinH: 0.95, cabinZ: -0.2, taper: 0.97, cabinColor: null, wheelR: 0.5, wheelX: 1.1, wheelZ: 3.0 },
   scooter: { w: 0.6, len: 1.6, bodyH: 0.3, clr: 0.2, hoodLen: 0.4, wedge: false, trunkLen: 0.3, cabinLen: 0.5, cabinH: 0.2, cabinZ: 0, taper: 0.8, cabinColor: null, wheelR: 0.2, wheelX: 0.05, wheelZ: 0.6 },
   bicycle: { w: 0.5, len: 1.8, bodyH: 0.3, clr: 0.3, hoodLen: 0.4, wedge: false, trunkLen: 0.3, cabinLen: 0.5, cabinH: 0.2, cabinZ: 0, taper: 0.8, cabinColor: null, wheelR: 0.36, wheelX: 0.04, wheelZ: 0.7 },
   motorbike: { w: 0.7, len: 2.1, bodyH: 0.4, clr: 0.4, hoodLen: 0.5, wedge: false, trunkLen: 0.4, cabinLen: 0.6, cabinH: 0.3, cabinZ: 0, taper: 0.8, cabinColor: null, wheelR: 0.34, wheelX: 0.07, wheelZ: 0.8 },
   ambulance: { w: 2.1, len: 5.4, bodyH: 0.95, clr: 0.42, hoodLen: 1.2, wedge: false, trunkLen: 0.2, cabinLen: 4.0, cabinH: 0.8, cabinZ: -0.55, taper: 0.97, cabinColor: null, wheelR: 0.46, wheelX: 1.02, wheelZ: 1.7, bar: true },
+  firetruck: { w: 2.4, len: 7.2, bodyH: 1.1, clr: 0.5, hoodLen: 1.4, wedge: false, trunkLen: 0.3, cabinLen: 3.0, cabinH: 0.8, cabinZ: 1.4, taper: 0.95, cabinColor: null, wheelR: 0.55, wheelX: 1.1, wheelZ: 2.4, bar: true },
   swat:    { w: 2.15, len: 5.4, bodyH: 0.95, clr: 0.45, hoodLen: 1.2, wedge: false, trunkLen: 0.2, cabinLen: 4.0, cabinH: 0.95, cabinZ: -0.55, taper: 0.97, cabinColor: null, wheelR: 0.5, wheelX: 1.05, wheelZ: 1.7, bar: true, plating: true },
   armored: { w: 2.4, len: 5.8, bodyH: 1.25, clr: 0.5, hoodLen: 1.5, wedge: false, trunkLen: 0.3, cabinLen: 3.6, cabinH: 0.6, cabinZ: -0.6, taper: 0.9, cabinColor: null, wheelR: 0.55, wheelX: 1.15, wheelZ: 1.9, bar: true, plating: true },
 };
@@ -233,12 +239,58 @@ function buildLight(kind: 'bicycle' | 'scooter', color: number, bakeWheels: bool
   return { chassis: b.build(), head: hb.build(), tail: tb.build(), barRed: null, barBlue: null, lights: lb.build() };
 }
 
+/** A speedboat: a pointed hull with a deck, a windscreen and cabin, a rail and an outboard motor. */
+function buildBoat(color: number): Built {
+  const b = new MeshBuilder();
+  const white = 0xf4f4f4, dark = 0x23323f;
+  // hull: wide at the back, pinched to a point at the bow
+  b.box(2.3, 0.55, 3.6, 0, 0.4, -0.7, white, (p) => { /* the slab itself */ void p; });
+  b.box(2.3, 0.5, 2.0, 0, 0.4, 1.6, color, (p) => { for (let i = 0; i < p.count; i++) if (p.getZ(i) > 0) p.setX(i, p.getX(i) * 0.12); });
+  b.box(2.34, 0.12, 5.4, 0, 0.18, 0.0, 0x2a3a6b);                                  // keel stripe
+  b.box(1.9, 0.06, 3.0, 0, 0.7, -0.6, 0x8a6a45);                                    // teak deck
+  b.box(1.5, 0.7, 1.5, 0, 1.0, -0.3, white);                                        // cabin
+  b.box(1.4, 0.4, 0.06, 0, 1.15, 0.47, dark);                                       // windscreen
+  for (const sx of [-1, 1]) b.box(0.06, 0.34, 0.9, sx * 0.76, 1.15, -0.3, dark);   // side windows
+  b.box(1.6, 0.06, 1.6, 0, 1.38, -0.3, color);                                      // cabin roof
+  for (const sx of [-1, 1]) { b.box(0.04, 0.4, 3.0, sx * 1.1, 0.9, -0.7, 0xc9ccd6); b.box(0.04, 0.04, 3.0, sx * 1.1, 1.1, -0.7, 0xc9ccd6); } // rails
+  b.box(0.35, 0.6, 0.3, 0, 0.75, -2.55, 0x23262f); b.box(0.12, 0.7, 0.12, 0, 0.3, -2.7, 0x6d7280);                // outboard motor
+  b.box(0.1, 0.5, 0.1, 0, 1.0, 1.5, 0xd62d3a);                                      // a little flag pole
+  const hb = new MeshBuilder(); hb.box(0.4, 0.14, 0.06, 0, 0.75, 2.2, 0xffffff);
+  const tb = new MeshBuilder(); tb.box(0.4, 0.1, 0.06, 0, 0.8, -2.45, 0xffffff);
+  const lb = new MeshBuilder(); lb.box(0.4, 0.14, 0.06, 0, 0.75, 2.2, 0xfff3c4); lb.box(0.4, 0.1, 0.06, 0, 0.8, -2.45, 0xff2a3a);
+  return { chassis: b.build(), head: hb.build(), tail: tb.build(), barRed: null, barBlue: null, lights: lb.build() };
+}
+
+/** A light helicopter: a rounded cabin with a glass nose, a tail boom with a fin, and skids. The rotor is a separate mesh that spins. */
+function buildHeli(color: number): Built {
+  const b = new MeshBuilder();
+  const dark = 0x23262f, glass = 0x9ec7e8;
+  b.box(2.2, 1.3, 3.4, 0, 1.2, 0.3, color);                                // cabin
+  b.box(1.9, 1.0, 1.2, 0, 1.15, 2.2, glass, (p) => { for (let i = 0; i < p.count; i++) if (p.getZ(i) > 0) p.setX(i, p.getX(i) * 0.7); }); // glass nose
+  b.box(1.5, 0.12, 1.0, 0, 1.9, 0.6, 0x2a2d35);                            // engine cowl
+  b.box(0.5, 0.55, 3.8, 0, 1.5, -3.0, color);                              // tail boom
+  b.box(0.12, 1.1, 0.7, 0, 1.9, -4.8, color);                              // tail fin
+  b.box(0.6, 0.08, 0.5, 0, 1.45, -4.7, dark);                              // stabiliser
+  for (const sx of [-1, 1]) {
+    b.box(0.12, 0.12, 4.0, sx * 1.1, 0.12, 0.3, dark);                      // skid
+    b.box(0.1, 0.7, 0.1, sx * 1.0, 0.5, 1.2, dark); b.box(0.1, 0.7, 0.1, sx * 1.0, 0.5, -0.6, dark);
+    b.box(0.04, 0.6, 1.4, sx * 1.12, 1.25, 0.2, dark);                      // window frames
+  }
+  b.box(0.2, 0.5, 0.2, 0, 2.05, 0.3, dark);                                // rotor mast
+  const hb = new MeshBuilder(); hb.box(0.4, 0.14, 0.06, 0, 1.0, 2.85, 0xffffff);
+  const tb = new MeshBuilder(); tb.box(0.2, 0.1, 0.06, 0, 1.9, -5.2, 0xff2a3a);
+  const lb = new MeshBuilder(); lb.box(0.4, 0.14, 0.06, 0, 1.0, 2.85, 0xfff3c4); lb.box(0.2, 0.1, 0.06, 0, 1.9, -5.2, 0xff2a3a);
+  return { chassis: b.build(), head: hb.build(), tail: tb.build(), barRed: null, barBlue: null, lights: lb.build() };
+}
+
 function buildGeometry(kind: VehicleKind, color: number, bakeWheels: boolean): Built {
+  if (kind === 'boat') return buildBoat(color);
+  if (kind === 'helicopter') return buildHeli(color);
   if (kind === 'motorbike') return buildBike(color, bakeWheels);
   if (kind === 'bicycle' || kind === 'scooter') return buildLight(kind, color, bakeWheels);
   const s = SPECS[kind];
   const b = new MeshBuilder();
-  const body = s.police ? DARK : kind === 'ambulance' ? 0xf4f4f4 : kind === 'swat' ? 0x23262f : kind === 'armored' ? 0x3a4658 : color;
+  const body = s.police ? DARK : kind === 'ambulance' ? 0xf4f4f4 : kind === 'firetruck' ? 0xd62d2d : kind === 'swat' ? 0x23262f : kind === 'armored' ? 0x3a4658 : color;
   const top = s.clr + s.bodyH;
   b.box(s.w, s.bodyH, s.len, 0, s.clr + s.bodyH / 2, 0, body);
   // hood
@@ -276,6 +328,15 @@ function buildGeometry(kind: VehicleKind, color: number, bakeWheels: boolean): B
     b.box(0.5, 0.04, 0.14, 0, top + s.cabinH + 0.04, s.cabinZ, RED); b.box(0.14, 0.04, 0.5, 0, top + s.cabinH + 0.04, s.cabinZ, RED); // roof cross
     b.box(s.w * 0.8, 0.5, 0.04, 0, s.clr + s.bodyH * 0.65, -s.len / 2 - 0.02, 0xdde2ea);                   // rear doors
     b.box(0.04, 0.46, 0.04, 0, s.clr + s.bodyH * 0.65, -s.len / 2 - 0.04, 0x8a8f99);
+  }
+  if (kind === 'firetruck') {
+    for (const sx of [-1, 1]) {
+      b.box(0.03, 0.12, s.len * 0.85, sx * (s.w / 2 + 0.015), s.clr + s.bodyH * 0.55, 0, 0xffe14d);
+      b.box(0.5, 0.7, 1.6, sx * (s.w / 2 - 0.1), s.clr + s.bodyH * 0.25, -1.6, 0x9aa3b0);   // equipment lockers
+    }
+    for (const sx of [-0.5, 0.5]) b.box(0.08, 0.1, s.len * 0.7, sx, top + 0.2, -0.9, 0xcfd6df); // ladder rails
+    for (let k = 0; k < 8; k++) b.box(1.0, 0.05, 0.06, 0, top + 0.2, -3.0 + k * 0.7, 0xcfd6df);  // ladder rungs
+    b.box(0.5, 0.3, 0.5, 0, top + 0.35, -2.2, 0x4a505c);                                         // hose reel
   }
   if (kind === 'bus') {
     for (const sx of [-1, 1]) {

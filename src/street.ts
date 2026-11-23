@@ -14,7 +14,15 @@ export class StreetLife {
   private alarmCar: GameVehicle | null = null;
   private hornT = 6;
 
-  constructor(private game: Game) {}
+  constructor(private game: Game) {
+    const bus = game.bus;
+    bus.on('civKilled', (e) => this.crowdReacts(e.x, e.z));
+    bus.on('civAssaulted', (e) => this.crowdReacts(e.x, e.z, 24));
+    bus.on('gunshot', (e) => this.gunshot(e.x, e.z));
+    // a blast sends everybody within 45 m running, and somebody screams
+    bus.on('explosion', (e) => this.crowdReacts(e.x, e.z, 45));
+    bus.on('carAlarm', (e) => this.carAlarm(e.vehicle));
+  }
 
   /** A gun went off: people nearby panic (at most every 1.5 s). */
   gunshot(x: number, z: number): void {

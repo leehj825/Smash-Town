@@ -1,7 +1,7 @@
 import type { Game } from './game';
 import { bi, getLang } from './i18n';
 
-type Kind = 'murder' | 'wanted3' | 'wanted5' | 'escaped' | 'heist' | 'police' | 'race' | 'bounty' | 'blackout' | 'festival';
+type Kind = 'murder' | 'wanted3' | 'wanted5' | 'escaped' | 'heist' | 'police' | 'race' | 'bounty' | 'blackout' | 'festival' | 'explosion' | 'turf' | 'fire' | 'theft';
 const HEADLINES: Record<Kind, [string, string][]> = {
   murder: [
     ['A pedestrian was killed downtown. Police are looking for a suspect.', '시내에서 보행자가 숨졌습니다. 경찰이 용의자를 쫓고 있습니다.'],
@@ -18,7 +18,7 @@ const HEADLINES: Record<Kind, [string, string][]> = {
     ['The suspect slipped away. Police have called off the search.', '용의자가 달아났습니다. 경찰이 수색을 중단했습니다.'],
   ],
   heist: [
-    ['Smash Bank was robbed tonight. Losses are in the thousands.', '스매시 은행에 강도가 들었습니다. 피해액은 수천 달러에 이릅니다.'],
+    ['Smash Bank was robbed tonight. Losses are in the thousands.', '스매시 뱅크에 강도가 들었습니다. 피해액은 수천 달러에 이릅니다.'],
   ],
   police: [
     ['Officers down: several police have been knocked out in clashes.', '경찰관 여러 명이 충돌 중 쓰러졌습니다.'],
@@ -28,6 +28,21 @@ const HEADLINES: Record<Kind, [string, string][]> = {
   ],
   blackout: [
     ['Storm knocks out power across the city - the lights are off.', '폭풍으로 도시 곳곳이 정전됐습니다.'],
+  ],
+  explosion: [
+    ['A huge explosion shook the city centre - the cause is not yet known.', '도심에서 큰 폭발이 있었습니다. 원인은 아직 알려지지 않았습니다.'],
+    ['Residents report a blast and thick smoke downtown.', '시민들이 폭발음과 짙은 연기를 신고하고 있습니다.'],
+  ],
+  fire: [
+    ['Fire crews are battling a blaze in the street - keep clear.', '소방대가 길가의 화재를 진압하고 있습니다. 접근하지 마세요.'],
+    ['Smoke over the city: a fire has broken out.', '도시 위로 연기가 피어오릅니다. 화재가 발생했습니다.'],
+  ],
+  theft: [
+    ['A bag snatcher is on the run - police ask for help.', '가방 날치기범이 도주 중입니다. 경찰이 도움을 요청했습니다.'],
+  ],
+  turf: [
+    ['A gang lost a block of the city to an outsider overnight.', '갱단이 하룻밤 사이에 한 구역을 외부인에게 빼앗겼습니다.'],
+    ['Gang territory has changed hands - police warn of retaliation.', '갱단 구역의 주인이 바뀌었습니다. 경찰은 보복을 경고했습니다.'],
   ],
   festival: [
     ['A street party and fireworks show are under way in the plaza.', '광장에서 거리 축제와 불꽃놀이가 한창입니다.'],
@@ -48,6 +63,18 @@ export class News {
 
   constructor(private game: Game) {
     this.el = document.getElementById('news')!;
+    const bus = game.bus;
+    bus.on('civKilled', (e) => { if (!e.kids) this.report('murder'); });
+    bus.on('wantedRaised', (e) => { if (e.stars >= 5) this.report('wanted5', true); else if (e.stars >= 3) this.report('wanted3'); });
+    bus.on('wantedLost', () => this.report('escaped'));
+    bus.on('copDown', (e) => { if (e.total % 6 === 0) this.report('police'); });
+    bus.on('hunterSpawned', () => this.report('bounty'));
+    bus.on('heist', () => this.report('heist', true));
+    bus.on('blackout', () => this.report('blackout'));
+    bus.on('fire', (e) => { if (Math.hypot(e.x - game.focusX, e.z - game.focusZ) < 200) this.report('fire'); });
+    bus.on('theft', () => this.report('theft'));
+    bus.on('turfCaptured', () => this.report('turf', true));
+    bus.on('explosion', (e) => { if (Math.hypot(e.x - game.focusX, e.z - game.focusZ) < 90) this.report('explosion'); });
   }
 
   update(dt: number): void { this.cooldown = Math.max(0, this.cooldown - dt); }

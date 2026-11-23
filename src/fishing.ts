@@ -11,6 +11,8 @@ export class Fishing {
   private phase: Phase = 'idle';
   private t = 0;
   private catches = 0;
+  /** A tip from Old Pete: until this time (seconds on the page clock) a quarter of the bites are rare fish. */
+  luckUntil = 0;
 
   constructor(private game: Game) {}
 
@@ -49,7 +51,8 @@ export class Fishing {
     if (this.phase === 'wait') { this.phase = 'idle'; G.hud.toast(bi('Too early - nothing yet.', '너무 일렀어요 - 아직 아무것도 없어요.'), 1600); return true; }
     // bite: reel it in
     this.phase = 'idle';
-    const r = Math.random();
+    const lucky = performance.now() / 1000 < this.luckUntil;
+    const r = lucky && Math.random() < 0.25 ? 0.9 + Math.random() * 0.08 : Math.random(); // luck: a quarter of the bites are rare ones
     const fish = r < 0.6 ? { en: 'a small fish', ko: '작은 물고기', v: 25 } : r < 0.9 ? { en: 'a big fish', ko: '큰 물고기', v: 90 } : r < 0.985 ? { en: 'a rare golden fish', ko: '희귀 황금 물고기', v: 350 } : { en: 'an old boot...', ko: '낡은 장화...', v: 2 };
     const v = fish.v + Math.floor(Math.random() * fish.v * 0.3);
     G.addCash(v, 'other');

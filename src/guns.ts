@@ -55,7 +55,7 @@ export class Guns {
   /** Upgrade levels per gun: [damage, magazine], each 0-3 (bought in the Arms tab). */
   up: Record<GunId, [number, number]> = { pistol: [0, 0], smg: [0, 0], shotgun: [0, 0], rocket: [0, 0], paint: [0, 0], grenade: [0, 0] };
   maxMag(g: GunDef): number { return g.id === 'rocket' || g.id === 'grenade' || g.id === 'paint' ? g.mag : Math.round(g.mag * (1 + 0.25 * this.up[g.id][1])); }
-  dmgOf(g: GunDef): number { return g.dmg * (1 + 0.1 * this.up[g.id][0]); }
+  dmgOf(g: GunDef): number { return g.dmg * (1 + 0.1 * this.up[g.id][0]) * this.game.skills.gunMul; }
   pow(id: GunId): number { return 1 + 0.1 * this.up[id][0]; }
   private cool = 0;
   private reloadT = 0;
@@ -400,7 +400,7 @@ export class Guns {
     G.input.rumble(0.4, 0.6, 70);
     this.flash.position.set(ox, 1.4, oz);
     this.flashT = 0.06;
-    G.street.gunshot(ox, oz);
+    G.bus.emit({ type: 'gunshot', x: ox, z: oz });
     this.flashMesh.position.set(ox, 1.4, oz);
     this.flashMesh.scale.setScalar((g.id === 'shotgun' ? 1.1 : g.id === 'smg' ? 0.55 : 0.75) * (0.8 + Math.random() * 0.4));
     G.vfx.emitSparks(ox, 1.3, oz, 3);
@@ -591,6 +591,7 @@ export class Guns {
   private explode(x: number, z: number, R = 8, power = 1): void {
     const G = this.game;
     G.vfx.explosion(x, z);
+    G.bus.emit({ type: 'explosion', x, z, byPlayer: true });
     G.range.blast(x, z, R);
     G.audio.explosion();
     G.cameraRig.shake(0.9);

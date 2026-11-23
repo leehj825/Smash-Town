@@ -19,7 +19,7 @@ type Step =
 interface Chapter { title: Pair; reward: number; finale?: boolean; steps: Step[] }
 
 const DONNA: Pair = ['Donna', '도나'];
-const PARK: Pair = ['Mr. Park', '박 사장님'];
+const PARK: Pair = ['Mr. Park', '미스터 파크'];
 const ALLY: Pair = ['Ally', '앨리'];
 const LEE: Pair = ['Captain Lee', '이 선장'];
 const MAYOR: Pair = ['Mayor Bigsby', '빅스비 시장'];
@@ -40,14 +40,14 @@ export const CHAPTERS: Chapter[] = [
       { k: 'goto', spot: 'donna', text: ['Go back to Donna', '도나에게 돌아가기'] },
       { k: 'dialog', lines: [
         { who: DONNA, text: ['Wow, the street looks great! Here is something for your trouble.', '와, 거리가 깨끗해졌네! 수고비야.'] },
-        { who: DONNA, text: ["Mr. Park at the 24h Motel needs help too. Explore as much as you like first - he isn't going anywhere!", '24시 모텔의 박 사장님도 도움이 필요해. 먼저 마음껏 구경해도 돼. 사장님은 어디 안 가니까!'] },
+        { who: DONNA, text: ["Mr. Park at the 24h Motel needs help too. Explore as much as you like first - he isn't going anywhere!", '24시 모텔의 미스터 파크도 도움이 필요해. 먼저 마음껏 구경해도 돼. 사장님은 어디 안 가니까!'] },
       ] },
     ],
   },
   {
     title: ['Smash for Good', '부수는 건 좋은 일'], reward: 1500,
     steps: [
-      { k: 'goto', spot: 'motel', text: ['Meet Mr. Park at the 24h Motel', '24시 모텔에서 박 사장님 만나기'] },
+      { k: 'goto', spot: 'motel', text: ['Meet Mr. Park at the 24h Motel', '24시 모텔에서 미스터 파크 만나기'] },
       { k: 'dialog', lines: [
         { who: PARK, text: ['Ah, the new helper! The mall crew left their demolition crates all over town.', '오, 새로 온 도우미군! 철거 상자들을 온 동네에 버려놨어.'] },
         { who: PARK, text: ["Smash 12 more things and I'll sign this petition to save Old Town.", '12개를 더 부숴주면 올드타운을 지키는 청원서에 서명하겠네.'] },

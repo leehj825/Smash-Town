@@ -1,5 +1,7 @@
 import { bi, onLangChange } from './i18n';
 import type { Game } from './game';
+import { AREAS, AREA_NAMES } from './reputation';
+import { SKILLS, SKILL_NAMES, SKILL_EFFECT } from './skills';
 import { ACHIEVEMENTS, OWNABLE, dailyById, type OwnableShop, type StatKey } from './progress';
 import { ACTIONS, RESERVED, bindKey, keyFor, prettyKey, resetBinds, settings, saveSettings } from './settings';
 
@@ -96,7 +98,7 @@ const STAT_LABELS: [StatKey, string, string][] = [
   ['gigs', 'Side jobs done', '완료한 부업'], ['quests', 'Street quests done', '완료한 거리 퀘스트'], ['earned', 'Money earned', '번 돈'],
   ['driveM', 'Distance driven', '주행 거리'], ['roofs', 'Ladders climbed', '오른 사다리'], ['shops', 'Shop visits', '상점 방문'], ['playSec', 'Time played', '플레이 시간'],
   ['fares', 'Taxi fares', '택시 손님'], ['races', 'Races won', '레이스 우승'], ['deliveries', 'Deliveries', '배달'], ['heists', 'Bank heists', '은행 강도'],
-  ['robberies', 'Tills robbed', '털은 금고'], ['fish', 'Fish caught', '낚은 물고기'], ['bounties', 'Bounty hunters wrecked', '격파한 사냥꾼'], ['hides', 'Times hidden from police', '경찰 피해 숨은 횟수'],
+  ['robberies', 'Tills robbed', '털은 금고'], ['fish', 'Fish caught', '낚은 물고기'], ['turfs', 'Gang blocks taken', '점령한 구역'], ['rescues', 'Patients treated', '치료한 환자'], ['fires', 'Fires put out', '끈 불'], ['patrols', 'Patrol calls handled', '처리한 순찰 출동'], ['thieves', 'Thieves caught', '잡은 도둑'], ['bounties', 'Bounty hunters wrecked', '격파한 사냥꾼'], ['hides', 'Times hidden from police', '경찰 피해 숨은 횟수'],
 ];
 
 /** Lifetime stats, achievements, daily challenges and owned shops. */
@@ -123,11 +125,15 @@ export class StatsPanel implements Modal {
     }).join('');
     const shops = (Object.keys(OWNABLE) as OwnableShop[]).map((id) => {
       const own = p.owned.includes(id);
-      return `<div class="erow"><span>${id === 'donut' ? bi("Donna's Donuts", '도나의 도넛') : id === 'motel' ? bi('24h Motel', '24시 모텔') : bi('Arcade', '오락실')}</span><b>${own ? `$${Math.floor(p.pending[id]).toLocaleString('en-US')} ${bi('waiting', '대기 중')}` : `${bi('for sale', '판매 중')} $${OWNABLE[id].price.toLocaleString('en-US')}`}</b></div>`;
+      return `<div class="erow"><span>${id === 'donut' ? bi("Donna's Donuts", '도나스 도넛') : id === 'motel' ? bi('24h Motel', '24시 모텔') : bi('Arcade', '오락실')}</span><b>${own ? `$${Math.floor(p.pending[id]).toLocaleString('en-US')} ${bi('waiting', '대기 중')}` : `${bi('for sale', '판매 중')} $${OWNABLE[id].price.toLocaleString('en-US')}`}</b></div>`;
     }).join('');
     this.el.innerHTML = `<div class="panel wide"><h2>${bi('STATS', '기록')}</h2><div class="scroll statsbox">
       <h3>${bi('DAILY CHALLENGES', '오늘의 도전')}</h3>${daily}
       <h3>${bi('YOUR SHOPS', '내 가게')}</h3>${shops}
+      <h3>${bi('SKILLS', '스킬')}</h3>${SKILLS.map((k) => `<div class="erow"><span>${bi(SKILL_NAMES[k][0], SKILL_NAMES[k][1])} <small>${bi(SKILL_EFFECT[k][0], SKILL_EFFECT[k][1])}</small><i class="pbar"><i style="width:${Math.round(this.game.skills.progress(k) * 100)}%"></i></i></span><b>${bi('Lv', '레벨')} ${this.game.skills.level(k)}</b></div>`).join('')}
+      <h3>${bi('FACTIONS', '세력')}</h3><div class="erow"><span>${this.game.factions.label('watch')}</span></div><div class="erow"><span>${this.game.factions.label('mafia')}</span></div>
+      <h3>${bi('FRIENDS', '친구')}</h3>${this.game.npcs.friendList().map((f) => `<div class="erow"><span>${f.name}</span><b>${f.level === 2 ? bi('Best friend', '단짝') : f.level === 1 ? bi('Friend', '친구') : bi('Acquaintance', '아는 사이')} ${'★'.repeat(f.level)}</b></div>`).join('') || `<div class="erow"><span>${bi('Talk to the named people to make friends', '이름 있는 사람들과 대화해 친구가 되어 보세요')}</span></div>`}
+      <h3>${bi('REPUTATION', '평판')}</h3>${AREAS.map((a) => `<div class="erow"><span>${bi(AREA_NAMES[a][0], AREA_NAMES[a][1])}</span><b>${this.game.reputation.get(a) > 0 ? '+' : ''}${this.game.reputation.get(a)}</b></div>`).join('')}
       <h3>${bi('LIFETIME', '누적 기록')}</h3>${stats}
       <h3>${bi('ACHIEVEMENTS', '업적')} ${p.ach.length}/${ACHIEVEMENTS.length}</h3>${ach}</div>
       <button class="big small" id="stats-back">${bi('BACK', '뒤로')}</button></div>`;

@@ -92,6 +92,10 @@ export class StreetRace {
   }
 
   get active(): boolean { return this.phase !== 'idle'; }
+  /** A friend's tip: the next race pays this much more (1 = no bonus). Used up by the next win. */
+  bonus = 1;
+  /** Where a start line is (null if there are fewer starts). */
+  startPoint(i: number): { x: number; z: number } | null { const s = this.starts[i]; return s ? { x: s.x, z: s.z } : null; }
   get completed(): number { return this.done; }
 
   markers(): { x: number; z: number; flash: boolean; color: string }[] {
@@ -352,7 +356,8 @@ export class StreetRace {
       if (this.idx >= this.cp.length) {
         const placeAtFinish = this.finishedBefore + 1;
         const share = [1, 0.55, 0.3][placeAtFinish - 1] ?? 0.2;
-        const pay = Math.round((600 + Math.max(0, this.time) * 12) * share * this.level.prize);
+        const pay = Math.round((600 + Math.max(0, this.time) * 12) * share * this.level.prize * this.bonus);
+        this.bonus = 1;
         G.addCash(pay, 'gigs');
         G.progress.add('gigs');
         if (placeAtFinish === 1) { G.progress.add('races'); this.done++; }

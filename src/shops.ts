@@ -102,7 +102,7 @@ export class Shops {
       const pl = G.humans.player;
       G.popups.spawn(pl.x, 3, pl.z, `+$${loot.toLocaleString('en-US')}`, '#ffd23a');
       G.hud.toast(bi('The vault is open! Grab the cash and get out!', '금고가 열렸어요! 돈을 챙겨 도망가세요!'), 3000);
-      G.news.report('heist', true);
+      G.bus.emit({ type: 'heist' });
     }
   }
 
@@ -144,7 +144,7 @@ export class Shops {
         break;
       }
       case 'gun': this.G.openGarage('arms'); break;
-      case 'garage': this.G.openGarageCounter(); break;
+      case 'garage': this.G.hideouts.openCounter(); break;
       case 'home': {
         pl.hp = pl.maxHp;
         this.G.flushSave();

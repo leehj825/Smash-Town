@@ -72,7 +72,7 @@ export class Machines {
     const bank = Math.floor(this.game.save.bank ?? 0);
     return bank > 0
       ? `${bi('[F] ATM: withdraw', '[F] ATM 출금')} $${Math.min(500, bank).toLocaleString('en-US')} (${bi('fee', '수수료')} $10)`
-      : bi('ATM: no savings (deposit at the Smash Bank)', 'ATM: 저축 없음 (스매시 은행에 입금하세요)');
+      : bi('ATM: no savings (deposit at the Smash Bank)', 'ATM: 저축 없음 (스매시 뱅크에 입금하세요)');
   }
 
   use(m: Machine): void {

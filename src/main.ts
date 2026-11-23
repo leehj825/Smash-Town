@@ -194,7 +194,7 @@ applyWeather(savedW === 'clear' || savedW === 'rain' || savedW === 'fog' || save
 function applyKids(on: boolean): void {
   game.humans.kids = on;
   storedSet(KIDS_KEY, on ? '1' : '0');
-  document.getElementById('dialog')!.addEventListener('click', () => game.story.advanceDialog());
+  document.getElementById('dialog')!.addEventListener('click', () => game.advanceDialog());
 document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.classList.toggle('sel', (b.dataset.k === '1') === on));
 }
 applyKids(storedGet(KIDS_KEY) !== '0');
@@ -293,10 +293,11 @@ wireSeg('sens'); wireSeg('aimSens'); wireSeg('fov'); wireSeg('shake');
 function applyA11y(): void {
   document.documentElement.classList.toggle('big-ui', settings.bigUi);
   document.documentElement.classList.toggle('cb-safe', settings.colorSafe);
-  document.querySelectorAll<HTMLElement>('.seg.a11y').forEach((b) => b.classList.toggle('sel', (b.dataset.v === '1') === !!settings[b.dataset.a as 'bigUi' | 'colorSafe']));
+  document.querySelectorAll<HTMLElement>('.seg.a11y').forEach((b) => b.classList.toggle('sel', (b.dataset.v === '1') === !!settings[b.dataset.a as 'bigUi' | 'colorSafe' | 'perfHud']));
+  document.getElementById('perf')!.hidden = !settings.perfHud;
 }
 document.querySelectorAll<HTMLElement>('.seg.a11y').forEach((b) => b.addEventListener('click', () => {
-  settings[b.dataset.a as 'bigUi' | 'colorSafe'] = b.dataset.v === '1';
+  settings[b.dataset.a as 'bigUi' | 'colorSafe' | 'perfHud'] = b.dataset.v === '1';
   saveSettings(); applyA11y();
 }));
 applyA11y();
@@ -339,10 +340,30 @@ window.addEventListener('gamepadconnected', () => hud.toast(t('ui.toast.pad'), 2
 // ---------------------------------------------------------------- main loop
 const timer = new THREE.Timer();
 
+/** The performance box: frame rate (averaged over half a second), worst frame, triangles and draw calls of the whole frame. */
+const perfEl = document.getElementById('perf')!;
+let perfAcc = 0, perfFrames = 0, perfWorst = 0, perfLast = performance.now();
+renderer.info.autoReset = false; // the composer renders several passes per frame: count them all and reset once per frame
+function updatePerf(): void {
+  const now = performance.now();
+  const ms = now - perfLast;
+  perfLast = now;
+  perfAcc += ms; perfFrames++; perfWorst = Math.max(perfWorst, ms);
+  if (perfAcc >= 500) {
+    if (settings.perfHud) {
+      const i = renderer.info.render;
+      perfEl.textContent = `${Math.round((perfFrames * 1000) / perfAcc)} fps  worst ${Math.round(perfWorst)} ms\n${Math.round(i.triangles / 1000)}k tris  ${i.calls} calls  ${quality}`;
+    }
+    perfAcc = 0; perfFrames = 0; perfWorst = 0;
+  }
+  renderer.info.reset();
+}
+
 function frame(): void {
   requestAnimationFrame(frame);
   try {
     tick();
+    updatePerf();
   } catch (err) {
     showError(`Frame error: ${(err as Error).message}`);
   }
@@ -434,7 +455,7 @@ function tick(): void {
   // a storm can knock the power out for half a minute
   if (weather.kind === 'storm' && !game.blackout && state === 'playing' && Math.random() < dt / 100) {
     game.blackout = true; blackoutT = 25 + Math.random() * 20;
-    game.news.report('blackout');
+    game.bus.emit({ type: 'blackout' });
   }
   if (game.blackout) { blackoutT -= dt; if (blackoutT <= 0 || weather.kind !== 'storm') game.blackout = false; }
   weather.indoors = !!game.inside;

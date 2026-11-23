@@ -20,7 +20,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     await p.goto(`http://localhost:${PORT}/`);
     await p.waitForFunction(() => window.__smash);
     const S = (fn, a) => p.evaluate(fn, a);
-    await S(() => window.__smash.startGame());
+    await S(() => { window.__smash.startGame(); window.__smash.game.skills.off = true; }); // skills off: these tests count dollars and damage exactly
     await p.waitForTimeout(600);
 
     // buy guns in the garage
