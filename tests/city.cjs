@@ -334,6 +334,19 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { crew, provoked, noHeat: G.heat === heatBefore, captured, bonus: cash, income, saved: true, lost, stat: G.progress.stats.turfs };
     });
     ok(turf.crew === 5 && turf.provoked && turf.noHeat && turf.captured && turf.bonus >= 500 && turf.income === 120 && turf.lost && turf.stat >= 1, 'a gang crew turns on you, taking the block pays and is not a crime, and the gang takes it back if you stay away', JSON.stringify(turf));
+    const night = await S(() => {
+      const G = g(); const H = G.humans;
+      G.humans.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0); G.onFoot = true; G.driving = null; G.inside = null; G.state = 'play'; G.stars = 0;
+      window.__smash.applyTime('noon', true); window.__smash.env.night = 0;
+      G.update(0.05); const dayLimit = H.civLimit;
+      window.__smash.applyTime('night', true); window.__smash.env.night = 1;
+      G.update(0.05); const nightLimit = H.civLimit;
+      const clothes = G.interiors.rooms.find((q) => q.id === 'clothes'), gun = G.interiors.rooms.find((q) => q.id === 'gun');
+      const res = { dayLimit, nightLimit, clothesClosed: G.shopClosed(clothes), gunOpen: !G.shopClosed(gun) };
+      window.__smash.applyTime('noon', true); window.__smash.env.night = 0;
+      return res;
+    });
+    ok(night.nightLimit < night.dayLimit * 0.5 && night.clothesClosed && night.gunOpen, 'at night fewer people are out and some shops close', JSON.stringify(night));
     // savings, houses and race records survive a reload
     await S(() => { const G = g(); G.save.bank = 4321; G.save.homes = [1, 2]; G.save.raceBest = [0, 77.5]; G.flushSave(); });
     await p.reload();

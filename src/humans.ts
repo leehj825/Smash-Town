@@ -135,6 +135,8 @@ export class Humans {
   /** Set by the game while it rains: passers-by put up umbrellas. */
   raining = false;
   copsDefeated = 0;
+  /** How many of the walking civilians are out and about (fewer at night and in the rain); the rest are indoors. */
+  civLimit = N - CIV_FIRST;
   combatTimer = 0;
 
   private rng = makeRng(4242);
@@ -964,6 +966,11 @@ export class Humans {
       // far-away civilians are frozen and not drawn
       if (h.role === Role.Civ && Math.abs(h.x - p.x) + Math.abs(h.z - p.z) > 190
         && Math.abs(h.x - ctx.playerCarX) + Math.abs(h.z - ctx.playerCarZ) > 190) {
+        if (h.rendered) this.hide(h);
+        continue;
+      }
+      // indoors: a civilian beyond the limit who is just strolling is not drawn or moved
+      if (h.role === Role.Civ && h.slot - CIV_FIRST >= this.civLimit && h.state === St.Walk && h.freeT <= 0 && h.calling <= 0) {
         if (h.rendered) this.hide(h);
         continue;
       }

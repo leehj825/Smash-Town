@@ -515,6 +515,7 @@ export class Game {
 
   enterBuilding(room: Room): void {
     if (this.fading || this.state !== 'play') return;
+    if (this.shopClosed(room)) { this.hud.toast(bi('Closed for the night - open again in the daytime.', '밤에는 문을 닫았어요 - 낮에 다시 오세요.'), 2400); return; }
     if (this.stars > 0 && !((room.id === 'garage' || room.id === 'home') && this.hideouts.canHide())) { this.hud.toast(room.id === 'garage' || room.id === 'home' ? bi('The police are too close to hide!', '경찰이 너무 가까워서 숨을 수 없어요!') : bi('The door is locked - the police are watching!', '문이 잠겨 있어요 - 경찰이 지켜보고 있어요!'), 2400); return; }
     const pl = this.humans.player;
     this.ret = { x: pl.x, z: pl.z, h: pl.heading };
@@ -1019,6 +1020,8 @@ export class Game {
       const look = this.humans.player.look;
       for (const v of this.vehicles) if (v.isBike) v.setRider(v === this.driving && !this.onFoot, look.pants, look.shirt, look.skin);
     }
+    // night and rain empty the streets: fewer people out walking
+    this.humans.civLimit = Math.max(8, Math.round(45 * (1 - 0.65 * this.env.night - (this.humans.raining ? 0.2 : 0))));
     this.medics.update(dt);
     this.race.drive(dt);
     this.lights.update(dt);
@@ -1607,6 +1610,12 @@ export class Game {
     return bonus;
   }
 
+  /** Some shops shut at night (not for their owner). */
+  shopClosed(room: Room): boolean {
+    if (this.env.night < 0.7 || (room.id !== 'clothes' && room.id !== 'donut')) return false;
+    return !this.progress.owned.includes(room.id as never);
+  }
+
   /** Fade out and arrive somewhere else on foot (the bus line uses this). */
   travelTo(x: number, z: number, heading: number, label: string): void {
     if (this.fading || this.state !== 'play') return;
@@ -1701,7 +1710,7 @@ export class Game {
       const door = this.climb ? null : this.interiors.roomAt(this.humans.player.x, this.humans.player.z, 2.6);
       this.hud.setActionLabel(lo ? bi('CLIMB', '오르기') : door && !this.humans.player.roof ? bi('ENTER', '입장') : 'F');
       if (lo) this.hud.setPrompt(lo.up ? bi('[F] Climb the ladder', '[F] 사다리 오르기') : bi('[F] Climb down', '[F] 내려가기'));
-      else if (door && !this.humans.player.roof) this.hud.setPrompt(`${bi('[F] Enter', '[F] 들어가기')} ${bi(door.en, door.ko)}`);
+      else if (door && !this.humans.player.roof) this.hud.setPrompt(this.shopClosed(door) ? `${bi(door.en, door.ko)} - ${bi('closed for the night', '밤에는 닫았어요')}` : `${bi('[F] Enter', '[F] 들어가기')} ${bi(door.en, door.ko)}`);
       else {
         const mach = this.machines.nearest(this.humans.player.x, this.humans.player.z);
         const hm = mach ? -1 : this.hideouts.homeNear();
