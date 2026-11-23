@@ -1545,6 +1545,7 @@ export class Game {
       if (c.hp <= 0 && !c.wrecked) {
         v.markWrecked();
         this.vfx.explosion(v.x, v.z);
+        this.bus.emit({ type: 'explosion', x: v.x, z: v.z, byPlayer: false });
         if (this.nearPlayer(v.x, v.z, 70)) { this.audio.explosion(); this.cameraRig.shake(0.5); }
         if (v === this.driving) continue; // handled by the state machine
         if (v.ai === 'police') {

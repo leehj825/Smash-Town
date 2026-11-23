@@ -21,6 +21,12 @@ export class Crime {
       const G = this.game;
       if (G.stars === 0 && Math.random() < 0.5) G.humans.startWitnesses(e.x, e.z, 22, 1);
     });
+    // blowing things up in the street counts as a crime if people are close enough to see it
+    bus.on('explosion', (e) => {
+      const G = this.game;
+      if (!e.byPlayer) return;
+      if (Math.hypot(e.x - G.focusX, e.z - G.focusZ) < 60) G.addHeat(15);
+    });
     bus.on('civRunOver', (e) => {
       const G = this.game;
       if (G.stars === 0) G.humans.startWitnesses(e.x, e.z, 30, 3);

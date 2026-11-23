@@ -303,6 +303,17 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { heard, newsAfter: G.news.log.length - n0, recent: B.recent.length };
     });
     ok(evt.heard === 2 && evt.newsAfter === 1 && evt.recent >= 4, 'the event bus delivers events, stops when you unsubscribe, and the news listens to it', JSON.stringify(evt));
+    const boom = await S(() => {
+      const G = g(); const H = G.humans; const pl = H.player;
+      G.humans.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0); G.onFoot = true; G.driving = null; G.inside = null; G.state = 'play';
+      G.stars = 0; G.heat = 0; G.news.cooldown = 0;
+      const civ = H.list.find((h) => h.active && h.maxHp === 30 && h.state === 1);
+      civ.x = pl.x + 8; civ.z = pl.z + 8; civ.fleeing = false;
+      const n0 = G.news.log.length;
+      G.bus.emit({ type: 'explosion', x: pl.x + 6, z: pl.z + 6, byPlayer: true });
+      return { fled: civ.fleeing, heat: G.heat, news: G.news.log.length - n0 };
+    });
+    ok(boom.fled && boom.heat >= 15 && boom.news === 1, 'an explosion makes the crowd run, counts as a crime if you did it, and makes the news', JSON.stringify(boom));
     // savings, houses and race records survive a reload
     await S(() => { const G = g(); G.save.bank = 4321; G.save.homes = [1, 2]; G.save.raceBest = [0, 77.5]; G.flushSave(); });
     await p.reload();

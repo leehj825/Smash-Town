@@ -591,6 +591,7 @@ export class Guns {
   private explode(x: number, z: number, R = 8, power = 1): void {
     const G = this.game;
     G.vfx.explosion(x, z);
+    G.bus.emit({ type: 'explosion', x, z, byPlayer: true });
     G.range.blast(x, z, R);
     G.audio.explosion();
     G.cameraRig.shake(0.9);

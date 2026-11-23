@@ -21,6 +21,8 @@ export type GameEvent =
   | { type: 'wantedLost' }
   /** A cop was knocked out; `total` is the running count. */
   | { type: 'copDown'; total: number }
+  /** Something blew up (a wrecked car, a rocket, a grenade). `byPlayer` when the blast is the player's doing. */
+  | { type: 'explosion'; x: number; z: number; byPlayer: boolean }
   | { type: 'hunterSpawned' }
   | { type: 'heist' }
   | { type: 'blackout' }

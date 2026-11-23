@@ -19,6 +19,8 @@ export class StreetLife {
     bus.on('civKilled', (e) => this.crowdReacts(e.x, e.z));
     bus.on('civAssaulted', (e) => this.crowdReacts(e.x, e.z, 24));
     bus.on('gunshot', (e) => this.gunshot(e.x, e.z));
+    // a blast sends everybody within 45 m running, and somebody screams
+    bus.on('explosion', (e) => this.crowdReacts(e.x, e.z, 45));
     bus.on('carAlarm', (e) => this.carAlarm(e.vehicle));
   }
 
