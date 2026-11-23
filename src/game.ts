@@ -576,10 +576,9 @@ export class Game {
     this.damageTotal += value;
     this.comboCount++;
     this.comboTimer = 4;
+    // smashing things earns nothing (it is not a job): the combo only shows how wild you are being
     const mult = Math.min(10, 1 + Math.floor(this.comboCount / 2));
-    const pay = Math.round(value * 0.1 * mult);
-    this.addCash(pay, 'props');
-    this.popups.spawn(c.x, 1.8, c.z, `+$${pay}`, '#3dff8a');
+    this.popups.spawn(c.x, 1.8, c.z, mult > 1 ? `x${mult}` : t('pop.smash'), '#ffb347');
     if (!quest) this.addHeat(3);
     this.audio.smash();
     this.cameraRig.shake(Math.min(0.5, speed / 70));

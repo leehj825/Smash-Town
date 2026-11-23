@@ -297,7 +297,7 @@ function setPaused(p: boolean): void {
   if (p) {
     input.releaseMouse();
     const e = game.earned;
-    hud.setEarnings([[bi('Smashed props', '부순 물건'), e.props], [bi('Golden stars', '황금 별'), e.stars], [bi('Side jobs', '부업'), e.gigs], [bi('Story', '스토리'), e.story], [bi('Police & survival', '경찰·생존'), e.police], [bi('Other', '기타'), e.other]]);
+    hud.setEarnings([[bi('Golden stars', '황금 별'), e.stars], [bi('Side jobs', '부업'), e.gigs], [bi('Story', '스토리'), e.story], [bi('Police & survival', '경찰·생존'), e.police], [bi('Other', '기타'), e.other]]);
   }
 }
 document.getElementById('btn-play')!.addEventListener('click', startGame);
