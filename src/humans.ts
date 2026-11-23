@@ -55,6 +55,8 @@ export class Human {
   phase = 0; speed = 0; fleeing = false;
   /** A bag snatcher on the run (see thieves.ts): sprints away along the pavement. */
   thief = false;
+  /** An ally told to hold a spot: stays near (holdX, holdZ) instead of following the player. */
+  hold = false; holdX = 0; holdZ = 0;
   /** Props vaulted (a counter for tests and stats). */
   vaults = 0;
   /** Seconds left of a pause in a stroll (looking at the phone, window shopping). */
@@ -710,7 +712,7 @@ export class Humans {
       const d = Math.hypot(g.x - h.x, g.z - h.z);
       if (d < fd && (g.hostile || Math.hypot(g.x - p.x, g.z - p.z) < 14)) { fd = d; foe = g; }
     }
-    const tx = foe ? foe.x : p.x - Math.sin(p.heading) * 2.6, tz = foe ? foe.z : p.z - Math.cos(p.heading) * 2.6;
+    const tx = foe ? foe.x : h.hold ? h.holdX : p.x - Math.sin(p.heading) * 2.6, tz = foe ? foe.z : h.hold ? h.holdZ : p.z - Math.cos(p.heading) * 2.6;
     const dx = tx - h.x, dz = tz - h.z, dist = Math.hypot(dx, dz);
     const stop = foe ? 1.9 : 0.8;
     if (dist > stop) {
@@ -722,7 +724,7 @@ export class Humans {
       h.mvx *= Math.exp(-8 * dt); h.mvz *= Math.exp(-8 * dt);
       h.speed = Math.hypot(h.mvx, h.mvz); h.state = h.speed > 0.4 ? St.Walk : St.Idle;
       if (foe && h.cd <= 0 && dist < 2.4) { h.heading = Math.atan2(dx, dz); this.beginAttack(h, ATTACKS.cross); h.cd = 1.0; }
-      else if (!foe) h.heading += wrap(p.heading - h.heading) * Math.min(1, dt * 3);
+      else if (!foe) h.heading += wrap((h.hold ? Math.atan2(p.x - h.x, p.z - h.z) : p.heading) - h.heading) * Math.min(1, dt * 3);
     }
   }
 

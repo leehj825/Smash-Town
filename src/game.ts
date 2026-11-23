@@ -39,6 +39,7 @@ import { Witnesses } from './witness';
 import { TruckHeist } from './truckheist';
 import { Gear, type GearId } from './gear';
 import { Escapes } from './escapes';
+import { Phone } from './phone';
 import { SAVE_VERSION, migrateSave } from './saveMigrate';
 import { JOBS } from './jobs';
 import { Reputation } from './reputation';
@@ -150,6 +151,7 @@ export class Game {
   truckHeist!: TruckHeist;
   gear!: Gear;
   escapes!: Escapes;
+  phone!: Phone;
   /** Slow motion while the quick wheel is open (1 = normal). */
   timeScale = 1;
   reputation!: Reputation;
@@ -282,6 +284,7 @@ export class Game {
     this.truckHeist = new TruckHeist(this);
     this.gear = new Gear(this);
     this.escapes = new Escapes(this);
+    this.phone = new Phone(this);
     this.fires = new Fires(this);
     this.thieves = new Thieves(this);
     this.factions = new Factions(this);
@@ -801,7 +804,7 @@ export class Game {
     this.save.cars ??= {};
     return (this.save.cars[k] ??= emptyCar());
   }
-  private paintOf(k: VehicleKind): number { return this.save.cars?.[k]?.paint || STATS[k].color; }
+  paintOf(k: VehicleKind): number { return this.save.cars?.[k]?.paint || STATS[k].color; }
   private applyLook(v: GameVehicle): void {
     const p = this.carProg(v.kind);
     v.ctrl.setUpgrades(p.up);
@@ -1087,7 +1090,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.clock.update(dt); this.completion.update(dt); this.riots.update(dt); this.crossfire.update(dt); this.truckHeist.update(dt); this.gear.update(dt); this.escapes.update(dt); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.clock.update(dt); this.completion.update(dt); this.riots.update(dt); this.crossfire.update(dt); this.truckHeist.update(dt); this.gear.update(dt); this.escapes.update(dt); this.phone.update(dt); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);

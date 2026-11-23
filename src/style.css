@@ -375,10 +375,21 @@ html.cb-safe #news b { color: #14378c; }
 #clock { position: fixed; top: 6px; right: 70px; z-index: 30; padding: 2px 8px; border-radius: 6px; background: rgba(0,0,0,.45); color: #fff; font: 600 12px/1.4 ui-monospace, Menlo, monospace; pointer-events: none; }
 
 #gear { position: fixed; top: 26px; right: 70px; z-index: 30; padding: 2px 8px; border-radius: 6px; background: rgba(0,0,0,.45); color: #fff; font: 600 11px/1.4 ui-monospace, Menlo, monospace; pointer-events: none; white-space: nowrap; }
-body:not(.is-touch) #btn-gear, body:not(.is-touch) #btn-tool { display: none; }
+body:not(.is-touch) #btn-gear, body:not(.is-touch) #btn-tool, body:not(.is-touch) #btn-phone { display: none; }
 #wheel { position: fixed; inset: 0; z-index: 60; display: none; background: radial-gradient(circle, rgba(0,0,0,.35), rgba(0,0,0,.6)); }
 #wheel.open { display: block; }
 #wheel .wheel-item { position: absolute; transform: translate(-50%, -50%); min-width: 96px; max-width: 130px; padding: 8px 10px; border-radius: 12px; border: 2px solid rgba(255,255,255,.7); background: rgba(14,18,28,.85); color: #fff; font: inherit; font-size: 13px; line-height: 1.25; cursor: pointer; touch-action: manipulation; }
 #wheel .wheel-item small { display: block; opacity: .75; font-size: 11px; }
 #wheel .wheel-item:hover, #wheel .wheel-item:active { background: rgba(255,213,0,.5); }
 #wheel .wheel-hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 13px; text-align: center; max-width: 150px; opacity: .85; pointer-events: none; }
+
+#phone { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.5); }
+#phone.open { display: flex; }
+#phone .phone-panel { width: min(340px, 92vw); max-height: 90vh; overflow: auto; padding: 14px; border-radius: 18px; border: 2px solid rgba(255,255,255,.7); background: rgba(14,18,28,.94); color: #fff; }
+#phone h3 { margin: 0 0 4px; font-size: 15px; letter-spacing: 1px; }
+#phone .phone-cash { margin-bottom: 8px; color: #7dff6a; font: 600 13px ui-monospace, Menlo, monospace; }
+#phone button { display: block; width: 100%; margin: 6px 0; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.4); background: rgba(40,48,66,.9); color: #fff; font: inherit; font-size: 13px; text-align: left; cursor: pointer; touch-action: manipulation; }
+#phone button small { display: block; opacity: .75; font-size: 11px; }
+#phone button:disabled { opacity: .45; cursor: default; }
+#phone button:not(:disabled):hover { background: rgba(255,213,0,.35); }
+#phone .phone-close { text-align: center; background: rgba(120,40,40,.8); }

@@ -488,6 +488,44 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     });
     await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
     ok(mw.refused && mw.rode && mw.clean, 'the metro refuses you with a cop on you, but whisks you away once you are clear', JSON.stringify(mw));
+    const ph = await S(() => {
+      const G = g(); const P = G.phone; const H = G.humans; const out = {};
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true; G.cash = 1000; G.stars = 0; G.heat = 0;
+      H.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0);
+      G.save.friends = {};
+      P.show(); const locked = [...document.querySelectorAll('#phone .phone-item')].filter((b) => b.disabled).length;
+      P.close();
+      G.save.friends = { dave: 3, kane: 3, rosa: 3 };
+      P.last = {};
+      const n0 = G.vehicles.length;
+      P.show();
+      const items = [...document.querySelectorAll('#phone .phone-item')];
+      items[0].click();                                  // Dave brings the car
+      out.car = { added: G.vehicles.length > n0, owned: G.lastDriven && G.lastDriven.owned, cash: G.cash };
+      H.player.hp = 5; items[2].click();                // Rosa
+      out.rosa = H.player.hp === H.player.maxHp;
+      P.close();
+      out.locked = locked >= 3;
+      // Bonnie: hold a spot, follow again
+      G.buddy.hired = false; G.buddy.recruit('Bonnie');
+      const b = G.buddy.human; const spot = { x: b.x, z: b.z };
+      G.buddy.setHold(true); H.player.x = spot.x + 30; H.player.z = spot.z;
+      for (let i = 0; i < 40; i++) H.update(0.05, H.ctx);
+      out.hold = Math.hypot(b.x - spot.x, b.z - spot.z) < 6 && G.buddy.holding;
+      G.buddy.setHold(false); out.follow = !b.hold;
+      // riding along she covers you: a police car nearby takes damage and shots ring out
+      const cop = G.spawnVehicle('police', 0x1a1a24, H.player.x + 15, H.player.z, 0, 'parked'); cop.ai = 'police';
+      const car = G.spawnVehicle('sports', 0xff0000, H.player.x, H.player.z, 0, 'parked'); G.boardVehicle(car);
+      let shots = 0; const off = G.bus.on('gunshot', (e) => { if (e.ambient) shots++; });
+      const hp0 = cop.ctrl.hp;
+      for (let i = 0; i < 6; i++) G.buddy.update(1.2);
+      off();
+      out.cover = { shots: shots >= 3, dmg: cop.ctrl.hp < hp0 };
+      G.removeVehicle(cop); G.removeVehicle(car); G.onFoot = true; G.driving = null; G.buddy.dismiss();
+      G.save.friends = {}; G.skills.off = false;
+      return out;
+    });
+    ok(ph.locked && ph.car.added && ph.car.owned && ph.car.cash === 920 && ph.rosa && ph.hold && ph.follow && ph.cover.shots && ph.cover.dmg, 'the phone calls friends (car delivery, nurse), Bonnie holds a spot or follows, and covers you from the passenger seat', JSON.stringify(ph));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
