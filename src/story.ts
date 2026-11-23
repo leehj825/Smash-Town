@@ -52,7 +52,7 @@ const INTRO: Chapter = {
     { k: 'monologue', script: ARRIVAL, start: 'a1', text: ['Look around', '주변을 둘러보세요'] },
     { k: 'talk', npc: 'park', script: PARK_SCRIPT, start: 'p1', text: ['Meet Mr. Park at the 24h Motel (yellow diamond)', '24시 모텔 앞에서 미스터 박을 만나세요 (노란 마름모)'] },
     { k: 'talk', npc: 'donna', script: DONNA_SCRIPT, start: 'd1', text: ["Talk to Donna at her donut shop (yellow diamond)", '도넛 가게의 도나와 대화하세요 (노란 마름모)'] },
-    { k: 'deliver', count: 1, text: ["Deliver Donna's two orders on foot (pink marker by her door)", '도나의 주문 두 건을 걸어서 배달하세요 (가게 문 옆 분홍 마커)'] },
+    { k: 'deliver', count: 1, text: ["Deliver Donna's two orders (pink marker by her door) - on foot, or grab any car (F)", '도나의 주문 두 건을 배달하세요 (가게 문 옆 분홍 마커) - 걸어서, 또는 아무 차나 타고 (F)'] },
     { k: 'monologue', script: SIRENS, start: 'z1', text: ['Sirens!', '사이렌!'] },
     { k: 'escape', stars: 1, text: ['Somebody called the police about the fight - lose them!', '누군가 싸움을 신고했어요 - 경찰을 따돌리세요!'] },
     { k: 'ride', text: ['Get some wheels: a bike at the garage ($150), a scooter ($600), or borrow a parked car (F)', '탈것을 구하세요: 정비소의 자전거($150), 스쿠터($600), 아니면 세워진 차를 타세요 (F)'] },
@@ -222,6 +222,7 @@ export class StoryManager {
   private bonnieT = 0;
   private batAt: { x: number; z: number } | null = null;
   private monoStarted = false;
+  private carHint = false;
   private brawl: 'idle' | 'staged' | 'talk' | 'fight' = 'idle';
   private runnerT = 0;
   private escapeT = 0;
@@ -269,8 +270,8 @@ export class StoryManager {
     this.idleT = 0;
     this.base = null;
     this.monoStarted = false;
-    this.brawl = 'idle'; this.escapeT = 0; this.runnerT = 0;
-    this.game.delivery.stopsLimit = 3; this.game.delivery.payScale = 1; // Donna's small first job is over
+    this.brawl = 'idle'; this.escapeT = 0; this.runnerT = 0; this.carHint = false;
+    this.game.delivery.stopsLimit = 3; this.game.delivery.payScale = 1; this.game.delivery.range = null; // Donna's small first job is over
     if (this.step >= c.steps.length) this.completeChapter(c);
     this.persist();
   }
@@ -399,7 +400,7 @@ export class StoryManager {
         break;
       case 'deliver': {
         this.beacon.visible = false;
-        g.delivery.stopsLimit = 2; g.delivery.payScale = 0.4;
+        g.delivery.stopsLimit = 2; g.delivery.payScale = 0.4; g.delivery.range = [35, 95]; // short walks
         if (this.base === null) this.base = g.delivery.completed;
         this.ambushUpdate(dt);
         if (this.batAt && !g.humans.batOwned) { this.beacon.setPosition(this.batAt.x, this.batAt.z); this.beacon.visible = true; }
@@ -415,6 +416,7 @@ export class StoryManager {
         this.beacon.visible = false;
         if (this.base === null) { this.base = g.thieves.caught; this.runnerT = 0.5; }
         if (g.thieves.caught > this.base) { this.next(); break; }
+        if (g.onFoot && !this.carHint && g.thieves.active && this.thiefFar()) { this.carHint = true; g.hud.toast(bi('Too slow on foot? Grab any parked car (F) and run him down!', '걸어서 따라잡기 힘든가요? 근처 아무 차나 타세요 (F) - 차로 쫓으면 돼요!'), 4200); }
         if (!g.thieves.active && g.state === 'play') {
           this.runnerT -= dt;
           if (this.runnerT <= 0) { const donut = g.npcs.homeOf('donna') ?? { x: g.focusX, z: g.focusZ }; this.runnerT = g.thieves.start(donut, true) ? 0 : 3; }
@@ -429,6 +431,7 @@ export class StoryManager {
           while (g.stars < s.stars && guard++ < 40) g.addHeat(25);
         }
         this.escapeT += dt;
+        if (g.onFoot && !this.carHint && this.escapeT > 6 && g.stars > 0) { this.carHint = true; g.hud.toast(bi('Cops on your tail? Steal a car (F) - nobody is going to stop you.', '경찰이 쫓아오나요? 차를 훔쳐 타세요 (F) - 아무도 말리지 않아요.'), 4200); }
         if (this.escapeT > 4 && g.stars === 0 && g.state === 'play') this.next();
         break;
       }
@@ -466,6 +469,9 @@ export class StoryManager {
     const s = this.current;
     return !!s && s.k === 'deliver' && this.ambush !== 'done' && (this.ambush !== 'idle' || this.game.delivery.leg === 1);
   }
+
+  /** Is Donna's first job the current goal? (It is the one side job that works before the opening is over.) */
+  deliveryStep(): boolean { const s = this.current; return !!s && s.k === 'deliver'; }
 
   /** The person the story wants you to talk to now (they get a yellow diamond). */
   questNpc(): string | null {
@@ -541,6 +547,11 @@ export class StoryManager {
       this.thugs = [];
       this.next();
     }
+  }
+
+  private thiefFar(): boolean {
+    const m = this.game.thieves.markers()[0];
+    return !!m && Math.hypot(m.x - this.game.focusX, m.z - this.game.focusZ) > 25;
   }
 
   private clearThugs(): void {

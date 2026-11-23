@@ -50,6 +50,7 @@ import { Kids } from './kids';
 import { Dialogue } from './dialogue';
 import { StoryBeats } from './storybeats';
 import { Progression, GUN_STAGE } from './progression';
+import { STORY_EXTRA } from './story';
 import { SAVE_VERSION, migrateSave } from './saveMigrate';
 import { JOBS } from './jobs';
 import { Reputation } from './reputation';
@@ -292,7 +293,7 @@ export class Game {
     if (this.mode === 'story') {
       // in the story the pistol is bought and its ammunition runs out, and the first cars cost money
       GUNS.pistol.infinite = false; GUNS.pistol.price = 400; GUNS.pistol.packPrice = 40;
-      STATS.sedan.price = 1500; STATS.sports.price = 6000;
+      STATS.sedan.price = 600; STATS.sports.price = 2500; // (stealing is easy: buying is a shortcut, upgrades are where the money goes)
     }
     this.guns = new Guns(this, this.save.guns ?? [], this.save.ammo ?? {}, this.save.gunUp ?? {});
     this.humans.batOwned = this.save.bat !== false;
@@ -472,6 +473,14 @@ export class Game {
 
   /** Money earned this session, by source (shown on the pause screen). */
   readonly earned: Record<EarnSrc, number> = { props: 0, stars: 0, gigs: 0, story: 0, police: 0, other: 0 };
+
+  /** Side jobs, street events and everything that is not the story open up once the story's opening is over (always open in the other modes). */
+  get sideOpen(): boolean { return this.mode !== 'story' || this.story.done || this.story.ch >= STORY_EXTRA; }
+
+  /** Until the opening is over the side-job markers stay dark (their beacons are switched off here, the systems themselves do not run). */
+  private hideSideBeacons(): void {
+    this.gigs.hide(); this.roofDash.hide(); this.range.hide();
+  }
 
   /** The story mode is a climb from nothing: money found on the street, golden stars and the big rewards are a fraction of what they were. (The other modes keep the full amounts.) */
   scaled(n: number, factor: number): number { return this.mode === 'story' ? Math.max(1, Math.round(n * factor)) : n; }
@@ -821,7 +830,7 @@ export class Game {
       // whoever was driving gets out: civilians run away, cops climb out too (also the empty roadblock cruisers)
       const hadDriver = v.ai === 'traffic' || v.ai === 'police' || (v.isPolice && v.ai === 'parked' && !v.owned);
       if (v.police || v.traffic || v.ai === 'police' || v.ai === 'traffic') {
-        if (!v.isGigTarget) this.addHeat(v.isPolice ? 45 : 20);
+        if (!v.isGigTarget) this.addHeat(v.isPolice ? 45 : this.mode === 'story' ? 8 : 20); // (in the story mode a carjacking is a small crime)
         v.traffic = null;
         v.police = null;
       }
@@ -829,7 +838,7 @@ export class Game {
         this.humans.ejectDriver(v.x, v.z, v.ctrl.heading, v.isPolice);
         v.ctrl.vx *= 0.2; v.ctrl.vz *= 0.2; // the car rolls to a stop as the driver bails out
       }
-      if (!v.owned && !v.isGigTarget && v.ai === 'parked' && !v.isPolice && !hadDriver && !(this.mode === 'story' && this.story.ch === 0 && !this.story.done) && Math.random() < 0.3) this.bus.emit({ type: 'carAlarm', vehicle: v });
+      if (!v.owned && !v.isGigTarget && v.ai === 'parked' && !v.isPolice && !hadDriver && !(this.mode === 'story' && !this.sideOpen) && Math.random() < (this.mode === 'story' ? 0.1 : 0.3)) this.bus.emit({ type: 'carAlarm', vehicle: v });
       v.ai = 'player';
       v.ensureFull();
       this.driving = v;
@@ -837,6 +846,11 @@ export class Game {
       this.humans.setPlayerActive(false, 0, 0, 0);
       this.cameraRig.snap();
       this.audio.thump();
+      // story mode: stealing is how you get cars. A kind you have driven joins your garage (free), and money goes into upgrading it
+      if (this.mode === 'story' && PLAYER_ROSTER.includes(v.kind) && !this.save.unlocked.includes(v.kind)) {
+        this.unlockVehicle(v.kind);
+        this.hud.toast(bi(`${v.kind[0].toUpperCase() + v.kind.slice(1)} added to your garage! Upgrade it there.`, `${v.kind} 차량이 차고에 추가됐어요! 차고에서 업그레이드하세요.`), 3600);
+      }
     }
   }
   lastDriven: GameVehicle | null = null;
@@ -1162,8 +1176,14 @@ export class Game {
     this.updateHeli(dt);
     this.updateCombo(dt);
     this.updateGarageZones();
-    this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.clock.update(dt); this.completion.update(dt); this.riots.update(dt); this.crossfire.update(dt); this.truckHeist.update(dt); this.gear.update(dt); this.escapes.update(dt); this.phone.update(dt); this.director.update(dt); this.challenge.update(dt); this.juice.update(); this.barricades.update(dt); this.sandbox.update(); this.kidsMode.update(); this.progression.update(dt); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
+    const side = this.sideOpen;
+    if (!side) this.hideSideBeacons();
+    if (side) this.gigs.update(dt);
+    if (this.state === 'play') {
+      this.mood.update(dt); this.progress.tick(dt); this.shops.tickBank(dt); this.delivery.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats();
+      this.clock.update(dt); this.completion.update(dt); this.crossfire.update(dt); this.gear.update(dt); this.escapes.update(dt); this.phone.update(dt); this.challenge.update(dt); this.juice.update(); this.barricades.update(dt); this.sandbox.update(); this.kidsMode.update(); this.progression.update(dt); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt);
+      if (side) { this.roofDash.update(dt); this.sideQuests.update(dt); this.range.update(dt); this.taxi.update(dt); this.race.update(dt); this.festival.update(dt); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.riots.update(dt); this.truckHeist.update(dt); this.director.update(dt); }
+    }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.dialogue.update(dt);
     this.story.update(dt);
@@ -1893,25 +1913,30 @@ export class Game {
     for (const st of this.transit.stops) this.pushBlip(st.x, st.z, '#6bd1ff', false, 3.5);
     for (const st of this.transit.stations) this.pushBlip(st.x, st.z, '#b072d6', false, 4);
     this.world.homes.forEach((h, i) => this.pushBlip(h.x, h.z, this.hideouts.ownsHome(i) ? '#ffd23a' : '#6bd1ff', false, 4.5));
-    this.gigs.blips(this.pushBlip);
+    const side = this.sideOpen;
+    if (side) this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
     if (this.hunter) this.pushBlip(this.hunter.x, this.hunter.z, '#ff9a3d', true, 5);
     if (!this.driving || this.driving.kind !== 'boat') for (const b of this.boats) this.pushBlip(b.x, b.z, '#35e0ff', false, 3.5);
     for (const m of this.escapes.markers()) this.pushBlip(m.x, m.z, '#ff9f3a', false, 4);
-    for (const m of this.truckHeist.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5);
-    for (const j of [this.paramedic, this.firefighter, this.patrol]) for (const m of j.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5);
-    for (const m of this.riots.markers()) this.pushBlip(m.x, m.z, '#ff4a4a', true, 5);
-    for (const m of this.npcs.markers()) this.pushBlip(m.x, m.z, '#7fe0ff', true, 4.5);
+    if (side) {
+      for (const m of this.truckHeist.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5);
+      for (const j of [this.paramedic, this.firefighter, this.patrol]) for (const m of j.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5);
+      for (const m of this.riots.markers()) this.pushBlip(m.x, m.z, '#ff4a4a', true, 5);
+      for (const m of this.npcs.markers()) this.pushBlip(m.x, m.z, '#7fe0ff', true, 4.5);
+    }
     for (const t of this.thieves.markers()) this.pushBlip(t.x, t.z, '#ffe14d', true, 4.5);
     for (const f of this.fires.markers()) this.pushBlip(f.x, f.z, '#ff8a2a', true, 4.5);
     for (const m of this.gangs.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5.5);
-    for (const m of this.festival.markers()) this.pushBlip(m.x, m.z, '#ff5db1', true, 5.5);
-    for (const m of this.delivery.markers()) this.pushBlip(m.x, m.z, '#ff8fb8', m.flash, 5);
-    for (const m of this.race.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5);
-    for (const m of this.taxi.markers()) this.pushBlip(m.x, m.z, m.color, true, 5.5);
-    for (const m of this.range.markers()) this.pushBlip(m.x, m.z, '#ff9a3d', m.active, m.active ? 5 : 4);
-    for (const m of this.roofDash.markers()) this.pushBlip(m.x, m.z, '#4dd2ff', false, m.active ? 5.5 : 4);
-    for (const m of this.sideQuests.markers()) this.pushBlip(m.x, m.z, m.color, true, 5);
+    if (side) for (const m of this.festival.markers()) this.pushBlip(m.x, m.z, '#ff5db1', true, 5.5);
+    if (side || this.story.deliveryStep()) for (const m of this.delivery.markers()) this.pushBlip(m.x, m.z, '#ff8fb8', m.flash, 5);
+    if (side) {
+      for (const m of this.race.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5);
+      for (const m of this.taxi.markers()) this.pushBlip(m.x, m.z, m.color, true, 5.5);
+      for (const m of this.range.markers()) this.pushBlip(m.x, m.z, '#ff9a3d', m.active, m.active ? 5 : 4);
+      for (const m of this.roofDash.markers()) this.pushBlip(m.x, m.z, '#4dd2ff', false, m.active ? 5.5 : 4);
+      for (const m of this.sideQuests.markers()) this.pushBlip(m.x, m.z, m.color, true, 5);
+    }
     this.pickups.forEach((type, x, z) => { if (Math.hypot(x - this.focusX, z - this.focusZ) < 90 && type !== 'cash') this.pushBlip(x, z, Pickups.color(type), false, 3); });
     this.story.blips(this.pushBlip);
     for (let i = 0; i < this.collectibles.total; i++) {

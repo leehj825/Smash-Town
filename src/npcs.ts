@@ -287,7 +287,7 @@ export class Npcs {
     const delivering = tier !== 'hostile' && this.errand?.to === id;
     // or one to offer?
     const others = this.list.filter((q) => q.def.id !== id && q.human);
-    const offer = tier !== 'hostile' && !this.errand && !delivering && this.clock > this.errandCd && others.length > 0 ? others[Math.floor(Math.random() * others.length)] : null;
+    const offer = G.sideOpen && tier !== 'hostile' && !this.errand && !delivering && this.clock > this.errandCd && others.length > 0 ? others[Math.floor(Math.random() * others.length)] : null;
     if (delivering) lines = [[`Ah, the parcel from ${this.list.find((q) => q.def.id === this.errand!.from)!.def.name[0]}! Thank you so much. Here is something for your trouble.`, `${this.list.find((q) => q.def.id === this.errand!.from)!.def.name[1]}에게서 온 소포군요! 정말 고마워요. 수고비예요.`]];
     else if (offer) lines = [...lines, [`Could you take this parcel to ${offer.def.name[0]} (${offer.def.job[0]})? I will make it worth your while.`, `이 소포를 ${offer.def.name[1]}(${offer.def.job[1]})에게 전해 줄래요? 사례는 할게요.`]];
     const ready = this.clock - rec.last > [300, 180, 90][lvl];

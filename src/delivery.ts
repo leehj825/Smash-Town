@@ -22,6 +22,8 @@ export class DeliveryJob {
   private count = 0;
   /** The story's first job has two orders and pays less: it sets these while it is the goal. */
   stopsLimit = 3;
+  /** The story's opening wants short walks: the distance range (metres) of an order from the last stop. null = the normal long ones. */
+  range: [number, number] | null = null;
   payScale = 1;
 
   constructor(private game: Game) {
@@ -65,6 +67,8 @@ export class DeliveryJob {
       const room = G.interiors.rooms.find((r) => r.id === 'donut');
       if (room) { this.spot = { x: room.door.x + Math.cos(room.door.h) * 4, z: room.door.z - Math.sin(room.door.h) * 4 }; this.pickup.setPosition(this.spot.x, this.spot.z); } // a few metres along the pavement from the shop door
     }
+    // (the story's opening uses this job; otherwise it waits for the open world)
+    if (this.phase === 'idle' && !G.sideOpen && !G.story.deliveryStep()) { this.pickup.visible = false; return; }
     if (!this.spot || G.inside || G.state !== 'play') return;
     const px = G.driving && !G.onFoot ? G.driving.x : G.humans.player.x;
     const pz = G.driving && !G.onFoot ? G.driving.z : G.humans.player.z;
@@ -78,7 +82,7 @@ export class DeliveryJob {
         let cur: P2 = this.spot;
         let total = 0;
         for (let n = 0; n < this.stopsLimit; n++) {
-          const p = this.roadPoint(cur, 90, 300 + n * 40);
+          const p = this.range ? this.roadPoint(cur, this.range[0], this.range[1] + n * 25) : this.roadPoint(cur, 90, 300 + n * 40);
           if (!p) break;
           total += Math.hypot(p.x - cur.x, p.z - cur.z);
           this.stops.push(p); cur = p;

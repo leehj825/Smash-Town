@@ -114,6 +114,8 @@ export class RangeGig {
     for (const t of this.targets) if (t.alive && Math.hypot(t.x - x, t.z - z) < r) this.hit(t);
   }
 
+  hide(): void { this.beacon.visible = false; }
+
   update(dt: number): void {
     const G = this.game;
     this.ensureSpot();

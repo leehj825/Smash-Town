@@ -52,6 +52,12 @@ export class GigManager {
     this.extra.visible = false;
   }
 
+  /** The side jobs are not open yet (the story's opening): no markers. */
+  hide(): void {
+    for (const m of this.markers) m.beacon.visible = false;
+    this.objective.visible = false; this.extra.visible = false;
+  }
+
   private titleKey(id: GigId) {
     return ({ rampage: 'gig.rampage.title', delivery: 'gig.delivery.title', hijack: 'gig.hijack.title', brawl: 'gig.brawl.title' } as const)[id];
   }

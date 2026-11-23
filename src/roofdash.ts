@@ -27,6 +27,7 @@ export class RoofDash {
 
   private centre(r: Roof): { x: number; z: number } { return { x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 }; }
   get active(): boolean { return this.step >= 0; }
+  hide(): void { this.startBeacon.visible = false; this.beacon.visible = false; }
 
   /** Marker positions for the maps. */
   markers(): { x: number; z: number; active: boolean }[] {

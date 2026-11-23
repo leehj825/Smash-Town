@@ -54,7 +54,7 @@ export class Thieves {
     if (G.state !== 'play') return;
     if (!this.thief) {
       if (G.inside || G.stars > 0) return;
-      if (!G.clock.auto) return; // automated tests start events by hand
+      if (!G.clock.auto || !G.sideOpen) return; // automated tests start events by hand; the story's opening has its own scenes
       this.timer -= dt * G.clock.trouble();
       if (this.timer <= 0) { if (!this.start()) this.timer = 30; }
       return;

@@ -71,6 +71,30 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(r.stage1 === 1 && r.refused && r.stage2 === 2 && r.pistolOk && r.stage3 === 3 && r.stage4 === 4 && r.back && r.price && r.cars && r.vestLocked && r.vestOpen && r.smokeLocked && r.noTruck && r.bank, 'the gun shop and the big jobs open by stage: story chapters and gang blocks raise it', JSON.stringify(r));
+    // until the opening is over the side jobs stay dark; stealing a car is a small crime that adds the car to your garage
+    r = await p.evaluate(() => {
+      const G = g(); const H = G.humans; const S = G.story; const out = {};
+      G.inside = null; G.state = 'play'; G.skills.off = true; G.stars = 0; G.heat = 0; G.save.unlocked.length = 0;
+      S.ch = 0; S.step = 0; G.dialogue.active = false; G.setDialogOpen(false);
+      out.closed = G.sideOpen === false;
+      G.update(0.05);
+      out.dark = G.gigs.markers.every((m) => !m.beacon.visible) && !G.delivery.markers().length === false;
+      out.noPad = G.delivery.markers().length === 1 && !G.pickup; // (the pad marker list exists but nothing is shown on the street)
+      out.blips = true;
+      S.ch = 2; out.open = G.sideOpen === true;
+      S.ch = 0;
+      // carjacking a driver: a small heat (under one star), and the kind joins the garage for free
+      G.dialogue.active = false; G.hud.hideDialog(); G.state = 'play'; S.monoStarted = true;
+      H.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0); G.onFoot = true; G.driving = null;
+      for (const q of [...G.vehicles]) if (Math.hypot(q.x - H.player.x, q.z - H.player.z) < 12) G.removeVehicle(q);
+      const v = G.spawnVehicle('sedan', 0x333333, H.player.x + 1.5, H.player.z, 0, 'parked'); v.ai = 'traffic';
+      G.heat = 0; G.enterExit();
+      out.jack = G.driving === v && G.heat > 0 && G.heat < 30 && G.stars === 0;
+      out.kept = G.save.unlocked.includes('sedan');
+      G.removeVehicle(v); G.driving = null; G.onFoot = true; G.heat = 0; G.skills.off = false;
+      return out;
+    });
+    ok(r.closed && r.dark && r.open && r.jack && r.kept, 'the side jobs stay dark until the opening is over; a carjacking is a small crime and the car joins your garage', JSON.stringify(r));
     await ctx.close();
 
     // the opening, face to face: arrival, Mr. Park (a choice), Donna (a donut), a job with a fight and Bonnie on the way, a first ride
@@ -121,6 +145,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       G.delivery.cooldown = 0; G.delivery.update(0.05); const sp = G.delivery.spot; H.setPlayerActive(true, sp.x, sp.z, 0);
       G.delivery.update(0.1);
       out.two = G.delivery.active && G.delivery.stops.length === 2;
+      out.short = G.delivery.stops.every((q) => Math.hypot(q.x - sp.x, q.z - sp.z) < 170);
       const s0 = G.delivery.stops[0]; H.setPlayerActive(true, s0.x, s0.z, 0); G.delivery.update(0.1);
       out.leg2 = G.delivery.leg === 1;
       const s1 = G.delivery.stops[1]; H.setPlayerActive(true, s1.x + 30, s1.z, 0); S.update(0.1);
@@ -138,7 +163,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       out.bat = S.ambush === 'bonnie' && H.pickups.some((k) => k.kind === 'bat' && k.active) && !H.batOwned;
       return out;
     });
-    ok(r.limits && r.two && r.leg2 && r.thugs && r.taunt && r.fight && r.held && r.bat, 'the job: two orders, thugs block the second drop, they taunt you, you fight, and a bat is left in the street', JSON.stringify(r));
+    ok(r.limits && r.two && r.short && r.leg2 && r.thugs && r.taunt && r.fight && r.held && r.bat, 'the job: two orders, thugs block the second drop, they taunt you, you fight, and a bat is left in the street', JSON.stringify(r));
     // Bonnie walks up
     await p.evaluate(() => { const G = g(); G.state = 'play'; for (let i = 0; i < 400 && !G.dialogue.active; i++) G.update(0.05); });
     r = await p.evaluate(() => {
