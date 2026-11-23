@@ -14,6 +14,7 @@ const MILESTONES: [number, number][] = [[25, 1000], [50, 3000], [75, 6000], [100
  */
 export class Completion {
   private t = 5;
+  private lastRank = '';
 
   constructor(private game: Game) {}
 
@@ -38,6 +39,12 @@ export class Completion {
     ];
   }
 
+  /** The player's standing, by city completion. */
+  rank(): [string, string] {
+    const p = this.percent();
+    return p >= 100 ? ['Kingpin', '도시의 제왕'] : p >= 75 ? ['Underboss', '언더보스'] : p >= 50 ? ['District boss', '구역 보스'] : p >= 25 ? ['Block boss', '동네 보스'] : ['Street thug', '거리의 불량배'];
+  }
+
   percent(): number {
     let p = 0;
     for (const g of this.goals()) p += g.weight * Math.min(1, g.got / g.max);
@@ -50,6 +57,9 @@ export class Completion {
     if (this.t > 0 || G.state !== 'play' || G.inside) return;
     this.t = 5;
     const pct = this.percent();
+    const rank = this.rank()[0];
+    if (this.lastRank && rank !== this.lastRank) G.hud.toast(bi(`New rank: ${rank}!`, `새 등급: ${this.rank()[1]}!`), 3200);
+    this.lastRank = rank;
     const done = G.save.milestone ?? 0;
     for (const [m, reward] of MILESTONES) {
       if (pct >= m && done < m) {

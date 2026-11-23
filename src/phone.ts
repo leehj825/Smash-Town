@@ -31,6 +31,9 @@ export class Phone {
         pl.hp = pl.maxHp; G.humans.armor = Math.max(G.humans.armor, 25);
         G.popups.spawn(pl.x, 3, pl.z, bi('Patched up', '치료 완료'), '#5ec4ff');
       } },
+      { id: 'survival', en: 'Challenge: five-star survival', ko: '도전: 5성 생존', cost: 0, need: '*', run: () => G.challenge.startSurvival() },
+      { id: 'chaos-rockets', en: `Chaos: endless rockets (${G.challenge.chaos.rockets ? 'ON' : 'off'})`, ko: `카오스: 무한 로켓 (${G.challenge.chaos.rockets ? '켜짐' : '꺼짐'})`, cost: 0, need: '*', run: () => G.challenge.toggleChaos('rockets') },
+      { id: 'chaos-moon', en: `Chaos: moon gravity (${G.challenge.chaos.moon ? 'ON' : 'off'})`, ko: `카오스: 달 중력 (${G.challenge.chaos.moon ? '켜짐' : '꺼짐'})`, cost: 0, need: '*', run: () => G.challenge.toggleChaos('moon') },
       { id: 'bonnie-follow', en: 'Bonnie: follow me', ko: '보니: 따라와', cost: 0, run: () => this.command(false) },
       { id: 'bonnie-hold', en: 'Bonnie: cover this spot', ko: '보니: 여기서 엄호해', cost: 0, run: () => this.command(true) },
     ];
@@ -84,13 +87,13 @@ export class Phone {
     el.innerHTML = `<div class="phone-panel"><h3>${bi('PHONE', '휴대폰')}</h3><div class="phone-cash">$${Math.floor(G.cash).toLocaleString('en-US')}</div></div>`;
     const panel = el.firstElementChild as HTMLElement;
     for (const s of this.services()) {
-      const lvl = s.need ? G.npcs.level(s.need) : 9;
+      const lvl = s.need === '*' ? (G.challenge.unlocked ? 9 : 0) : s.need ? G.npcs.level(s.need) : 9;
       const cd = Math.max(0, 30 - (this.clock - (this.last[s.id] ?? -999)));
       const b = document.createElement('button');
       b.className = 'phone-item';
       const locked = lvl < 1;
       b.disabled = locked || cd > 0;
-      b.innerHTML = `<span>${bi(s.en, s.ko)}</span><small>${locked ? bi('make friends first (3 chats)', '먼저 친구가 되세요 (대화 3번)') : cd > 0 ? `${Math.ceil(cd)}s` : s.cost ? `$${s.cost}` : bi('free', '무료')}</small>`;
+      b.innerHTML = `<span>${bi(s.en, s.ko)}</span><small>${locked ? (s.need === '*' ? bi('unlocks after the story or 50% city completion', '스토리 완료 또는 도시 완성도 50% 후 열려요') : bi('make friends first (3 chats)', '먼저 친구가 되세요 (대화 3번)')) : cd > 0 ? `${Math.ceil(cd)}s` : s.cost ? `$${s.cost}` : bi('free', '무료')}</small>`;
       b.addEventListener('click', () => {
         if (s.cost && !G.pay(s.cost)) return;
         const r = s.run();

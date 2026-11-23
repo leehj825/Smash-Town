@@ -37,7 +37,7 @@ export class Thieves {
     return true;
   }
 
-  private release(msg: string | null): void {
+  release(msg: string | null): void {
     if (this.thief) this.thief.thief = false;
     this.thief = null;
     this.timer = 240 + Math.random() * 240;

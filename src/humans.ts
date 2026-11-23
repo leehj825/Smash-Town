@@ -11,6 +11,7 @@ import type { GameVehicle } from './vehicles';
 import type { CircleCollider, Lot, World } from './world';
 
 export const Role = { Civ: 0, Cop: 1, Player: 2 } as const;
+import { Challenge } from './challenge';
 const N = 77;
 const LOW_PROPS = new Set(['bench', 'trash', 'hydrant', 'newsstand']);
 const COP_FIRST = 1, COP_LAST = 10;
@@ -304,6 +305,8 @@ export class Humans {
     if (!this.weaponOwned(slot)) return;
     this.player.weapon = slot;
   }
+
+  inCombat(): boolean { return this.combatContext(); }
 
   private combatContext(): boolean {
     return this.combatTimer > 0 || this.player.state === St.Attack || this.player.state === St.Hit;
@@ -901,7 +904,7 @@ export class Humans {
     if (h.y > gy + 0.05) h.grounded = false;
     if (!h.grounded || h.y > gy + 0.001) {
       h.peak = Math.max(h.peak, h.y);
-      h.vy -= GRAVITY * dt;
+      h.vy -= GRAVITY * Challenge.gravityMul * dt;
       h.y += h.vy * dt;
       if (h.y <= gy) {
         h.y = gy; h.vy = 0; h.grounded = true;

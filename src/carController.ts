@@ -17,6 +17,7 @@ export interface CarFx {
 
 const NITRO_BOOST = 1.5;
 const REVERSE_MAX = 12;
+import { Challenge } from './challenge';
 const GRAVITY = 24;
 
 /** Snappy arcade driving: decoupled forward/lateral velocity with tunable grip, drift on handbrake, ramps & jumps. */
@@ -200,7 +201,7 @@ export class CarController {
     }
     const y = this.position.y;
     if (this.airborne) {
-      this.vy -= GRAVITY * dt;
+      this.vy -= GRAVITY * Challenge.gravityMul * dt;
       this.position.y += this.vy * dt;
       if (this.position.y <= ground) {
         const landSpeed = -this.vy;

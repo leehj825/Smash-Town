@@ -526,6 +526,36 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(ph.locked && ph.car.added && ph.car.owned && ph.car.cash === 920 && ph.rosa && ph.hold && ph.follow && ph.cover.shots && ph.cover.dmg, 'the phone calls friends (car delivery, nurse), Bonnie holds a spot or follows, and covers you from the passenger seat', JSON.stringify(ph));
+    const dr = await S(() => {
+      const G = g(); const D = G.director; const C = G.challenge; const out = {};
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true; G.stars = 0; G.heat = 0; G.cash = 0;
+      G.humans.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0);
+      G.fires.list.length = 0; G.riots.current = null;
+      const wasAuto = G.clock.auto; G.clock.auto = true;
+      D.quiet = 0; D.cooldown = 0; D.throws = 0;
+      G.stars = 2; for (let i = 0; i < 100; i++) D.update(1);
+      const busyQuiet = D.quiet === 0 && D.throws === 0;
+      G.stars = 0; G.humans.combatTimer = 0;
+      for (let i = 0; i < 100 && D.throws === 0; i++) D.update(1);
+      out.director = { busyQuiet, threw: D.throws >= 1, last: D.last };
+      G.clock.auto = wasAuto;
+      G.fires.list.length = 0; G.riots.current = null; if (G.thieves.active) G.thieves.release(null);
+      if (G.truckHeist.active) G.truckHeist.end('x', false);
+      // survival challenge and chaos switches
+      const storyWas = G.story.done; G.story.done = true; out.unlocked = C.unlocked;
+      G.save.survivalBest = 0; G.stars = 0; G.cash = 0;
+      out.start = C.startSurvival(); out.stars = G.stars;
+      for (let i = 0; i < 25; i++) C.update(1);
+      G.stars = 0; C.update(0.1);
+      out.survival = { ended: !C.survival, best: C.best, cash: G.cash };
+      C.toggleChaos('moon'); out.moon = C.chaos.moon;
+      const g1 = Object.getPrototypeOf(C).constructor.gravityMul; C.toggleChaos('moon'); out.gravity = [g1, Object.getPrototypeOf(C).constructor.gravityMul];
+      G.guns.owned.includes('rocket') || G.guns.buyGun('rocket'); G.guns.reserve.rocket = 0; C.toggleChaos('rockets'); C.update(0.1); out.rockets = G.guns.reserve.rocket >= 6; C.toggleChaos('rockets');
+      out.rank = G.completion.rank()[0];
+      G.story.done = storyWas; G.stars = 0; G.heat = 0; G.skills.off = false; G.news.cooldown = 0; G.save.survivalBest = 0; G.hud.showGig(false);
+      return out;
+    });
+    ok(dr.director.busyQuiet && dr.director.threw && dr.unlocked && dr.start && dr.stars === 5 && dr.survival.ended && dr.survival.best >= 25 && dr.survival.cash >= 100 && dr.moon && dr.gravity[0] === 0.35 && dr.gravity[1] === 1 && dr.rockets && dr.rank, 'the director throws an event when it is quiet; survival, chaos switches and ranks work after the story', JSON.stringify(dr));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
