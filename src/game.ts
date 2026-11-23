@@ -26,6 +26,7 @@ import { Crime } from './crime';
 import { Hideouts } from './hideouts';
 import { Police } from './police';
 import { Gangs } from './gangs';
+import { Paramedic } from './paramedic';
 import { Medics } from './medics';
 import { Machines } from './machines';
 import { TrafficLights } from './lights';
@@ -116,6 +117,7 @@ export class Game {
   animals!: Animals;
   festival!: Festival;
   gangs!: Gangs;
+  paramedic!: Paramedic;
   transit!: Transit;
   fishing!: Fishing;
   /** A storm has cut the power: windows, signs and street lamps go dark for a while. */
@@ -234,6 +236,7 @@ export class Game {
     this.animals = new Animals(this);
     this.festival = new Festival(this);
     this.gangs = new Gangs(this);
+    this.paramedic = new Paramedic(this);
     this.transit = new Transit(this);
     this.fishing = new Fishing(this);
     this.lights = new TrafficLights();
@@ -701,6 +704,16 @@ export class Game {
     return best;
   }
 
+  /** Put the player behind the wheel of a car right away (no walking up to it). */
+  boardVehicle(v: GameVehicle): void {
+    v.ai = 'player';
+    v.ensureFull();
+    this.driving = v;
+    this.onFoot = false;
+    this.humans.setPlayerActive(false, 0, 0, 0);
+    this.cameraRig.snap();
+  }
+
   private enterExit(): void {
     if (this.state !== 'play') return;
     if (this.driving && !this.onFoot) {
@@ -727,7 +740,7 @@ export class Game {
         this.humans.ejectDriver(v.x, v.z, v.ctrl.heading, v.isPolice);
         v.ctrl.vx *= 0.2; v.ctrl.vz *= 0.2; // the car rolls to a stop as the driver bails out
       }
-      if (!v.owned && v.ai === 'parked' && !v.isPolice && !hadDriver && Math.random() < 0.3) this.bus.emit({ type: 'carAlarm', vehicle: v });
+      if (!v.owned && !v.isGigTarget && v.ai === 'parked' && !v.isPolice && !hadDriver && Math.random() < 0.3) this.bus.emit({ type: 'carAlarm', vehicle: v });
       v.ai = 'player';
       v.ensureFull();
       this.driving = v;
@@ -1048,7 +1061,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); this.paramedic.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);
@@ -1687,7 +1700,7 @@ export class Game {
     this.props.setNight(n);
     VehicleFactory.sharedHead.emissiveIntensity = 0.6 + n * 2.6;
     const flash = Math.floor(this.time * 7) % 2 === 0;
-    const sirens = this.stars > 0 || this.roadblocks.length > 0 || this.medics.active;
+    const sirens = this.stars > 0 || this.roadblocks.length > 0 || this.medics.active || this.paramedic.onDuty;
     VehicleFactory.sirenRed.emissiveIntensity = sirens ? (flash ? 3.4 : 0.15) : 0.2;
     VehicleFactory.sirenBlue.emissiveIntensity = sirens ? (flash ? 0.15 : 3.4) : 0.2;
     const d = this.driving;
@@ -1762,6 +1775,7 @@ export class Game {
     this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
     if (this.hunter) this.pushBlip(this.hunter.x, this.hunter.z, '#ff9a3d', true, 5);
+    for (const m of this.paramedic.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5);
     for (const m of this.gangs.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5.5);
     for (const m of this.festival.markers()) this.pushBlip(m.x, m.z, '#ff5db1', true, 5.5);
     for (const m of this.delivery.markers()) this.pushBlip(m.x, m.z, '#ff8fb8', m.flash, 5);

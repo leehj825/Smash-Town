@@ -347,6 +347,25 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return res;
     });
     ok(night.nightLimit < night.dayLimit * 0.5 && night.clothesClosed && night.gunOpen, 'at night fewer people are out and some shops close', JSON.stringify(night));
+    const medic = await S(() => {
+      const G = g(); const P = G.paramedic;
+      G.stars = 0; G.cash = 0; G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null;
+      P.update(0.05); P.cooldown = 0;
+      const sp = P.spot;
+      G.humans.setPlayerActive(true, sp.x, sp.z, 0);
+      P.update(0.05);
+      const onDuty = P.onDuty && !!G.driving && G.driving.kind === 'ambulance';
+      G.bus.emit({ type: 'civAssaulted', x: G.driving.x + 50, z: G.driving.z });   // a real incident becomes a call
+      const calls = P.open;
+      let guard = 0;
+      while (P.onDuty && guard++ < 30) {
+        if (!P.calls.length) P.addCall(G.driving.x + 40, G.driving.z, 'test');
+        const c = P.calls[0]; G.driving.ctrl.position.x = c.x; G.driving.ctrl.position.z = c.z; G.driving.ctrl.vx = G.driving.ctrl.vz = 0;
+        P.update(0.05);
+      }
+      return { onDuty, calls, shifts: P.completed, cash: G.cash, rescues: G.progress.stats.rescues };
+    });
+    ok(medic.onDuty && medic.calls >= 1 && medic.shifts === 1 && medic.cash >= 1500 && medic.rescues === 5, 'paramedic shift: an ambulance waits, real incidents become calls, five patients finish the shift', JSON.stringify(medic));
     // savings, houses and race records survive a reload
     await S(() => { const G = g(); G.save.bank = 4321; G.save.homes = [1, 2]; G.save.raceBest = [0, 77.5]; G.flushSave(); });
     await p.reload();

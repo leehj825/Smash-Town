@@ -1,8 +1,8 @@
 // Long-term progress: lifetime stats, achievements, daily challenges and shop ownership.
 
-export type StatKey = 'smashes' | 'stars' | 'copsKO' | 'gigs' | 'earned' | 'driveM' | 'playSec' | 'roofs' | 'shops' | 'quests' | 'fares' | 'races' | 'heists' | 'bounties' | 'hides' | 'deliveries' | 'robberies' | 'fish' | 'turfs';
+export type StatKey = 'smashes' | 'stars' | 'copsKO' | 'gigs' | 'earned' | 'driveM' | 'playSec' | 'roofs' | 'shops' | 'quests' | 'fares' | 'races' | 'heists' | 'bounties' | 'hides' | 'deliveries' | 'robberies' | 'fish' | 'turfs' | 'rescues';
 export type Stats = Record<StatKey, number>;
-export const emptyStats = (): Stats => ({ smashes: 0, stars: 0, copsKO: 0, gigs: 0, earned: 0, driveM: 0, playSec: 0, roofs: 0, shops: 0, quests: 0, fares: 0, races: 0, heists: 0, bounties: 0, hides: 0, deliveries: 0, robberies: 0, fish: 0, turfs: 0 });
+export const emptyStats = (): Stats => ({ smashes: 0, stars: 0, copsKO: 0, gigs: 0, earned: 0, driveM: 0, playSec: 0, roofs: 0, shops: 0, quests: 0, fares: 0, races: 0, heists: 0, bounties: 0, hides: 0, deliveries: 0, robberies: 0, fish: 0, turfs: 0, rescues: 0 });
 
 export interface Achievement { id: string; en: string; ko: string; key: StatKey; target: number }
 export const ACHIEVEMENTS: Achievement[] = [
@@ -27,6 +27,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'fish10', en: 'Angler: catch 10 fish', ko: '낚시꾼: 물고기 10마리', key: 'fish', target: 10 },
   { id: 'turf1', en: 'Turf Boss: take over a gang block', ko: '구역의 보스: 갱단 구역 점령', key: 'turfs', target: 1 },
   { id: 'turf3', en: 'Kingpin: hold every gang block', ko: '두목: 모든 갱단 구역 점령', key: 'turfs', target: 3 },
+  { id: 'rescue10', en: 'Medic: treat 10 patients', ko: '구급대원: 환자 10명 치료', key: 'rescues', target: 10 },
   { id: 'quests5', en: 'Helpful Neighbour: finish 5 street quests', ko: '이웃 도우미: 거리 퀘스트 5번', key: 'quests', target: 5 },
 ];
 
@@ -43,6 +44,7 @@ const DAILY_POOL: DailyTemplate[] = [
   { id: 'd-fare', en: 'Finish 2 taxi fares', ko: '택시 손님 2명 태우기', key: 'fares', target: 2, reward: 900 },
   { id: 'd-race', en: 'Win a street race', ko: '스트리트 레이스 우승', key: 'races', target: 1, reward: 1200 },
   { id: 'd-deliv', en: 'Finish a delivery run', ko: '배달 1번 완료하기', key: 'deliveries', target: 1, reward: 900 },
+  { id: 'd-rescue', en: 'Treat 3 patients as a paramedic', ko: '구급대원으로 환자 3명 치료', key: 'rescues', target: 3, reward: 1000 },
   { id: 'd-quest', en: 'Finish 2 street quests', ko: '거리 퀘스트 2번 완료하기', key: 'quests', target: 2, reward: 900 },
 ];
 
