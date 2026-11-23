@@ -48,6 +48,7 @@ import { currentMode, type GameMode } from './mode';
 import { Sandbox } from './sandbox';
 import { Kids } from './kids';
 import { Dialogue } from './dialogue';
+import { StoryBeats } from './storybeats';
 import { Progression, GUN_STAGE } from './progression';
 import { SAVE_VERSION, migrateSave } from './saveMigrate';
 import { JOBS } from './jobs';
@@ -89,7 +90,7 @@ export function currentSlot(): number {
 }
 export const slotSaveKey = (slot: number): string => (slot === 1 ? 'smashtown.save.v1' : `smashtown.save.v1.s${slot}`);
 export const SAVE_KEY = slotSaveKey(currentSlot());
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; friends?: Record<string, number>; bat?: boolean; storyV?: number; gear?: Record<string, number>; survivalBest?: number; v?: number; hour?: number; milestone?: number; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; friends?: Record<string, number>; bat?: boolean; storyV?: number; beats?: string[]; gear?: Record<string, number>; survivalBest?: number; v?: number; hour?: number; milestone?: number; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -170,6 +171,7 @@ export class Game {
   sandbox!: Sandbox;
   kidsMode!: Kids;
   dialogue!: Dialogue;
+  beats!: StoryBeats;
   progression!: Progression;
   /** A story game with no save yet: it starts on foot with almost nothing. */
   private freshStory = false;
@@ -321,6 +323,7 @@ export class Game {
     this.sandbox = new Sandbox(this);
     this.kidsMode = new Kids(this);
     this.dialogue = new Dialogue(this);
+    this.beats = new StoryBeats(this);
     this.progression = new Progression(this);
     if (this.mode === 'sandbox' || this.mode === 'kids') { this.noSave = true; this.story.done = true; }
     if (this.mode === 'kids') this.humans.gentle = true;
@@ -435,8 +438,9 @@ export class Game {
       const raceBest = Array.isArray(s.raceBest) ? s.raceBest.map((n: unknown) => (typeof n === 'number' && n > 0 ? n : 0)) : [];
       const login = s.login && typeof s.login.day === 'string' ? { day: s.login.day, streak: Number(s.login.streak) || 1 } : undefined;
       const bat = typeof s.bat === 'boolean' ? s.bat : undefined;
-      const storyV = Number(s.storyV) >= 2 ? 2 : undefined;
-      return { bat, storyV, cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, friends, gear, survivalBest: Number(s.survivalBest) > 0 ? Math.floor(Number(s.survivalBest)) : undefined, rep, skills, login, progress: s.progress, v: s.v ?? SAVE_VERSION, milestone: [25, 50, 75, 100].includes(Number(s.milestone)) ? Number(s.milestone) : undefined, hour: typeof s.hour === 'number' && s.hour >= 0 && s.hour < 24 ? s.hour : undefined };
+      const storyV = Number(s.storyV) >= 3 ? 3 : Number(s.storyV) >= 2 ? 2 : undefined;
+      const beats = Array.isArray(s.beats) ? s.beats.filter((x: unknown): x is string => typeof x === 'string') : undefined;
+      return { bat, storyV, beats, cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, friends, gear, survivalBest: Number(s.survivalBest) > 0 ? Math.floor(Number(s.survivalBest)) : undefined, rep, skills, login, progress: s.progress, v: s.v ?? SAVE_VERSION, milestone: [25, 50, 75, 100].includes(Number(s.milestone)) ? Number(s.milestone) : undefined, hour: typeof s.hour === 'number' && s.hour >= 0 && s.hour < 24 ? s.hour : undefined };
     } catch {
       this.freshStory = this.mode === 'story';
       return fallback;
@@ -469,6 +473,9 @@ export class Game {
   /** Money earned this session, by source (shown on the pause screen). */
   readonly earned: Record<EarnSrc, number> = { props: 0, stars: 0, gigs: 0, story: 0, police: 0, other: 0 };
 
+  /** The story mode is a climb from nothing: money found on the street, golden stars and the big rewards are a fraction of what they were. (The other modes keep the full amounts.) */
+  scaled(n: number, factor: number): number { return this.mode === 'story' ? Math.max(1, Math.round(n * factor)) : n; }
+
   addCash(n: number, src: EarnSrc = 'other'): void {
     if (n > 0) { this.earned[src] += n; this.progress?.add('earned', n); }
     this.cash += n;
@@ -480,7 +487,7 @@ export class Game {
   /** Called by the story when its position changes. */
   saveStory(s: StorySave): void {
     this.save.story = s;
-    if (this.mode === 'story') this.save.storyV = 2; // the story now starts with the intro chapter
+    if (this.mode === 'story') this.save.storyV = 3; // the story now starts with the opening and "Smash and Grab"
     this.saveDirty = true;
   }
 
@@ -1160,6 +1167,7 @@ export class Game {
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.dialogue.update(dt);
     this.story.update(dt);
+    this.beats.update(dt);
     this.collectibles.update(dt);
     this.collectStars();
     this.updatePickups(dt);
@@ -1327,7 +1335,8 @@ export class Game {
       } else if (type === 'armor') {
         this.humans.armor = Math.min(50, this.humans.armor + 25); this.popups.spawn(x, 3, z, '+25 ARMOR', '#4da3ff');
       } else {
-        this.addCash(value, 'other'); this.popups.spawn(x, 3, z, `+$${value}`, '#3dff8a');
+        const v = this.scaled(value, 0.2); // cash lying in the street: a little in the story mode
+        this.addCash(v, 'other'); this.popups.spawn(x, 3, z, `+$${v}`, '#3dff8a');
       }
       this.audio.cash();
     });
@@ -1340,11 +1349,12 @@ export class Game {
     const i = this.collectibles.tryCollect(this.focusX, this.focusZ, this.onFoot ? 2.4 : 4, this.onFoot ? this.humans.player.y : 0);
     if (i < 0) return;
     this.progress.add('stars');
-    this.addCash(300, 'stars');
-    this.popups.spawn(this.focusX, 3, this.focusZ, '+$300', '#ffe27a');
+    const star = this.scaled(300, 0.17);
+    this.addCash(star, 'stars');
+    this.popups.spawn(this.focusX, 3, this.focusZ, `+$${star}`, '#ffe27a');
     this.saveDirty = true;
     this.hud.setCollectibles(this.collectibles.count, this.collectibles.total);
-    this.hud.toast(`${t('ui.stars_found')} ${this.collectibles.count}/${this.collectibles.total}  +$300`, 2200);
+    this.hud.toast(`${t('ui.stars_found')} ${this.collectibles.count}/${this.collectibles.total}  +$${star}`, 2200);
     this.audio.cash();
   }
 

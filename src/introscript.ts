@@ -53,3 +53,62 @@ export const BONNIE: DScript = {
   b3b: { id: 'b3b', who: ['Bonnie', '보니'], text: ['Hah, I like that attitude. Keep that bat handy.', '하, 그 패기 마음에 드네. 그 방망이 잘 챙겨둬.'], next: 'b4' },
   b4: { id: 'b4', who: ['Bonnie', '보니'], text: ["Name's Bonnie. Grab a ride, build your rep, and the Gun Shop will open up. When there's money in your pocket, come find me outside it - I'll be waiting.", '난 보니야. 탈것부터 구하고 평판 좀 쌓으면 총기 상점도 열릴 거야. 돈이 좀 모이면 총기 상점 앞으로 와. 거기서 기다릴게.'] },
 };
+
+// ---------------------------------------------------------------- "Smash and Grab": the second chapter, a run of set pieces
+
+/** A phone call from Mr. Park: Donna's shop is being wrecked. */
+export const PARK_CALL: DScript = {
+  c1: { id: 'c1', who: ['Mr. Park (phone)', '미스터 박 (전화)'], text: ["Kid! Pick up! Bigsby's boys are tearing Donna's shop apart. Get over there, now!", '얘야! 받아! 빅스비 놈들이 도나네 가게를 부수고 있어. 당장 가 봐!'], next: 'c2' },
+  c2: { id: 'c2', who: ['You', '나'], text: ["On my way!", '바로 갈게요!'] },
+};
+
+/** The thugs at Donna's door. */
+export const SHOP_THUGS: DScript = {
+  s1: { id: 's1', who: ['Bigsby Thug', '빅스비 패거리'], text: ["Mayor Bigsby says Old Town is closing. We're starting with this donut dump.", '빅스비 시장님이 올드타운 문 닫으신대. 이 도넛 가게부터 시작이지.'], next: 's2' },
+  s2: { id: 's2', who: ['You', '나'], text: ["Not while I'm standing here.", '내가 여기 서 있는 동안은 안 돼.'] },
+};
+
+/** The last thug grabs the cash box. */
+export const CASHBOX: DScript = {
+  x1: { id: 'x1', who: ['Donna', '도나'], text: ['He grabbed my cash box and ran! Stop him!', '저 녀석이 내 돈 상자를 들고 튀었어요! 잡아 줘요!'] },
+};
+
+/** Sirens. */
+export const SIRENS: DScript = {
+  z1: { id: 'z1', who: ['You', '나'], text: ['Sirens... Bigsby has the police in his pocket. They are coming for ME.', '사이렌 소리... 빅스비가 경찰도 구워삶았나 봐. 나를 잡으러 오고 있어.'], next: 'z2' },
+  z2: { id: 'z2', who: ['You', '나'], text: ['Run. Lose them. Then think.', '일단 도망쳐. 따돌리고 나서 생각하자.'] },
+};
+
+/** Donna, afterwards. */
+export const SG_THANKS: DScript = {
+  g1: { id: 'g1', who: ['Donna', '도나'], text: ['You saved my shop, kid. Bigsby will not stop, though. Take this for your trouble.', '네가 우리 가게를 살렸어. 하지만 빅스비는 포기하지 않을 거야. 수고비야, 받아.'], next: 'g2' },
+  g2: {
+    id: 'g2', who: ['You', '나'], text: ['(She presses a roll of bills into my hand.)', '(도나가 지폐 뭉치를 손에 쥐여 준다.)'],
+    choices: [
+      { label: ['He will regret it. I am staying in Old Town.', '그 사람이 후회하게 될 거예요. 전 올드타운에 남겠어요.'], next: 'g3', fx: { friend: ['donna', 1] } },
+      { label: ['Just paying my way. Where is the next job?', '제 몫을 했을 뿐이에요. 다음 일은 어디 있죠?'], next: 'g3' },
+    ],
+  },
+  g3: { id: 'g3', who: ['Donna', '도나'], text: ['Talk to everyone. Old Town has more friends than you think.', '모두와 이야기해 봐요. 올드타운엔 네 생각보다 친구가 많아요.'] },
+};
+
+// ---------------------------------------------------------------- the phone calls from the stranger, between chapters
+
+const STRANGER: [string, string] = ['Unknown number', '모르는 번호'];
+export const TEASERS: Record<string, DScript> = {
+  'Smash and Grab': {
+    x1: { id: 'x1', who: STRANGER, text: ['Nice work, kid. Bigsby is scared now, and a scared man is dangerous. Watch your back.', '잘했어, 꼬마. 빅스비가 겁먹었어. 겁먹은 사람이 제일 위험하지. 뒤를 조심해.'], next: 'x2' },
+    x2: { id: 'x2', who: STRANGER, text: ['- A friend.', '- 친구가.'] },
+  },
+  'Inside Job': {
+    x1: { id: 'x1', who: STRANGER, text: ['Someone inside City Hall feeds Bigsby the police patrol times. Find out who.', '시청 안에 빅스비에게 경찰 순찰 시간을 알려 주는 사람이 있어. 누군지 알아내.'], next: 'x2' },
+    x2: { id: 'x2', who: STRANGER, text: ['- G', '- G'] },
+  },
+  'Save the Day': {
+    x1: { id: 'x1', who: STRANGER, text: ['Old Town is saved? Bigsby was never the boss. Come to the arcade. Come alone.', '올드타운을 구했다고? 빅스비는 보스였던 적이 없어. 오락실로 와. 혼자서.'], next: 'x2' },
+    x2: { id: 'x2', who: STRANGER, text: ['- G', '- G'] },
+  },
+  'The Harbor Stash': {
+    x1: { id: 'x1', who: STRANGER, text: ['You found the stash. And my name. Festival night, ten o\'clock, the hall steps. Be there.', '창고를 찾았군. 내 이름도. 축제의 밤, 밤 열 시, 시청 계단. 나와.'] },
+  },
+};

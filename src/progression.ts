@@ -1,4 +1,5 @@
 import type { Game } from './game';
+import { STORY_EXTRA } from './story';
 import { bi } from './i18n';
 import { AREAS } from './reputation';
 import type { GunId } from './guns';
@@ -34,7 +35,7 @@ export class Progression {
     if (G.mode === 'kids') return 1; // no weapons, no big jobs
     if (G.mode !== 'story') return 4;
     // (the intro chapter is not counted: stage 2 is the first real chapter done)
-    const ch = G.story.done ? 99 : G.story.ch - 1;
+    const ch = G.story.done ? 99 : G.story.ch - STORY_EXTRA;
     const turf = G.gangs.ownedCount;
     let rep = -100;
     for (const a of AREAS) rep = Math.max(rep, G.reputation.get(a));

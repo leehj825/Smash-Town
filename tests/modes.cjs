@@ -50,19 +50,19 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       // buying a pistol at stage 1 is refused (onBuyGun is wired through the garage panel; call the same gate)
       const need = (id) => ({ pistol: 2, smg: 3, rocket: 4 })[id];
       out.refused = !G.progression.allows(need('pistol')) && !G.progression.allows(need('smg')) && !G.progression.allows(need('rocket'));
-      G.story.ch = 2; out.stage2 = G.progression.stage(); out.pistolOk = G.progression.allows(2) && !G.progression.allows(3);
-      G.story.ch = 4; out.stage3 = G.progression.stage();
-      G.story.ch = 6; out.stage4 = G.progression.stage();
-      G.story.ch = 1; out.back = G.progression.stage() === 1;
+      G.story.ch = 3; out.stage2 = G.progression.stage(); out.pistolOk = G.progression.allows(2) && !G.progression.allows(3);
+      G.story.ch = 5; out.stage3 = G.progression.stage();
+      G.story.ch = 7; out.stage4 = G.progression.stage();
+      G.story.ch = 2; out.back = G.progression.stage() === 1;
       // the pistol costs money and its ammunition runs out; the first cars cost too
       out.price = G.garageModel().arms.gate.pistol === 2;
       out.cars = G.garageModel().unlocked.size === 0;
       // gear is gated too
       G.save.gear = {}; out.vestLocked = !G.gear.buy('vest') && G.gear.count('vest') === 0;
-      G.story.ch = 2; out.vestOpen = G.gear.buy('vest') && G.gear.count('vest') === 1;
+      G.story.ch = 3; out.vestOpen = G.gear.buy('vest') && G.gear.count('vest') === 1;
       out.smokeLocked = !G.gear.buy('smoke');
       // big jobs wait for their stage
-      G.story.ch = 1;
+      G.story.ch = 2;
       let kinds = new Set(); for (let i = 0; i < 40; i++) { G.director.last = ''; G.fires.list.length = 0; G.riots.current = null; if (G.thieves.active) G.thieves.release(null); const picked = (() => { const before = G.director.throws; G.director.throwOne(); return G.director.last; })(); kinds.add(picked); if (G.truckHeist.active) G.truckHeist.end('x', false); }
       out.noTruck = !kinds.has('truck');
       G.fires.list.length = 0; G.riots.current = null; if (G.thieves.active) G.thieves.release(null);
@@ -152,7 +152,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
-    r.back = await p.evaluate(() => { const G = g(); const b = G.npcs.humanOf('bonnie'); const h = G.npcs.homeOf('bonnie'); return Math.hypot(b.x - h.x, b.z - h.z) < 1.5 && !G.dialogue.active && G.story.ambush === 'done'; });
+    r.back = await p.evaluate(() => { const G = g(); const b = G.npcs.humanOf('bonnie'); const h = G.npcs.homeOf('bonnie'); return Math.hypot(b.x - h.x, b.z - h.z) < 1.5 && G.story.ambush === 'done'; });
     ok(r.bonnie && r.choices && r.friend && r.back, 'Bonnie walks up after the fight, offers a choice, and goes back to the gun shop', JSON.stringify(r));
     r = await p.evaluate(() => {
       const G = g(); const S = G.story; const H = G.humans; const out = {};
@@ -160,17 +160,83 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       // pick up the bat, finish the delivery, then get a ride
       const bat = S.batAt; H.setPlayerActive(true, bat.x, bat.z, 0); G.update(0.1);
       out.bat = H.batOwned && H.player.weapon === 1;
-      const s1 = G.delivery.stops[1]; H.setPlayerActive(true, s1.x, s1.z, 0); G.stars = 0; G.heat = 0;
+      const s1 = G.delivery.stops[1]; if (s1) { H.setPlayerActive(true, s1.x, s1.z, 0); } G.stars = 0; G.heat = 0;
       for (let i = 0; i < 5; i++) { G.delivery.update(0.1); S.update(0.1); }
-      out.delivered = G.delivery.completed >= 1 && S.stepKind() === 'ride' && G.delivery.stopsLimit === 3 && G.delivery.payScale === 1;
+      out.delivered = G.delivery.completed >= 1 && G.delivery.stopsLimit === 3 && G.delivery.payScale === 1;
       out.paid = G.cash > 0 && G.cash < 600;
+      // sirens: somebody called the police about the fight; lose them
+      const D = G.dialogue;
+      for (let i = 0; i < 4 && !(D.active && D.node.id === 'z1'); i++) S.update(0.1);
+      out.sirens = (D.active && D.node.id === 'z1') || S.stepKind() === 'escape';
+      for (let i = 0; i < 6 && D.active; i++) D.advance(); G.state = 'play';
+      S.update(0.1); out.escape = S.stepKind() === 'escape' && (G.stars === 1 || S.escapeT > 0);
+      G.clearWanted(); S.update(5); out.escaped = S.stepKind() === 'ride';
       const cash0 = G.cash; const v = G.spawnVehicle('scooter', 0x2fb87a, H.player.x + 2, H.player.z, 0, 'parked'); G.boardVehicle(v); S.update(0.1);
       out.done = S.ch === 1 && S.step === 0 && G.cash - cash0 === 100;
-      out.next = S.stepKind() === 'goto';
+      out.next = S.stepKind() === 'monologue';
       G.removeVehicle(v); G.driving = null; G.onFoot = true; G.skills.off = false;
       return out;
     });
-    ok(r.bat && r.delivered && r.paid && r.done && r.next, 'pick up the bat, finish the delivery for modest pay, get a ride, and the story proper begins', JSON.stringify(r));
+    ok(r.bat && r.delivered && r.paid && r.sirens && r.escape && r.escaped && r.done && r.next, 'pick up the bat, finish the delivery for modest pay, escape the sirens, get a ride, and the next chapter begins', JSON.stringify(r));
+    await ctx.close();
+
+    // chapter two, "Smash and Grab": a phone call, a brawl at Donna's, a chase on foot, thanks (and a call from a stranger)
+    ({ p, ctx } = await open('?mode=story'));
+    await p.evaluate(() => window.__smash.startGame());
+    await p.waitForTimeout(800);
+    r = await p.evaluate(() => {
+      const G = g(); const S = G.story; const D = G.dialogue; const H = G.humans; const out = {};
+      G.inside = null; G.skills.off = true; G.stars = 0; G.heat = 0;
+      D.active = false; G.hud.hideDialog(); G.setDialogOpen(false); S.monoStarted = false; // (the arrival speaks by itself at the start: set it aside)
+      S.ch = 1; S.step = 0; S.prog = 0; G.state = 'play';
+      const adv = () => { for (let i = 0; i < 8 && D.active && !(D.node && D.node.choices); i++) D.advance(); };
+      S.update(0.1); out.call = D.active && D.node.id === 'c1';
+      adv(); G.state = 'play'; S.update(0.1);
+      out.run = S.stepKind() === 'goto';
+      const donna = G.world.landmarks.story.donna; H.setPlayerActive(true, donna.x, donna.z, 0); S.update(0.1);
+      out.brawl = S.stepKind() === 'brawl';
+      S.update(0.1); out.three = S.thugs.length === 3 && S.brawl === 'staged';
+      H.setPlayerActive(true, S.thugs[0].x + 6, S.thugs[0].z, 0); S.update(0.1);
+      out.taunt = D.active && D.node.id === 's1' && S.brawl === 'talk';
+      adv(); G.state = 'play';
+      out.fight = S.brawl === 'fight' && S.thugs.every((h) => h.hostile);
+      for (const h of S.thugs) h.ko = true; S.update(0.1);
+      out.cashbox = S.stepKind() === 'monologue';
+      S.update(0.1); out.shout = D.active && D.node.id === 'x1';
+      adv(); G.state = 'play'; S.update(0.1);
+      out.runner = S.stepKind() === 'runner';
+      // a passer-by is the thief: put one near Donna's door and let the chase begin
+      const civ = H.list.find((h) => h.active && h.role === 0 && !h.named && !h.ally && !h.gang);
+      const home = G.npcs.homeOf('donna'); civ.x = home.x + 9; civ.z = home.z; civ.state = 0;
+      S.update(1); out.chase = G.thieves.active && H.thiefSpeed < 8.2;
+      const tm = G.thieves.markers()[0]; H.setPlayerActive(true, tm.x, tm.z, 0); G.thieves.update(0.1); S.update(0.1);
+      out.caught = !G.thieves.active && S.stepKind() === 'talk' && S.questNpc() === 'donna';
+      // thanks
+      const dn = G.npcs.humanOf('donna'); H.setPlayerActive(true, dn.x + 2.2, dn.z, 0);
+      const cash0 = G.cash; G.npcs.talk(G.npcs.nearest());
+      adv(); out.choice = !!D.node.choices; D.choose(0); adv(); G.state = 'play';
+      out.reward = S.ch === 2 && G.cash - cash0 === 150;
+      // then a call from a stranger
+      S.update(0.1); out.teaser = D.active && D.node.who[0] === 'Unknown number';
+      adv(); G.state = 'play';
+      G.skills.off = false;
+      return out;
+    });
+    ok(r.call && r.run && r.brawl && r.three && r.taunt && r.fight && r.cashbox && r.shout && r.runner && r.chase && r.caught && r.choice && r.reward && r.teaser, 'Smash and Grab: a call, a brawl at the shop, a chase on foot, thanks, and a stranger rings', JSON.stringify(r));
+    // texts that come because of what you did, and a smaller economy
+    r = await p.evaluate(() => {
+      const G = g(); const D = G.dialogue; const out = {};
+      G.state = 'play'; G.stars = 0; G.skills.off = true; D.active = false;
+      out.scaled = G.scaled(300, 0.17) === 51 && G.scaled(1000, 0.3) === 300;
+      G.save.beats = []; G.story.ch = 2; G.cash = 1500; G.beats.t = 0; G.beats.update(0.1);
+      out.beat = D.active && D.node.who[0].startsWith('Mr. Park') && G.save.beats.includes('cash1000');
+      for (let i = 0; i < 4 && D.active; i++) D.advance(); G.state = 'play';
+      G.beats.t = 0; G.beats.update(0.1);
+      out.once = !D.active || D.node.who[0].startsWith('Mr. Park') === false;
+      G.skills.off = false; G.cash = 0;
+      return out;
+    });
+    ok(r.scaled && r.beat && r.once, 'the story mode pays a fraction for found money, and a text arrives once when you have saved up', JSON.stringify(r));
     await ctx.close();
 
     // a story saved before the intro existed skips it (chapters move up one place)
@@ -182,7 +248,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { p: pg, ctx: c };
     })());
     r = await p.evaluate(() => { const G = g(); return { ch: G.story.ch, step: G.story.step, cash: G.cash, car: !!G.driving, stage: G.progression.stage() }; });
-    ok(r.ch === 3 && r.step === 1 && r.cash === 777 && r.car && r.stage === 2, 'an older story save keeps its place (shifted past the intro), its cash and its car', JSON.stringify(r));
+    ok(r.ch === 4 && r.step === 1 && r.cash === 777 && r.car && r.stage === 2, 'an older story save keeps its place (shifted past the intro), its cash and its car', JSON.stringify(r));
     await ctx.close();
 
     // the sandbox

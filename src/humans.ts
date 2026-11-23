@@ -162,6 +162,8 @@ export class Humans {
   /** Set by the game clock: walking pace of strollers and the chance per second that one stops. */
   pace = 1;
   pauseRate = 0.04;
+  /** How fast a thief runs (the story's chase makes it a little slower than your sprint). */
+  thiefSpeed = 6.6;
   combatTimer = 0;
 
   private rng = makeRng(4242);
@@ -1073,7 +1075,7 @@ export class Humans {
     if (h.pauseT > 0 && !h.fleeing && !h.thief) { h.pauseT -= dt; h.speed = 0; h.mvx = h.mvz = 0; return; }
     h.pauseT = 0;
     if (!h.fleeing && !h.thief && this.rng() < dt * this.pauseRate) h.pauseT = 2 + this.rng() * 5;
-    const v = h.thief ? 6.6 : h.fleeing ? 5.2 : h.pathSpeed * this.pace;
+    const v = h.thief ? this.thiefSpeed : h.fleeing ? 5.2 : h.pathSpeed * this.pace;
     const p = this.perim(h.lot);
     h.s += h.dir * v * dt;
     const [nx, nz] = this.pointOn(p, h.s);

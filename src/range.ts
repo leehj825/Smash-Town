@@ -92,9 +92,10 @@ export class RangeGig {
     G.hud.showGig(false);
     if (win) {
       const bonus = Math.round(this.time * 10);
-      G.addCash(800 + bonus, 'gigs');
+      const pay = G.scaled(800 + bonus, 0.5);
+      G.addCash(pay, 'gigs');
       G.progress.add('gigs');
-      G.hud.toast(`${bi('Target practice complete!', '사격 연습 성공!')} +$${(800 + bonus).toLocaleString('en-US')}`, 3200);
+      G.hud.toast(`${bi('Target practice complete!', '사격 연습 성공!')} +$${pay.toLocaleString('en-US')}`, 3200);
     } else G.hud.toast(bi('Time is up!', '시간 종료!'), 2400);
   }
 

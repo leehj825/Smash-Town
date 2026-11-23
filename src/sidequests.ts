@@ -63,7 +63,7 @@ export class SideQuests {
     this.thief = null;
     this.cool = 50;
     g.hud.showGig(false);
-    if (ok) { g.addCash(reward, 'gigs'); g.progress.add('quests'); g.hud.toast(`${label} +$${reward.toLocaleString('en-US')}`, 3200); }
+    if (ok) { reward = g.scaled(reward, 0.5); g.addCash(reward, 'gigs'); g.progress.add('quests'); g.hud.toast(`${label} +$${reward.toLocaleString('en-US')}`, 3200); }
     else if (label) g.hud.toast(label, 2600);
   }
 

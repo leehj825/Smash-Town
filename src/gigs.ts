@@ -97,6 +97,7 @@ export class GigManager {
   }
 
   private finish(ok: boolean, reward = 0): void {
+    reward = this.game.scaled(reward, 0.4);
     const a = this.active!;
     const g = this.game;
     this.objective.visible = false;
