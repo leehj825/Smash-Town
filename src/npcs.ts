@@ -35,7 +35,7 @@ export class Npcs {
     const near = (p: P2 | null, dx: number, dz: number): P2 | null => (p ? { x: p.x + dx, z: p.z + dz } : null);
     const defs: NpcDef[] = [
       {
-        id: 'minji', name: ['Minji', '민지'], job: ['Baker', '제빵사'], look: { shirt: 0xf7c6d9, pants: 0x6b4f3a, skin: 0xf1c27d, hair: 0x2a1a10 },
+        id: 'mia', name: ['Mia', '미아'], job: ['Baker', '제빵사'], look: { shirt: 0xf7c6d9, pants: 0x6b4f3a, skin: 0xf1c27d, hair: 0x2a1a10 },
         where: () => { const r = G.interiors.rooms.find((q) => q.id === 'donut'); return r ? { x: r.door.x + Math.cos(r.door.h) * 2.6, z: r.door.z - Math.sin(r.door.h) * 2.6 } : null; },
         lines: {
           friendly: [['Oh, it is you! Everybody around here speaks well of you.', '어머, 당신이군요! 이 근방에선 다들 당신 칭찬이에요.'], ['Here, a donut on the house. Go on.', '자, 서비스 도넛이에요. 드세요.']],
@@ -45,7 +45,7 @@ export class Npcs {
         act: (g, t) => { if (t !== 'friendly') return null; g.humans.player.hp = g.humans.player.maxHp; return bi('You feel full again.', '체력이 가득 찼어요.'); },
       },
       {
-        id: 'dae', name: ['Dae', '대호'], job: ['Mechanic', '정비사'], look: { shirt: 0x2a4a8a, pants: 0x23262f, skin: 0xc68642, hair: 0x1a1a1a },
+        id: 'dave', name: ['Dave', '데이브'], job: ['Mechanic', '정비사'], look: { shirt: 0x2a4a8a, pants: 0x23262f, skin: 0xc68642, hair: 0x1a1a1a },
         where: () => { const g = G.world.garages[0]; return g?.door ? near({ x: g.door.x, z: g.door.z }, 2, 0) : null; },
         lines: {
           friendly: [['Good to see you! Your car looked rough last time. Let me fix it, no charge.', '반가워요! 지난번 차 상태가 별로던데. 공짜로 고쳐 드릴게요.']],
@@ -71,7 +71,7 @@ export class Npcs {
         act: (g, t) => { if (t !== 'friendly') return null; g.humans.player.hp = g.humans.player.maxHp; g.humans.armor = Math.max(g.humans.armor, 25); return bi('Patched up, with a little armour.', '치료받고 방어구도 조금 생겼어요.'); },
       },
       {
-        id: 'park', name: ['Old Park', '박 노인'], job: ['Fisherman', '낚시꾼'], look: { shirt: 0x6b8a4a, pants: 0x6b4f3a, skin: 0xe0ac69, hair: 0xe6e6e6 },
+        id: 'pete', name: ['Old Pete', '올드 피트'], job: ['Fisherman', '낚시꾼'], look: { shirt: 0x6b8a4a, pants: 0x6b4f3a, skin: 0xe0ac69, hair: 0xe6e6e6 },
         where: () => water(),
         lines: {
           friendly: [['You are good people. I will let you in on my secret spot - the golden ones bite for the next few minutes.', '좋은 분이군요. 비밀 자리를 알려 드리죠. 앞으로 몇 분 동안 황금 물고기가 잘 물어요.']],
@@ -81,7 +81,7 @@ export class Npcs {
         act: (g, t) => { if (t !== 'friendly') return null; g.fishing.luckUntil = performance.now() / 1000 + 300; return bi('Rare fish bite far more often for five minutes.', '5분 동안 희귀한 물고기가 훨씬 잘 물어요.'); },
       },
       {
-        id: 'jiho', name: ['Ji-ho', '지호'], job: ['Street racer', '스트리트 레이서'], look: { shirt: 0xff7a1a, pants: 0x23262f, skin: 0xf1c27d, hair: 0x1a1a1a },
+        id: 'jay', name: ['Jay', '제이'], job: ['Street racer', '스트리트 레이서'], look: { shirt: 0xff7a1a, pants: 0x23262f, skin: 0xf1c27d, hair: 0x1a1a1a },
         where: () => near(G.race.startPoint(1), 4.5, 0),
         lines: {
           friendly: [['You drive like a legend. Take this: the next race pays 20% extra, my treat.', '전설 같은 운전이에요. 이거 받아요. 다음 레이스는 상금이 20% 더 나와요.']],
@@ -91,7 +91,7 @@ export class Npcs {
         act: (g, t) => { if (t !== 'friendly') return null; g.race.bonus = 1.2; return bi('Your next race pays 20% extra.', '다음 레이스 상금 20% 추가.'); },
       },
       {
-        id: 'bora', name: ['Bo-ra', '보라'], job: ['Bodyguard', '경호원'], look: { shirt: 0x14141f, pants: 0x1a1a24, skin: 0xc68642, hair: 0x0a0a0a },
+        id: 'bonnie', name: ['Bonnie', '보니'], job: ['Bodyguard', '경호원'], look: { shirt: 0x14141f, pants: 0x1a1a24, skin: 0xc68642, hair: 0x0a0a0a },
         where: () => { const r = G.interiors.rooms.find((q) => q.id === 'gun'); return r ? { x: r.door.x + Math.cos(r.door.h) * -3, z: r.door.z + Math.sin(r.door.h) * 3 } : null; },
         lines: {
           friendly: [['For a friend of the neighbourhood, half price: $300. I will fight beside you until I am knocked out.', '동네 친구에게는 반값, $300이에요. 쓰러질 때까지 곁에서 같이 싸울게요.']],
@@ -101,12 +101,12 @@ export class Npcs {
         act: (g, t) => {
           if (g.buddy.hired) return bi('I am already with you!', '이미 함께하고 있잖아요!');
           if (!g.pay(t === 'friendly' ? 300 : 600)) return null;
-          g.buddy.recruit(bi('Bo-ra', '보라'));
-          return bi('Bo-ra joins you. She will fight the gangs beside you.', '보라가 합류했어요. 갱단과 함께 싸울 거예요.');
+          g.buddy.recruit(bi('Bonnie', '보니'));
+          return bi('Bonnie joins you. She will fight the gangs beside you.', '보니가 합류했어요. 갱단과 함께 싸울 거예요.');
         },
       },
       {
-        id: 'kang', name: ['Kang', '강 형'], job: ['Informant', '정보원'], look: { shirt: 0x23262f, pants: 0x1a1a24, skin: 0xc68642, hair: 0x0a0a0a },
+        id: 'kane', name: ['Kane', '케인'], job: ['Informant', '정보원'], look: { shirt: 0x23262f, pants: 0x1a1a24, skin: 0xc68642, hair: 0x0a0a0a },
         where: () => { const z = G.gangs.zones[0]; return z ? { x: z.spots[0].x + 3, z: z.spots[0].z } : null; },
         lines: {
           friendly: [['For you, no charge. Here is what I know about the gangs.', '당신한텐 공짜예요. 갱단에 대해 아는 걸 알려 드리죠.']],

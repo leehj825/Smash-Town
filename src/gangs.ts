@@ -30,9 +30,9 @@ export class Gangs {
   private revealUntil: Record<number, number> = {};
   private incomeT = 60;
   private gangs = [
-    { name: 'The Reds', ko: '레드파', color: 0xd62d3a, css: '#d62d3a' },
-    { name: 'The Violets', ko: '바이올렛파', color: 0x8e44ad, css: '#b072d6' },
-    { name: 'The Greens', ko: '그린파', color: 0x2fb87a, css: '#35d68a' },
+    { name: 'The Reds', ko: '더 레즈', color: 0xd62d3a, css: '#d62d3a' },
+    { name: 'The Violets', ko: '더 바이올렛츠', color: 0x8e44ad, css: '#b072d6' },
+    { name: 'The Greens', ko: '더 그린즈', color: 0x2fb87a, css: '#35d68a' },
   ];
 
   constructor(private game: Game) {

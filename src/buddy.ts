@@ -3,7 +3,7 @@ import type { Human } from './humans';
 import { bi } from './i18n';
 
 /**
- * A bodyguard friend. Hire one (Bo-ra, by the gun shop) and they walk with you and fight the gang members who come at you. They wait out of sight
+ * A bodyguard friend. Hire one (Bonnie, by the gun shop) and they walk with you and fight the gang members who come at you. They wait out of sight
  * while you drive and step out when you do. If they are knocked out for good they go home and have to be hired again.
  */
 export class Buddy {

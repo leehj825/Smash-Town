@@ -371,13 +371,13 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       G.stars = 0; G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null;
       N.update(0.1);
       const placed = N.list.filter((q) => q.human).length;
-      const minji = N.list.find((q) => q.def.id === 'minji');
+      const mia = N.list.find((q) => q.def.id === 'mia');
       // neutral: she talks but gives nothing; friendly: a free donut; hostile: refuses
-      const spot = minji.pos; const area = R.area(spot.x, spot.z);
+      const spot = mia.pos; const area = R.area(spot.x, spot.z);
       G.save.rep = {};
       G.humans.setPlayerActive(true, spot.x + 1.5, spot.z, 0);
       const near = N.nearest(); const prompt = near ? N.prompt(near) : '';
-      G.humans.player.hp = 20; G.save.rep[area] = 50; minji.last = -999;
+      G.humans.player.hp = 20; G.save.rep[area] = 50; mia.last = -999;
       N.talk(near); const open = N.dialogOpen; N.advance(); N.advance();
       const healed = G.humans.player.hp >= G.humans.player.maxHp;
       G.humans.player.hp = 20; G.save.rep[area] = -60; N.clock = 1000;
@@ -385,10 +385,10 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       const stayedHurt = G.humans.player.hp === 20;
       // hurting people costs reputation where it happened; helping earns it back
       G.save.rep = {};
-      G.bus.emit({ type: 'civAssaulted', x: spot.x, z: spot.z }); G.bus.emit({ type: 'civKilled', x: spot.x, z: spot.z, human: minji.human, byPlayer: true, kids: true });
+      G.bus.emit({ type: 'civAssaulted', x: spot.x, z: spot.z }); G.bus.emit({ type: 'civKilled', x: spot.x, z: spot.z, human: mia.human, byPlayer: true, kids: true });
       const down = R.get(area);
       G.bus.emit({ type: 'helped', x: spot.x, z: spot.z, amount: 10 });
-      return { placed, near: !!near, prompt: /Minji|민지/.test(prompt), open, healed, refused, stayedHurt, down, up: R.get(area) };
+      return { placed, near: !!near, prompt: /Mia|미아/.test(prompt), open, healed, refused, stayedHurt, down, up: R.get(area) };
     });
     ok(npc.placed >= 5 && npc.near && npc.prompt && npc.open && npc.healed && npc.refused && npc.stayedHurt && npc.down === -8 && npc.up === 2, 'named people talk by your reputation (a favour, or a refusal) and reputation moves with what you do', JSON.stringify(npc));
     const boat = await S(() => {
@@ -424,7 +424,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       B.dismiss();
       z.owner = 'gang'; for (const m of z.members) H.removeGang(m); z.members = [];
       H.setPlayerActive(true, z.x + 80, z.z, 0);
-      const hired = B.recruit('Bo-ra');
+      const hired = B.recruit('Bonnie');
       const ally = B.human;
       GA.update(0.1);
       H.player.x = z.x + 60; H.player.z = z.z; ally.x = H.player.x - 2; ally.z = H.player.z;

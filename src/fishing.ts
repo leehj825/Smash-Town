@@ -11,7 +11,7 @@ export class Fishing {
   private phase: Phase = 'idle';
   private t = 0;
   private catches = 0;
-  /** A tip from Old Park: until this time (seconds on the page clock) a quarter of the bites are rare fish. */
+  /** A tip from Old Pete: until this time (seconds on the page clock) a quarter of the bites are rare fish. */
   luckUntil = 0;
 
   constructor(private game: Game) {}
