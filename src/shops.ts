@@ -8,6 +8,11 @@ import type { Room } from './interiors';
 export class Shops {
   constructor(private G: Game) {}
 
+  wardrobeNear(room: Room): boolean {
+    const pl = this.G.humans.player;
+    return room.id === 'home' && Math.hypot(pl.x - (room.ox + 5.6), pl.z - (room.oz + 3.0)) < 2.4;
+  }
+
   // ---- robbing a till: with a gun out, press G at a counter (donut shop, arcade, clothes shop)
   private robbed: Record<string, number> = {};
   private now(): number { return performance.now() / 1000; }
@@ -157,6 +162,7 @@ export class Shops {
   prompt(room: Room): string | null {
     const pl = this.G.humans.player;
     if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) return bi('[F] Leave', '[F] 나가기');
+    if (this.wardrobeNear(room)) return this.G.stars > 0 ? bi('[F] Wardrobe: change into a disguise', '[F] 옷장: 변장하기') : bi('[F] Wardrobe: change clothes', '[F] 옷장: 옷 갈아입기');
     if (this.canRob(room) && Math.hypot(this.G.humans.player.x - room.counter.x, this.G.humans.player.z - room.counter.z) < 3.4) return bi('[G] Rob the till (gun out) - or [F] to shop', '[G] 금고 털기 (총 필요) - 또는 [F] 상점 이용');
     if (room.id === 'bank' && this.vaultNear(room)) return this.heist ? bi('Cracking the vault - stay here!', '금고 해제 중 - 움직이지 마세요!') : bi('[F] Crack the vault (sets off the alarm!)', '[F] 금고 털기 (경보가 울립니다!)');
     if (this.deskNear(room)) {

@@ -208,6 +208,31 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { big, cb, off: !document.documentElement.classList.contains('big-ui') && !document.documentElement.classList.contains('cb-safe') };
     });
     ok(a11y.big && a11y.cb && a11y.off, 'large text and colour-blind palette switches work', JSON.stringify(a11y));
+    const life = await S(() => {
+      const G = g();
+      const A = G.animals;
+      for (let i = 0; i < 20; i++) A.update(0.1);
+      G.humans.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0); G.onFoot = true; G.driving = null; G.inside = null; G.state = 'play';
+      const started = G.festival.start();
+      for (let i = 0; i < 40; i++) G.festival.update(0.1);
+      const festival = G.festival.active && G.festival.markers().length === 1;
+      G.blackout = true; (G).updateLights(); const dark = G.world.windowMaterial.emissiveIntensity;
+      G.blackout = false;
+      const bus = G.vehicles.length >= 0 && !!G.spawnVehicle('bus', 0x2f78d6, 5, 5, 0, 'parked', true);
+      return { dogs: A.dogCount, gulls: A.gullCount, started, festival, dark, bus };
+    });
+    ok(life.dogs > 5 && life.gulls > 0 && life.started && life.festival && life.dark < 0.1 && life.bus, 'dogs and gulls, a festival with fireworks, a blackout and a city bus exist', JSON.stringify(life));
+    const dis = await S(() => {
+      const G = g(); const r = G.interiors.rooms.find((q) => q.id === 'home');
+      G.stars = 3; G.heat = 170; G.inside = r; G.humans.setPlayerActive(true, r.ox + 5.6, r.oz + 3.0, 0);
+      const near = G.shops.wardrobeNear(r);
+      const o0 = G.save.outfit ?? 0;
+      G.wardrobe();
+      const out = { near, outfit: G.save.outfit !== o0, heat: Math.round(G.heat) };
+      G.inside = null; G.stars = 0; G.heat = 0;
+      return out;
+    });
+    ok(dis.near && dis.outfit && dis.heat < 170, 'the home wardrobe changes clothes and cools the heat (disguise)', JSON.stringify(dis));
     // savings, houses and race records survive a reload
     await S(() => { const G = g(); G.save.bank = 4321; G.save.homes = [1, 2]; G.save.raceBest = [0, 77.5]; G.flushSave(); });
     await p.reload();

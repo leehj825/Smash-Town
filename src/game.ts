@@ -28,6 +28,8 @@ import { News } from './news';
 import { TaxiJob } from './taxi';
 import { StreetRace } from './race';
 import { DeliveryJob } from './delivery';
+import { Animals } from './animals';
+import { Festival } from './festival';
 import { settings } from './settings';
 import { Mood } from './mood';
 import { GUN_ORDER, GUNS, GUN_UP_PRICE, GUN_UP_TIER, Guns, type GunDef, type GunId } from './guns';
@@ -112,6 +114,10 @@ export class Game {
   taxi!: TaxiJob;
   race!: StreetRace;
   delivery!: DeliveryJob;
+  animals!: Animals;
+  festival!: Festival;
+  /** A storm has cut the power: windows, signs and street lamps go dark for a while. */
+  blackout = false;
   readonly sideQuests: SideQuests;
   readonly progress: Progress;
   readonly mood: Mood;
@@ -213,6 +219,8 @@ export class Game {
     this.taxi = new TaxiJob(this);
     this.race = new StreetRace(this);
     this.delivery = new DeliveryJob(this);
+    this.animals = new Animals(this);
+    this.festival = new Festival(this);
     this.lights = new TrafficLights();
     this.scene.add(this.lights.group);
     {
@@ -372,7 +380,7 @@ export class Game {
     const px = this.focusX || 0, pz = this.focusZ || 0;
     const p = TrafficBrain.randomPlacement(this.rng, px, pz, initial ? 25 : 90);
     const kind = CIVILIAN_KINDS[Math.floor(this.rng() * CIVILIAN_KINDS.length)];
-    const color = kind === 'taxi' ? 0xffc400 : CIVILIAN_COLORS[Math.floor(this.rng() * CIVILIAN_COLORS.length)];
+    const color = kind === 'taxi' ? 0xffc400 : kind === 'bus' ? 0x2f78d6 : CIVILIAN_COLORS[Math.floor(this.rng() * CIVILIAN_COLORS.length)];
     const v = this.spawnVehicle(kind, color, p.x, p.z, p.heading, 'traffic');
     v.traffic = new TrafficBrain(this.rng);
     v.traffic.attach(p);
@@ -668,6 +676,7 @@ export class Game {
     if (playing && (input.wasPressed('KeyF') || input.wasPressed('KeyE'))) {
       if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) this.leaveBuilding();
       else if (room.id === 'bank' && this.shops.vaultNear(room)) this.shops.startHeist();
+      else if (room.id === 'home' && this.shops.wardrobeNear(room)) this.wardrobe();
       else if (this.shops.deskNear(room)) this.shops.deskAction(room);
       else if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shops.action(room);
     }
@@ -1115,6 +1124,7 @@ export class Game {
     this.medics.update(dt);
     this.race.drive(dt);
     this.lights.update(dt);
+    this.animals.update(dt);
     this.news.update(dt);
     const fx = this.fx;
     for (const v of this.vehicles) {
@@ -1137,7 +1147,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);
@@ -1691,6 +1701,21 @@ export class Game {
   }
 
   /** Once a day: a login bonus that grows with the streak of days in a row (up to a week). Returns the amount, or 0 if already claimed today. */
+  /** At home the wardrobe changes your clothes for free; with the police after you it also throws them off the scent (a third of the heat). */
+  wardrobe(): void {
+    this.save.outfit = ((this.save.outfit ?? 0) + 1) % Game.OUTFITS.length;
+    this.applyOutfit(this.save.outfit);
+    const pl = this.humans.player;
+    if (this.stars > 0) {
+      this.heat *= 0.67;
+      let s = 0;
+      for (let i = 0; i < STAR_HEAT.length; i++) if (this.heat >= STAR_HEAT[i]) s = i + 1;
+      if (s < this.stars) { this.stars = s; this.hud.setWanted(s); if (s === 0) this.clearWanted(); }
+      this.popups.spawn(pl.x, 3, pl.z, bi('New disguise!', '변장 완료!'), '#b084ff');
+    } else this.popups.spawn(pl.x, 3, pl.z, bi('New look!', '새 옷!'), '#b084ff');
+    this.flushSave();
+  }
+
   claimLogin(now = new Date()): number {
     const today = todayKey(now);
     const prev = this.save.login;
@@ -1839,7 +1864,7 @@ export class Game {
 
   // ------------------------------------------------------------------ presentation helpers
   private updateLights(): void {
-    const n = this.env.night;
+    const n = this.env.night * (this.blackout ? 0.06 : 1);
     this.world.windowMaterial.emissiveIntensity = n * 1.1;
     this.world.signMaterial.emissiveIntensity = 0.15 + n * 1.0;
     this.props.lampHeadMaterial.emissiveIntensity = 0.15 + n * 3.2;
@@ -1918,6 +1943,7 @@ export class Game {
     this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
     if (this.hunter) this.pushBlip(this.hunter.x, this.hunter.z, '#ff9a3d', true, 5);
+    for (const m of this.festival.markers()) this.pushBlip(m.x, m.z, '#ff5db1', true, 5.5);
     for (const m of this.delivery.markers()) this.pushBlip(m.x, m.z, '#ff8fb8', m.flash, 5);
     for (const m of this.race.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5);
     for (const m of this.taxi.markers()) this.pushBlip(m.x, m.z, m.color, true, 5.5);

@@ -1,7 +1,7 @@
 import type { Game } from './game';
 import { bi, getLang } from './i18n';
 
-type Kind = 'murder' | 'wanted3' | 'wanted5' | 'escaped' | 'heist' | 'police' | 'race' | 'bounty';
+type Kind = 'murder' | 'wanted3' | 'wanted5' | 'escaped' | 'heist' | 'police' | 'race' | 'bounty' | 'blackout' | 'festival';
 const HEADLINES: Record<Kind, [string, string][]> = {
   murder: [
     ['A pedestrian was killed downtown. Police are looking for a suspect.', '시내에서 보행자가 숨졌습니다. 경찰이 용의자를 쫓고 있습니다.'],
@@ -25,6 +25,12 @@ const HEADLINES: Record<Kind, [string, string][]> = {
   ],
   race: [
     ['Illegal street racing has the city on edge.', '불법 거리 레이스로 도시가 술렁입니다.'],
+  ],
+  blackout: [
+    ['Storm knocks out power across the city - the lights are off.', '폭풍으로 도시 곳곳이 정전됐습니다.'],
+  ],
+  festival: [
+    ['A street party and fireworks show are under way in the plaza.', '광장에서 거리 축제와 불꽃놀이가 한창입니다.'],
   ],
   bounty: [
     ['A bounty hunter is reported to be tracking a wanted driver.', '현상금 사냥꾼이 수배 중인 운전자를 추적 중이라고 합니다.'],

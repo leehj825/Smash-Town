@@ -101,6 +101,7 @@ let autoQuality = isMobile;
 let slowT = 0;
 /** Photo mode (H): the HUD hides, the world freezes, you look around freely and Enter saves a picture. */
 let photo = false;
+let blackoutT = 0;
 let photoSave = false;
 function setPhoto(on: boolean): void {
   photo = on;
@@ -124,6 +125,7 @@ function applyQuality(q: Quality): void {
   game.world.detail.visible = q === 'high';
   props.setDecor(q === 'high' ? 2 : q === 'medium' ? 1 : 0);
   game.lights.visible = q !== 'low';
+  game.animals.visible = q !== 'low';
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, q === 'low' ? 1.25 : 2));
   resize();
   scene.traverse((o) => {
@@ -403,6 +405,12 @@ function tick(): void {
   }
 
   cameraRig.update(state === 'title' ? 0.016 : dt || 0.0001, game.followable);
+  // a storm can knock the power out for half a minute
+  if (weather.kind === 'storm' && !game.blackout && state === 'playing' && Math.random() < dt / 100) {
+    game.blackout = true; blackoutT = 25 + Math.random() * 20;
+    game.news.report('blackout');
+  }
+  if (game.blackout) { blackoutT -= dt; if (blackoutT <= 0 || weather.kind !== 'storm') game.blackout = false; }
   weather.indoors = !!game.inside;
   game.humans.raining = weather.rainAmount > 0.3 && !game.inside;
   weather.update(Math.max(dt, 0.001), camera);

@@ -79,6 +79,14 @@ export class Vfx {
     }
   }
 
+  /** A firework: a ball of coloured sparks flying out in every direction. */
+  emitBurst(x: number, y: number, z: number, color: number, n = 30): void {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, e = Math.acos(2 * Math.random() - 1), sp = 7 + Math.random() * 6;
+      this.sparks.emit(x, y, z, Math.sin(e) * Math.cos(a) * sp, Math.cos(e) * sp, Math.sin(e) * Math.sin(a) * sp, 1.1 + Math.random() * 0.6, 2.2, color);
+    }
+  }
+
   emitSparks(x: number, y: number, z: number, n = 4): void {
     for (let i = 0; i < n; i++) this.sparks.emit(x, y, z, rnd(5), 2 + Math.random() * 4, rnd(5), 0.4 + Math.random() * 0.3, 1, 0xffe14d);
   }
