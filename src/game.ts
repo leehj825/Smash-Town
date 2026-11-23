@@ -24,7 +24,7 @@ import { StreetLife } from './street';
 import { EventBus } from './events';
 import { Crime } from './crime';
 import { Hideouts } from './hideouts';
-import { Police } from './police';
+import { Police, POLICE_PAY } from './police';
 import { Gangs } from './gangs';
 import { EmergencyJob } from './emergency';
 import { Fires } from './fires';
@@ -662,8 +662,8 @@ export class Game {
     this.vfx.emitDebris(h.x, h.y, h.z, 0, 0, 0x1d2a44, 14);
     this.audio.explosion();
     this.cameraRig.shake(0.7);
-    this.addCash(1500, 'police');
-    this.popups.spawn(h.x, h.y, h.z, bi('HELICOPTER DOWN +$1,500', '헬기 격추 +$1,500'), '#ffd23a');
+    this.addCash(POLICE_PAY.heli, 'police');
+    this.popups.spawn(h.x, h.y, h.z, bi(`HELICOPTER DOWN +$${POLICE_PAY.heli}`, `헬기 격추 +$${POLICE_PAY.heli}`), '#ffd23a');
     this.addHeat(10);
     h.remove();
     h.cooldown = 45;
@@ -1454,10 +1454,10 @@ export class Game {
       },
       onPlayerHurt: () => { this.cameraRig.shake(0.35); this.audio.thump(); this.input.rumble(0.9, 0.6, 180); },
       onCopDown: (h) => {
-        this.addCash(150, 'police');
+        this.addCash(POLICE_PAY.copKO, 'police');
         this.progress.add('copsKO');
         this.bus.emit({ type: 'copDown', total: this.humans.copsDefeated });
-        if (Math.random() < 0.55) this.pickups.drop(h.x, h.z, (['cash', 'health', 'ammo'] as const)[Math.floor(Math.random() * 3)], 120);
+        if (Math.random() < 0.55) this.pickups.drop(h.x, h.z, (['cash', 'health', 'ammo'] as const)[Math.floor(Math.random() * 3)], POLICE_PAY.dropCash);
         this.addHeat(15);
         if (this.humans.kids) this.popups.spawn(h.x, h.y + 2.2, h.z, t('pop.ko'), '#8a5cd6'); // knocked out, not killed
         else this.vfx.emitFire(h.x, 1, h.z, 4, 0.3);
@@ -1569,8 +1569,8 @@ export class Game {
         if (this.nearPlayer(v.x, v.z, 70)) { this.audio.explosion(); this.cameraRig.shake(0.5); }
         if (v === this.driving) continue; // handled by the state machine
         if (v.ai === 'police') {
-          this.addCash(v === this.hunter ? 1700 : 200, 'police'); this.addHeat(30);
-          if (v === this.hunter) { this.popups.spawn(v.x, 3, v.z, bi('BOUNTY $1,500!', '현상금 $1,500!'), '#ffd23a'); this.hunter = null; this.progress.add('bounties'); }
+          this.addCash(v === this.hunter ? POLICE_PAY.hunter : POLICE_PAY.car, 'police'); this.addHeat(30);
+          if (v === this.hunter) { this.popups.spawn(v.x, 3, v.z, bi(`BOUNTY $${POLICE_PAY.hunter}!`, `현상금 $${POLICE_PAY.hunter}!`), '#ffd23a'); this.hunter = null; this.progress.add('bounties'); }
         }
         v.ai = 'wreck';
         v.wreckTimer = 8;
@@ -1662,7 +1662,7 @@ export class Game {
     }
     // survival bonus at high heat
     if (this.stars >= 4) {
-      this.survivalAcc += dt * this.stars * 8;
+      this.survivalAcc += dt * this.stars * 8 * POLICE_PAY.survival;
       if (this.survivalAcc >= 50) { this.addCash(Math.floor(this.survivalAcc), 'police'); this.survivalAcc = 0; }
     }
     this.police.manage(dt);

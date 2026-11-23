@@ -64,7 +64,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       for (let i = 0; i < 10; i++) G.update(0.05);
       return { spawned, gained: G.cash - cash0, cleared: !G.hunter };
     });
-    ok(hunt.spawned && hunt.gained >= 1500 && hunt.cleared, 'a bounty hunter joins a four-star chase and pays a bounty when wrecked', JSON.stringify(hunt));
+    ok(hunt.spawned && hunt.gained >= 400 && hunt.gained < 1500 && hunt.cleared, 'a bounty hunter joins a four-star chase and pays a bounty when wrecked', JSON.stringify(hunt));
     const race = await S(() => {
       const G = g(); const R = G.race;
       G.stars = 0; G.heat = 0; G.humans.setPlayerActive(false, 0, 0, 0);

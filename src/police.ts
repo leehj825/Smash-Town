@@ -14,6 +14,8 @@ export const COMPOSITION: Record<number, [PoliceRole, number][]> = {
   5: [['cruiser', 4], ['interceptor', 2], ['swat', 2], ['armored', 2]],
 };
 
+/** What the police pay out when you beat them (small: fighting the law is a risk, not a job). */
+export const POLICE_PAY = { copKO: 20, car: 40, hunter: 400, heli: 400, survival: 0.25, dropCash: 30 };
 export const ROLE_KIND: Record<PoliceRole, VehicleKind> = { cruiser: 'police', interceptor: 'interceptor', swat: 'swat', armored: 'armored' };
 
 /**
@@ -21,7 +23,7 @@ export const ROLE_KIND: Record<PoliceRole, VehicleKind> = { cruiser: 'police', i
  * joins a four-star chase. (The heat, the stars and the busting itself still live in the game; this is the fleet.)
  */
 export class Police {
-  /** The black muscle car that joins a chase at four stars. Wreck it for a $1,500 bounty. */
+  /** The black muscle car that joins a chase at four stars. Wreck it for a bounty (see POLICE_PAY). */
   hunter: GameVehicle | null = null;
   hunterTimer = 20;
   /** Seconds until the next cruiser is sent. */
