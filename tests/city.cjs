@@ -376,6 +376,32 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(wit.bribe.sees && wit.bribe.askBribe && wit.bribe.quiet && wit.bribe.fled && wit.bribe.cash === 60 && wit.scare.askScare && wit.scare.quiet && wit.scare.cash === 60 && wit.scare.rep === -1, 'a witness on the phone can be bribed for $40 or scared off with a gun, and the call never goes out', JSON.stringify(wit));
+    const tk = await S(() => {
+      const G = g(); const T = G.truckHeist; const H = G.humans;
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true; G.stars = 0; G.heat = 0; G.cash = 2000;
+      for (const j of [G.paramedic, G.firefighter, G.patrol]) if (j.onDuty) j.end('x', 0);
+      H.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0);
+      const started = T.start(); const afterPay = G.cash;
+      const truck = T.truck; const marked = T.markers().length === 1;
+      truck.ctrl.hp = 0; truck.ctrl.wrecked = true;
+      T.update(0.1);
+      const spilled = T.phase === 'loot' && T.bags.length === 8 && G.stars >= 3;
+      for (const b of T.bags) { H.player.x = b.x; H.player.z = b.z; T.update(0.1); }
+      const hot = T.hot; const escaping = T.phase === 'escape';
+      const cashBefore = G.cash;
+      G.stars = 0; T.update(0.1);
+      const paid = G.cash - cashBefore;
+      const ok1 = { started, afterPay, marked, spilled, hot, escaping, paid, back: T.phase === 'idle', stat: G.progress.stats.heists };
+      // a second job fails when you are busted: the hot cash is lost
+      T.cooldown = 0; T.start(true);
+      const t2 = T.truck; t2.ctrl.hp = 0; t2.ctrl.wrecked = true; T.update(0.1);
+      for (const b of T.bags) { H.player.x = b.x; H.player.z = b.z; T.update(0.1); }
+      const cash2 = G.cash; G.state = 'busted'; T.update(0.1); G.state = 'play';
+      const lost = T.phase === 'idle' && G.cash === cash2;
+      G.stars = 0; G.heat = 0; G.skills.off = false; G.news.cooldown = 0;
+      return { ...ok1, lost };
+    });
+    ok(tk.started && tk.afterPay === 1500 && tk.marked && tk.spilled && tk.hot >= 2000 && tk.escaping && tk.paid === tk.hot + 500 && tk.back && tk.lost, 'the cash truck job: plan, wreck it, grab the bags, lose the police to keep the money; busted loses it', JSON.stringify(tk));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';

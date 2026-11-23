@@ -1,7 +1,7 @@
 import type { Game } from './game';
 import { bi, getLang } from './i18n';
 
-type Kind = 'murder' | 'wanted3' | 'wanted5' | 'escaped' | 'heist' | 'police' | 'race' | 'bounty' | 'blackout' | 'festival' | 'explosion' | 'turf' | 'fire' | 'theft' | 'riot' | 'crossfire';
+type Kind = 'murder' | 'wanted3' | 'wanted5' | 'escaped' | 'heist' | 'police' | 'race' | 'bounty' | 'blackout' | 'festival' | 'explosion' | 'turf' | 'fire' | 'theft' | 'riot' | 'crossfire' | 'truck';
 const HEADLINES: Record<Kind, [string, string][]> = {
   murder: [
     ['A pedestrian was killed downtown. Police are looking for a suspect.', '시내에서 보행자가 숨졌습니다. 경찰이 용의자를 쫓고 있습니다.'],
@@ -36,6 +36,9 @@ const HEADLINES: Record<Kind, [string, string][]> = {
   fire: [
     ['Fire crews are battling a blaze in the street - keep clear.', '소방대가 길가의 화재를 진압하고 있습니다. 접근하지 마세요.'],
     ['Smoke over the city: a fire has broken out.', '도시 위로 연기가 피어오릅니다. 화재가 발생했습니다.'],
+  ],
+  truck: [
+    ['An armoured cash truck was hit in broad daylight. The robbers are on the run.', '현금 수송 장갑차가 대낮에 털렸습니다. 강도들은 도주 중입니다.'],
   ],
   crossfire: [
     ['Police and a gang are exchanging fire - avoid the area.', '경찰과 갱단이 총격전을 벌이고 있습니다. 해당 지역을 피하세요.'],
@@ -81,6 +84,7 @@ export class News {
     bus.on('theft', () => this.report('theft'));
     bus.on('riot', () => this.report('riot', true));
     bus.on('crossfire', () => this.report('crossfire', true));
+    bus.on('truckRobbed', () => this.report('truck', true));
     bus.on('turfCaptured', () => this.report('turf', true));
     bus.on('explosion', (e) => { if (Math.hypot(e.x - game.focusX, e.z - game.focusZ) < 90) this.report('explosion'); });
   }
