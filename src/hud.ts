@@ -96,6 +96,7 @@ export class Hud {
     if (n === this.lastStars) return;
     this.lastStars = n;
     this.stars.forEach((s, i) => s.classList.toggle('on', i < n));
+    for (let k = 0; k <= 5; k++) document.body.classList.toggle('heat-' + k, k === n);
   }
 
   setCash(v: number): void {
