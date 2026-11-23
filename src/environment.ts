@@ -86,6 +86,7 @@ export class Environment {
     cam.near = 1;
     cam.far = 160;
     this.sun.shadow.bias = -0.0005;
+    this.sun.shadow.radius = 2.5; // a softer penumbra
     this.sun.shadow.normalBias = 0.05;
 
     this.skyMat = new THREE.ShaderMaterial({

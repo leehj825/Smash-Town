@@ -55,7 +55,7 @@ const canvas = document.getElementById('game') as HTMLCanvasElement;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
-renderer.shadowMap.type = THREE.PCFShadowMap; // soft-filtered PCF in current three.js
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // softer shadow edges
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 1, 1, 900);
