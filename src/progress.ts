@@ -1,8 +1,8 @@
 // Long-term progress: lifetime stats, achievements, daily challenges and shop ownership.
 
-export type StatKey = 'smashes' | 'stars' | 'copsKO' | 'gigs' | 'earned' | 'driveM' | 'playSec' | 'roofs' | 'shops' | 'quests' | 'fares' | 'races' | 'heists' | 'bounties' | 'hides' | 'deliveries' | 'robberies' | 'fish';
+export type StatKey = 'smashes' | 'stars' | 'copsKO' | 'gigs' | 'earned' | 'driveM' | 'playSec' | 'roofs' | 'shops' | 'quests' | 'fares' | 'races' | 'heists' | 'bounties' | 'hides' | 'deliveries' | 'robberies' | 'fish' | 'turfs';
 export type Stats = Record<StatKey, number>;
-export const emptyStats = (): Stats => ({ smashes: 0, stars: 0, copsKO: 0, gigs: 0, earned: 0, driveM: 0, playSec: 0, roofs: 0, shops: 0, quests: 0, fares: 0, races: 0, heists: 0, bounties: 0, hides: 0, deliveries: 0, robberies: 0, fish: 0 });
+export const emptyStats = (): Stats => ({ smashes: 0, stars: 0, copsKO: 0, gigs: 0, earned: 0, driveM: 0, playSec: 0, roofs: 0, shops: 0, quests: 0, fares: 0, races: 0, heists: 0, bounties: 0, hides: 0, deliveries: 0, robberies: 0, fish: 0, turfs: 0 });
 
 export interface Achievement { id: string; en: string; ko: string; key: StatKey; target: number }
 export const ACHIEVEMENTS: Achievement[] = [
@@ -25,6 +25,8 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'deliv5', en: 'Delivery Hero: finish 5 delivery runs', ko: '배달의 달인: 배달 5번 완료', key: 'deliveries', target: 5 },
   { id: 'rob3', en: 'Sticky Fingers: rob 3 tills', ko: '날쌘 손: 가게 금고 3번 털기', key: 'robberies', target: 3 },
   { id: 'fish10', en: 'Angler: catch 10 fish', ko: '낚시꾼: 물고기 10마리', key: 'fish', target: 10 },
+  { id: 'turf1', en: 'Turf Boss: take over a gang block', ko: '구역의 보스: 갱단 구역 점령', key: 'turfs', target: 1 },
+  { id: 'turf3', en: 'Kingpin: hold every gang block', ko: '두목: 모든 갱단 구역 점령', key: 'turfs', target: 3 },
   { id: 'quests5', en: 'Helpful Neighbour: finish 5 street quests', ko: '이웃 도우미: 거리 퀘스트 5번', key: 'quests', target: 5 },
 ];
 

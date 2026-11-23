@@ -1,0 +1,139 @@
+import { Beacon } from './beacon';
+import type { Game } from './game';
+import type { Human } from './humans';
+import { bi } from './i18n';
+
+interface Zone {
+  name: string;
+  nameKo: string;
+  /** The gang's colour (shirts, map dot, ring). */
+  color: number;
+  css: string;
+  x: number; z: number;
+  /** Where the members stand: along the pavement either side of the road. */
+  spots: { x: number; z: number }[];
+  owner: 'gang' | 'player';
+  members: Human[];
+  ring: Beacon;
+  away: number;
+}
+
+const RADIUS = 30;
+
+/**
+ * Gang turf. Three blocks belong to street gangs, each marked on the map in the gang's colour. Their members stand around on the pavement; walk up
+ * to them and the whole crew turns on you. Knock them all out and the block is yours: it pays $120 a minute. Stay away too long and the gang
+ * takes it back. Fighting gangs is not a crime, so it never raises your wanted level.
+ */
+export class Gangs {
+  readonly zones: Zone[] = [];
+  private incomeT = 60;
+  private gangs = [
+    { name: 'The Reds', ko: '레드파', color: 0xd62d3a, css: '#d62d3a' },
+    { name: 'The Violets', ko: '바이올렛파', color: 0x8e44ad, css: '#b072d6' },
+    { name: 'The Greens', ko: '그린파', color: 0x2fb87a, css: '#35d68a' },
+  ];
+
+  constructor(private game: Game) {
+    const segs = game.world.segments.filter((s) => s.len >= 44 && s.hw >= 6);
+    const owned = new Set(game.save.turf ?? []);
+    [0.3, 0.62, 0.95].forEach((f, i) => {
+      const s = segs[Math.min(segs.length - 1, Math.floor(segs.length * f))];
+      if (!s) return;
+      const g = this.gangs[i];
+      const spots: { x: number; z: number }[] = [];
+      for (let k = 0; k < 5; k++) {
+        const side = k % 2 ? 1 : -1;
+        const along = (k - 2) * 4.5;
+        spots.push({ x: s.x + s.dx * along + -s.dz * side * (s.hw + 1.9), z: s.z + s.dz * along + s.dx * side * (s.hw + 1.9) });
+      }
+      const ring = new Beacon(g.color, 5);
+      ring.setPosition(s.x, s.z);
+      game.scene.add(ring.group);
+      this.zones.push({ name: g.name, nameKo: g.ko, color: g.color, css: g.css, x: s.x, z: s.z, spots, owner: owned.has(i) ? 'player' : 'gang', members: [], ring, away: 0 });
+    });
+    game.bus.on('gangDown', () => this.check());
+  }
+
+  get ownedCount(): number { return this.zones.filter((z) => z.owner === 'player').length; }
+
+  markers(): { x: number; z: number; color: string; flash: boolean }[] {
+    return this.zones.map((z) => ({ x: z.x, z: z.z, color: z.owner === 'player' ? '#ffd23a' : z.css, flash: z.owner === 'gang' && z.members.some((m) => m.hostile) }));
+  }
+
+  private alive(z: Zone): Human[] {
+    return z.members.filter((m) => m.active && m.gang && !m.ko && m.hp > 0 && m.state !== 6 && m.state !== 7 && m.state !== 8); // not down, getting up or dead
+  }
+
+  /** Called when a gang member goes down: was that the last of a crew? */
+  private check(): void {
+    for (let i = 0; i < this.zones.length; i++) {
+      const z = this.zones[i];
+      if (z.owner !== 'gang' || !z.members.length) continue;
+      if (this.alive(z).length > 0) continue;
+      this.capture(i);
+    }
+  }
+
+  capture(i: number): void {
+    const G = this.game;
+    const z = this.zones[i];
+    z.owner = 'player';
+    z.away = 0;
+    (G.save.turf ??= []);
+    if (!G.save.turf.includes(i)) G.save.turf.push(i);
+    G.addCash(500, 'other');
+    G.progress.add('turfs');
+    G.popups.spawn(z.x, 3, z.z, bi(`${z.name} turf is yours! +$500`, `${z.nameKo} 구역을 차지했어요! +$500`), '#ffd23a');
+    G.hud.toast(bi(`You took over the block from ${z.name}. It pays $120 a minute.`, `${z.nameKo}에게서 구역을 빼앗았어요. 분당 $120이 들어와요.`), 3600);
+    G.audio.cash();
+    G.flushSave();
+    G.bus.emit({ type: 'turfCaptured', zone: i });
+    for (const m of z.members) G.humans.removeGangLater(m);
+    z.members = [];
+  }
+
+  private spawnCrew(z: Zone): void {
+    const G = this.game;
+    z.members = [];
+    z.spots.forEach((p, k) => {
+      const m = G.humans.spawnGang(p.x, p.z, z.color, k % 2 === 0);
+      if (m) z.members.push(m);
+    });
+  }
+
+  update(dt: number): void {
+    const G = this.game;
+    if (G.state !== 'play' || G.inside) return;
+    const px = G.focusX, pz = G.focusZ;
+    this.incomeT -= dt;
+    for (let i = 0; i < this.zones.length; i++) {
+      const z = this.zones[i];
+      z.ring.update(dt);
+      z.ring.visible = true;
+      const d = Math.hypot(z.x - px, z.z - pz);
+      if (z.owner === 'gang') {
+        if (d < 120 && !z.members.length) this.spawnCrew(z);
+        else if (d > 170 && z.members.length) { for (const m of z.members) G.humans.removeGang(m); z.members = []; }
+        if (d < RADIUS && !z.members.some((m) => m.hostile) && z.members.length && G.humans.player.hp > 0) {
+          for (const m of z.members) m.hostile = true;
+          G.hud.toast(bi(`You are on ${z.name} turf!`, `${z.nameKo} 구역에 들어왔어요!`), 2200);
+        }
+      } else {
+        // the gang wants it back if you stay away for five minutes of play
+        z.away = d > 250 ? z.away + dt : Math.max(0, z.away - dt * 2);
+        if (z.away > 300) {
+          z.owner = 'gang'; z.away = 0;
+          G.save.turf = (G.save.turf ?? []).filter((n) => n !== i);
+          G.hud.toast(bi(`${z.name} took their turf back!`, `${z.nameKo}가 구역을 되찾아 갔어요!`), 3200);
+          G.bus.emit({ type: 'turfLost', zone: i });
+        }
+      }
+    }
+    if (this.incomeT <= 0) {
+      this.incomeT = 60;
+      const n = this.ownedCount;
+      if (n > 0) { G.addCash(120 * n, 'other'); G.hud.toast(bi(`Turf income: $${120 * n}`, `구역 수입: $${120 * n}`), 2200); }
+    }
+  }
+}

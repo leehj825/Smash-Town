@@ -23,6 +23,12 @@ export type GameEvent =
   | { type: 'copDown'; total: number }
   /** Something blew up (a wrecked car, a rocket, a grenade). `byPlayer` when the blast is the player's doing. */
   | { type: 'explosion'; x: number; z: number; byPlayer: boolean }
+  /** A gang member was knocked out. */
+  | { type: 'gangDown'; x: number; z: number }
+  /** The player took over a gang's turf. */
+  | { type: 'turfCaptured'; zone: number }
+  /** A gang took its turf back. */
+  | { type: 'turfLost'; zone: number }
   | { type: 'hunterSpawned' }
   | { type: 'heist' }
   | { type: 'blackout' }

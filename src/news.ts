@@ -1,7 +1,7 @@
 import type { Game } from './game';
 import { bi, getLang } from './i18n';
 
-type Kind = 'murder' | 'wanted3' | 'wanted5' | 'escaped' | 'heist' | 'police' | 'race' | 'bounty' | 'blackout' | 'festival' | 'explosion';
+type Kind = 'murder' | 'wanted3' | 'wanted5' | 'escaped' | 'heist' | 'police' | 'race' | 'bounty' | 'blackout' | 'festival' | 'explosion' | 'turf';
 const HEADLINES: Record<Kind, [string, string][]> = {
   murder: [
     ['A pedestrian was killed downtown. Police are looking for a suspect.', '시내에서 보행자가 숨졌습니다. 경찰이 용의자를 쫓고 있습니다.'],
@@ -33,6 +33,10 @@ const HEADLINES: Record<Kind, [string, string][]> = {
     ['A huge explosion shook the city centre - the cause is not yet known.', '도심에서 큰 폭발이 있었습니다. 원인은 아직 알려지지 않았습니다.'],
     ['Residents report a blast and thick smoke downtown.', '시민들이 폭발음과 짙은 연기를 신고하고 있습니다.'],
   ],
+  turf: [
+    ['A gang lost a block of the city to an outsider overnight.', '갱단이 하룻밤 사이에 한 구역을 외부인에게 빼앗겼습니다.'],
+    ['Gang territory has changed hands - police warn of retaliation.', '갱단 구역의 주인이 바뀌었습니다. 경찰은 보복을 경고했습니다.'],
+  ],
   festival: [
     ['A street party and fireworks show are under way in the plaza.', '광장에서 거리 축제와 불꽃놀이가 한창입니다.'],
   ],
@@ -60,6 +64,7 @@ export class News {
     bus.on('hunterSpawned', () => this.report('bounty'));
     bus.on('heist', () => this.report('heist', true));
     bus.on('blackout', () => this.report('blackout'));
+    bus.on('turfCaptured', () => this.report('turf', true));
     bus.on('explosion', (e) => { if (Math.hypot(e.x - game.focusX, e.z - game.focusZ) < 90) this.report('explosion'); });
   }
 

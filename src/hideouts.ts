@@ -33,7 +33,7 @@ export class Hideouts {
     const G = this.G;
     for (const v of G.policeVehicles()) if (Math.hypot(v.x - G.focusX, v.z - G.focusZ) < 28) return false;
     const p = G.humans.player;
-    for (const h of G.humans.list) if (h.active && h.role === Role.Cop && !h.leaving && Math.hypot(h.x - p.x, h.z - p.z) < 14) return false;
+    for (const h of G.humans.list) if (h.active && h.role === Role.Cop && !h.gang && !h.leaving && Math.hypot(h.x - p.x, h.z - p.z) < 14) return false;
     return true;
   }
 

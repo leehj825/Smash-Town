@@ -314,6 +314,26 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { fled: civ.fleeing, heat: G.heat, news: G.news.log.length - n0 };
     });
     ok(boom.fled && boom.heat >= 15 && boom.news === 1, 'an explosion makes the crowd run, counts as a crime if you did it, and makes the news', JSON.stringify(boom));
+    const turf = await S(() => {
+      const G = g(); const GA = G.gangs; const H = G.humans; const z = GA.zones[0];
+      G.stars = 0; G.heat = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
+      z.owner = 'gang'; G.save.turf = [];
+      H.setPlayerActive(true, z.x + 60, z.z, 0);
+      GA.update(0.1);
+      const crew = z.members.length;
+      H.player.x = z.x + 10; H.player.z = z.z; GA.update(0.1);
+      const provoked = z.members.some((m) => m.hostile);
+      const heatBefore = G.heat;
+      for (const m of [...z.members]) H.gunHit(H.player, m, 999, 1, 0, true);
+      const captured = z.owner === 'player';
+      const cash = G.cash;
+      GA.incomeT = 0; GA.update(0.1);
+      const income = G.cash - cash;
+      z.away = 299.95; H.player.x = z.x + 400; H.player.z = z.z + 400; GA.update(0.2);
+      const lost = z.owner === 'gang';
+      return { crew, provoked, noHeat: G.heat === heatBefore, captured, bonus: cash, income, saved: true, lost, stat: G.progress.stats.turfs };
+    });
+    ok(turf.crew === 5 && turf.provoked && turf.noHeat && turf.captured && turf.bonus >= 500 && turf.income === 120 && turf.lost && turf.stat >= 1, 'a gang crew turns on you, taking the block pays and is not a crime, and the gang takes it back if you stay away', JSON.stringify(turf));
     // savings, houses and race records survive a reload
     await S(() => { const G = g(); G.save.bank = 4321; G.save.homes = [1, 2]; G.save.raceBest = [0, 77.5]; G.flushSave(); });
     await p.reload();
