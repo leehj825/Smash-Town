@@ -34,6 +34,7 @@ import { Insides } from './insides';
 import { Clock } from './clock';
 import { Completion } from './completion';
 import { Riots } from './riots';
+import { Crossfire } from './crossfire';
 import { SAVE_VERSION, migrateSave } from './saveMigrate';
 import { JOBS } from './jobs';
 import { Reputation } from './reputation';
@@ -140,6 +141,7 @@ export class Game {
   clock!: Clock;
   completion!: Completion;
   riots!: Riots;
+  crossfire!: Crossfire;
   reputation!: Reputation;
   npcs!: Npcs;
   skills!: Skills;
@@ -265,6 +267,7 @@ export class Game {
     this.clock = new Clock(this, this.save.hour);
     this.completion = new Completion(this);
     this.riots = new Riots(this);
+    this.crossfire = new Crossfire(this);
     this.fires = new Fires(this);
     this.thieves = new Thieves(this);
     this.factions = new Factions(this);
@@ -1064,7 +1067,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.clock.update(dt); this.completion.update(dt); this.riots.update(dt); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.clock.update(dt); this.completion.update(dt); this.riots.update(dt); this.crossfire.update(dt); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);

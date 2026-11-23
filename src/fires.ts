@@ -13,7 +13,14 @@ export class Fires {
   private timer = 420;
   private flameT = 0;
 
-  constructor(private game: Game) {}
+  /** Chance that a blast sets the street alight. */
+  igniteChance = 0.7;
+
+  constructor(private game: Game) {
+    game.bus.on('explosion', (e) => {
+      if (this.list.length < 6 && Math.random() < this.igniteChance) this.ignite(e.x + (Math.random() - 0.5) * 6, e.z + (Math.random() - 0.5) * 6);
+    });
+  }
 
   /** Light a fire at a point (also used by tests and the fire crew's random calls). */
   ignite(x: number, z: number): Fire {

@@ -330,6 +330,28 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { heard, fires, ended, mafiaUp, called, quelled, watch };
     });
     ok(riot.heard && riot.fires >= 3 && riot.ended && riot.mafiaUp && riot.called && riot.quelled && riot.watch > 0, 'a riot starts fires if ignored, becomes a patrol call, and is calmed by an officer', JSON.stringify(riot));
+    const xf = await S(() => {
+      const G = g(); const GA = G.gangs; const H = G.humans; const X = G.crossfire; const z = GA.zones[0];
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true;
+      for (const m of H.gangMembers()) H.removeGang(m);
+      for (const zz of GA.zones) zz.members = [];
+      z.owner = 'gang'; G.save.turf = []; G.fires.list.length = 0; G.fires.igniteChance = 1;
+      H.setPlayerActive(true, z.x + 55, z.z, 0); GA.update(0.1);
+      const crew = z.members.length;
+      G.stars = 3; G.heat = 90; const heat0 = G.heat;
+      X.copsNear = () => 1;
+      const n = { shots: 0, boom: 0, cross: 0 };
+      const off = [G.bus.on('gunshot', (e) => { if (e.ambient) n.shots++; }), G.bus.on('explosion', () => n.boom++), G.bus.on('crossfire', () => n.cross++)];
+      for (let i = 0; i < 70; i++) { H.player.x = z.x + 55; H.player.z = z.z; X.update(0.5); }
+      off.forEach((f) => f());
+      const out = { crew, ...n, fires: G.fires.list.length, cooled: G.heat < heat0, active: X.active() !== null || true };
+      G.fires.igniteChance = 0.7; G.fires.list.length = 0; G.stars = 0; G.heat = 0; G.skills.off = false;
+      for (const m of H.gangMembers()) H.removeGang(m);
+      for (const zz of GA.zones) zz.members = [];
+      G.news.cooldown = 0;
+      return out;
+    });
+    ok(xf.crew === 5 && xf.cross === 1 && xf.shots >= 10 && xf.boom >= 1 && xf.fires >= 1 && xf.cooled, 'lead the police into a gang block: they shoot each other, your heat drops, a blast starts a fire', JSON.stringify(xf));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
@@ -451,10 +473,11 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
         P.update(0.05);
         const onDuty = P.onDuty && !!G.driving && G.driving.kind === kind;
         const heat = G.stars;
-        if (name === 'firefighter') G.fires.ignite(G.driving.x + 60, G.driving.z);
-        else G.bus.emit({ type: 'gunshot', x: G.driving.x + 60, z: G.driving.z });
+        G.fires.list.length = 0;
+        const lit = name === 'firefighter' ? G.fires.ignite(G.driving.x + 60, G.driving.z) : null;
+        if (name !== 'firefighter') G.bus.emit({ type: 'gunshot', x: G.driving.x + 60, z: G.driving.z });
         const calls = P.open;
-        const fire = name === 'firefighter' ? G.fires.list[0] : null;
+        const fire = lit;
         let guard = 0;
         while (P.onDuty && guard++ < 400) {
           if (!P.calls.length) P.addCall(G.driving.x + 40, G.driving.z, 'test');
