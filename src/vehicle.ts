@@ -4,7 +4,7 @@ import type { I18nKey } from './i18n';
 
 export type VehicleKind =
   | 'sports' | 'supercar' | 'muscle' | 'sedan' | 'taxi' | 'pickup' | 'limo' | 'monster'
-  | 'police' | 'interceptor' | 'swat' | 'armored' | 'ambulance' | 'firetruck' | 'motorbike' | 'scooter' | 'bicycle' | 'bus' | 'boat' | 'helicopter';
+  | 'police' | 'interceptor' | 'swat' | 'armored' | 'ambulance' | 'firetruck' | 'motorbike' | 'scooter' | 'bicycle' | 'bus' | 'boat';
 
 export interface VehicleStats {
   maxSpeed: number; // m/s
@@ -29,7 +29,6 @@ export const STATS: Record<VehicleKind, VehicleStats> = {
   monster:     { maxSpeed: 31, accel: 24, grip: 7,   dmg: 0.35, mass: 3.0, name: 'veh.monster', price: 60000, color: 0xff7a1a },
   police:      { maxSpeed: 36, accel: 28, grip: 9,   dmg: 0.9, mass: 1.2, name: null, price: 0, color: 0x1a1a24 },
   interceptor: { maxSpeed: 42, accel: 34, grip: 10,  dmg: 0.9, mass: 1.1, name: null, price: 0, color: 0x1a1a24 },
-  helicopter:  { maxSpeed: 42, accel: 16, grip: 3, dmg: 0.5, mass: 2.0, name: null, price: 0, color: 0xe8ecf4 },
   boat:        { maxSpeed: 26, accel: 15, grip: 2.2, dmg: 0.5, mass: 1.6, name: null, price: 0, color: 0xf2f2f2 },
   bus:         { maxSpeed: 20, accel: 12, grip: 7, dmg: 0.3, mass: 3.5, name: null, price: 0, color: 0x2f78d6 },
   scooter:     { maxSpeed: 22, accel: 18, grip: 7, dmg: 0.3, mass: 0.35, name: 'veh.scooter', price: 600, color: 0x2fb87a },
@@ -66,7 +65,6 @@ const SPECS: Record<VehicleKind, Spec> = {
   monster: { w: 2.3, len: 5.4, bodyH: 0.85, clr: 1.0, hoodLen: 1.5, wedge: false, trunkLen: 1.8, cabinLen: 1.7, cabinH: 0.7, cabinZ: 0.2, taper: 0.82, cabinColor: DARK, wheelR: 0.95, wheelX: 1.25, wheelZ: 1.7, bed: true, stripe: 0x1a1a24 },
   police:  { w: 1.9, len: 4.7, bodyH: 0.62, clr: 0.3, hoodLen: 1.3, wedge: false, trunkLen: 1.1, cabinLen: 2.2, cabinH: 0.62, cabinZ: -0.1, taper: 0.8, cabinColor: DARK, wheelR: 0.39, wheelX: 0.95, wheelZ: 1.45, bar: true, police: true },
   interceptor: { w: 1.95, len: 4.6, bodyH: 0.5, clr: 0.28, hoodLen: 1.7, wedge: true, trunkLen: 1.2, cabinLen: 1.9, cabinH: 0.52, cabinZ: -0.15, taper: 0.7, cabinColor: DARK, wheelR: 0.39, wheelX: 0.98, wheelZ: 1.4, bar: true, police: true, spoiler: true },
-  helicopter: { w: 2.4, len: 7.5, bodyH: 1.2, clr: 0.5, hoodLen: 1.2, wedge: false, trunkLen: 0.8, cabinLen: 2, cabinH: 0.7, cabinZ: 0.5, taper: 0.8, cabinColor: null, wheelR: 0.05, wheelX: 0.05, wheelZ: 0.05 },
   boat: { w: 2.3, len: 6.0, bodyH: 0.55, clr: 0.12, hoodLen: 1.2, wedge: false, trunkLen: 0.8, cabinLen: 1.6, cabinH: 0.7, cabinZ: -0.3, taper: 0.8, cabinColor: null, wheelR: 0.05, wheelX: 0.05, wheelZ: 0.05 },
   bus: { w: 2.4, len: 9, bodyH: 1.5, clr: 0.45, hoodLen: 0.3, wedge: false, trunkLen: 0.2, cabinLen: 8.2, cabinH: 0.95, cabinZ: -0.2, taper: 0.97, cabinColor: null, wheelR: 0.5, wheelX: 1.1, wheelZ: 3.0 },
   scooter: { w: 0.6, len: 1.6, bodyH: 0.3, clr: 0.2, hoodLen: 0.4, wedge: false, trunkLen: 0.3, cabinLen: 0.5, cabinH: 0.2, cabinZ: 0, taper: 0.8, cabinColor: null, wheelR: 0.2, wheelX: 0.05, wheelZ: 0.6 },
@@ -261,31 +259,8 @@ function buildBoat(color: number): Built {
   return { chassis: b.build(), head: hb.build(), tail: tb.build(), barRed: null, barBlue: null, lights: lb.build() };
 }
 
-/** A light helicopter: a rounded cabin with a glass nose, a tail boom with a fin, and skids. The rotor is a separate mesh that spins. */
-function buildHeli(color: number): Built {
-  const b = new MeshBuilder();
-  const dark = 0x23262f, glass = 0x9ec7e8;
-  b.box(2.2, 1.3, 3.4, 0, 1.2, 0.3, color);                                // cabin
-  b.box(1.9, 1.0, 1.2, 0, 1.15, 2.2, glass, (p) => { for (let i = 0; i < p.count; i++) if (p.getZ(i) > 0) p.setX(i, p.getX(i) * 0.7); }); // glass nose
-  b.box(1.5, 0.12, 1.0, 0, 1.9, 0.6, 0x2a2d35);                            // engine cowl
-  b.box(0.5, 0.55, 3.8, 0, 1.5, -3.0, color);                              // tail boom
-  b.box(0.12, 1.1, 0.7, 0, 1.9, -4.8, color);                              // tail fin
-  b.box(0.6, 0.08, 0.5, 0, 1.45, -4.7, dark);                              // stabiliser
-  for (const sx of [-1, 1]) {
-    b.box(0.12, 0.12, 4.0, sx * 1.1, 0.12, 0.3, dark);                      // skid
-    b.box(0.1, 0.7, 0.1, sx * 1.0, 0.5, 1.2, dark); b.box(0.1, 0.7, 0.1, sx * 1.0, 0.5, -0.6, dark);
-    b.box(0.04, 0.6, 1.4, sx * 1.12, 1.25, 0.2, dark);                      // window frames
-  }
-  b.box(0.2, 0.5, 0.2, 0, 2.05, 0.3, dark);                                // rotor mast
-  const hb = new MeshBuilder(); hb.box(0.4, 0.14, 0.06, 0, 1.0, 2.85, 0xffffff);
-  const tb = new MeshBuilder(); tb.box(0.2, 0.1, 0.06, 0, 1.9, -5.2, 0xff2a3a);
-  const lb = new MeshBuilder(); lb.box(0.4, 0.14, 0.06, 0, 1.0, 2.85, 0xfff3c4); lb.box(0.2, 0.1, 0.06, 0, 1.9, -5.2, 0xff2a3a);
-  return { chassis: b.build(), head: hb.build(), tail: tb.build(), barRed: null, barBlue: null, lights: lb.build() };
-}
-
 function buildGeometry(kind: VehicleKind, color: number, bakeWheels: boolean): Built {
   if (kind === 'boat') return buildBoat(color);
-  if (kind === 'helicopter') return buildHeli(color);
   if (kind === 'motorbike') return buildBike(color, bakeWheels);
   if (kind === 'bicycle' || kind === 'scooter') return buildLight(kind, color, bakeWheels);
   const s = SPECS[kind];

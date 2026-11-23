@@ -70,15 +70,6 @@ export class GameVehicle {
     // Only the player's car climbs ramps by default; AI cars drive straight over.
     this.ctrl.useRamps = full;
     this.ctrl.boat = kind === 'boat';
-    this.ctrl.flying = kind === 'helicopter';
-    if (kind === 'helicopter') {
-      const rb = new MeshBuilder();
-      rb.box(9.6, 0.07, 0.4, 0, 0, 0, 0x2a2a30); rb.box(0.4, 0.07, 9.6, 0, 0, 0, 0x2a2a30);
-      const rotor = new THREE.Mesh(rb.build(), paletteMaterial());
-      rotor.position.set(0, 2.35, 0.3);
-      this.ctrl.model.body.add(rotor);
-      this.ctrl.rotor = rotor;
-    }
   }
 
   get isPolice(): boolean {
