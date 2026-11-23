@@ -95,6 +95,8 @@ const STAT_LABELS: [StatKey, string, string][] = [
   ['smashes', 'Props smashed', '부순 물건'], ['stars', 'Golden stars', '황금 별'], ['copsKO', 'Cops knocked out', '제압한 경찰'],
   ['gigs', 'Side jobs done', '완료한 부업'], ['quests', 'Street quests done', '완료한 거리 퀘스트'], ['earned', 'Money earned', '번 돈'],
   ['driveM', 'Distance driven', '주행 거리'], ['roofs', 'Ladders climbed', '오른 사다리'], ['shops', 'Shop visits', '상점 방문'], ['playSec', 'Time played', '플레이 시간'],
+  ['fares', 'Taxi fares', '택시 손님'], ['races', 'Races won', '레이스 우승'], ['deliveries', 'Deliveries', '배달'], ['heists', 'Bank heists', '은행 강도'],
+  ['robberies', 'Tills robbed', '털은 금고'], ['fish', 'Fish caught', '낚은 물고기'], ['bounties', 'Bounty hunters wrecked', '격파한 사냥꾼'], ['hides', 'Times hidden from police', '경찰 피해 숨은 횟수'],
 ];
 
 /** Lifetime stats, achievements, daily challenges and owned shops. */
@@ -113,11 +115,11 @@ export class StatsPanel implements Modal {
       const q = dailyById(id)!;
       const done = p.daily.done.includes(id);
       const have = Math.min(q.target, Math.floor(p.stats[q.key] - p.daily.base[q.key]));
-      return `<div class="erow ${done ? 'done' : ''}"><span>${done ? '\u2713' : '\u25CB'} ${bi(q.en, q.ko)}</span><b>${done ? bi('done', '완료') : `${have}/${q.target} \u00B7 $${q.reward}`}</b></div>`;
+      return `<div class="erow ${done ? 'done' : ''}"><span>${done ? '\u2713' : '\u25CB'} ${bi(q.en, q.ko)}${done ? '' : `<i class="pbar"><i style="width:${Math.round((have / q.target) * 100)}%"></i></i>`}</span><b>${done ? bi('done', '완료') : `${have}/${q.target} \u00B7 $${q.reward}`}</b></div>`;
     }).join('');
     const ach = ACHIEVEMENTS.map((a) => {
       const done = p.ach.includes(a.id);
-      return `<div class="erow ${done ? 'done' : 'todo'}"><span>${done ? '\u2605' : '\u2606'} ${bi(a.en, a.ko)}</span><b>${done ? '' : `${Math.floor(Math.min(a.target, p.stats[a.key]))}/${a.target}`}</b></div>`;
+      return `<div class="erow ${done ? 'done' : 'todo'}"><span>${done ? '\u2605' : '\u2606'} ${bi(a.en, a.ko)}${done ? '' : `<i class="pbar"><i style="width:${Math.round((Math.min(a.target, p.stats[a.key]) / a.target) * 100)}%"></i></i>`}</span><b>${done ? '' : `${Math.floor(Math.min(a.target, p.stats[a.key]))}/${a.target}`}</b></div>`;
     }).join('');
     const shops = (Object.keys(OWNABLE) as OwnableShop[]).map((id) => {
       const own = p.owned.includes(id);

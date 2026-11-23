@@ -18,7 +18,7 @@ import { Radio, STATIONS } from './radio';
 import { Weather, type WeatherKind } from './weather';
 import { ControlsPanel, HowToPlay, StatsPanel, type Modal } from './overlays';
 import { settings, saveSettings } from './settings';
-import { SAVE_KEY } from './game';
+import { SAVE_KEY, SLOT_KEY, currentSlot, slotSaveKey } from './game';
 import { setupTouch } from './touch';
 
 type Quality = 'high' | 'medium' | 'low';
@@ -55,7 +55,7 @@ const canvas = document.getElementById('game') as HTMLCanvasElement;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
-renderer.shadowMap.type = THREE.PCFShadowMap; // soft-filtered PCF in current three.js
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // softer shadow edges
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, 1, 1, 900);
@@ -101,6 +101,7 @@ let autoQuality = isMobile;
 let slowT = 0;
 /** Photo mode (H): the HUD hides, the world freezes, you look around freely and Enter saves a picture. */
 let photo = false;
+let blackoutT = 0;
 let photoSave = false;
 function setPhoto(on: boolean): void {
   photo = on;
@@ -120,10 +121,11 @@ function applyQuality(q: Quality): void {
   bloom.enabled = q === 'high';
   game.useBlob = !shadows;
   game.trafficTarget = TRAFFIC[q];
-  props.setVegetation(q === 'high' ? 0.9 : q === 'medium' ? 0.5 : 0.3);
+  props.setVegetation(q === 'high' ? 0.7 : q === 'medium' ? 0.4 : 0.25);
   game.world.detail.visible = q === 'high';
   props.setDecor(q === 'high' ? 2 : q === 'medium' ? 1 : 0);
   game.lights.visible = q !== 'low';
+  game.animals.visible = q !== 'low';
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, q === 'low' ? 1.25 : 2));
   resize();
   scene.traverse((o) => {
@@ -203,6 +205,32 @@ const pauseEl = document.getElementById('pause')!;
 const hudEl = document.getElementById('hud')!;
 let state: 'title' | 'playing' | 'paused' = 'title';
 
+/** The three save slots on the title screen: pick one (the page reloads on it) and see how far each one has got. */
+function buildSlots(): void {
+  const box = document.getElementById('slots');
+  if (!box) return;
+  const cur = currentSlot();
+  box.innerHTML = '';
+  for (let n = 1; n <= 3; n++) {
+    let info = bi('New game', '새 게임');
+    try {
+      const raw = localStorage.getItem(slotSaveKey(n));
+      if (raw) { const s = JSON.parse(raw); info = `$${Math.floor(Number(s.cash) || 0).toLocaleString('en-US')}`; }
+    } catch { /* unreadable slot */ }
+    const b = document.createElement('button');
+    b.className = n === cur ? 'sel' : '';
+    b.innerHTML = `${bi('Slot', '슬롯')} ${n}<small>${info}</small>`;
+    b.addEventListener('click', () => {
+      if (n === cur) return;
+      try { localStorage.setItem(SLOT_KEY, String(n)); } catch { /* ignore */ }
+      location.reload();
+    });
+    box.appendChild(b);
+  }
+}
+buildSlots();
+onLangChange(buildSlots);
+
 function startGame(): void {
   if (state !== 'title') return;
   // Switch the UI first so a failure in optional systems (audio, pointer lock) can never block starting.
@@ -210,6 +238,7 @@ function startGame(): void {
   titleEl.hidden = true;
   hudEl.hidden = false;
   if (!settings.tutorialDone) howto.open();
+  if (!navigator.webdriver) window.setTimeout(() => game.claimLogin(), 1200); // (automated test browsers skip the bonus so cash totals stay exact)
   try {
     game.audio.init(); // needs a user gesture
     applyRadio(radioChoice());
@@ -217,6 +246,16 @@ function startGame(): void {
     console.warn('Audio unavailable:', err);
   }
 }
+/** Leaving the app (home button, another tab, a locked screen) silences it and pauses the game; coming back resumes the sound. */
+function onVisibility(): void {
+  const hidden = document.hidden;
+  game.audio.setBackground(hidden);
+  if (hidden && state === 'playing') setPaused(true);
+}
+document.addEventListener('visibilitychange', onVisibility);
+window.addEventListener('pagehide', () => { game.audio.setBackground(true); if (state === 'playing') setPaused(true); });
+window.addEventListener('pageshow', () => { if (!document.hidden) game.audio.setBackground(false); });
+
 function setPaused(p: boolean): void {
   if (state === 'title') return;
   state = p ? 'paused' : 'playing';
@@ -250,6 +289,17 @@ function wireSeg(cls: 'sens' | 'aimSens' | 'fov' | 'shake'): void {
   }));
 }
 wireSeg('sens'); wireSeg('aimSens'); wireSeg('fov'); wireSeg('shake');
+/** Accessibility switches: large text and a colour-blind palette. */
+function applyA11y(): void {
+  document.documentElement.classList.toggle('big-ui', settings.bigUi);
+  document.documentElement.classList.toggle('cb-safe', settings.colorSafe);
+  document.querySelectorAll<HTMLElement>('.seg.a11y').forEach((b) => b.classList.toggle('sel', (b.dataset.v === '1') === !!settings[b.dataset.a as 'bigUi' | 'colorSafe']));
+}
+document.querySelectorAll<HTMLElement>('.seg.a11y').forEach((b) => b.addEventListener('click', () => {
+  settings[b.dataset.a as 'bigUi' | 'colorSafe'] = b.dataset.v === '1';
+  saveSettings(); applyA11y();
+}));
+applyA11y();
 const syncAuto = () => document.querySelectorAll<HTMLElement>('.autoaim').forEach((b) => b.classList.toggle('sel', (b.dataset.a === '1') === game.autoAim));
 document.querySelectorAll<HTMLElement>('.autoaim').forEach((b) => b.addEventListener('click', () => { game.setAutoAim(b.dataset.a === '1', false); syncAuto(); }));
 syncAuto();
@@ -381,6 +431,12 @@ function tick(): void {
   }
 
   cameraRig.update(state === 'title' ? 0.016 : dt || 0.0001, game.followable);
+  // a storm can knock the power out for half a minute
+  if (weather.kind === 'storm' && !game.blackout && state === 'playing' && Math.random() < dt / 100) {
+    game.blackout = true; blackoutT = 25 + Math.random() * 20;
+    game.news.report('blackout');
+  }
+  if (game.blackout) { blackoutT -= dt; if (blackoutT <= 0 || weather.kind !== 'storm') game.blackout = false; }
   weather.indoors = !!game.inside;
   game.humans.raining = weather.rainAmount > 0.3 && !game.inside;
   weather.update(Math.max(dt, 0.001), camera);

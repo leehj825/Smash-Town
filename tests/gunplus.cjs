@@ -96,7 +96,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     await p.waitForFunction(() => window.__smash.game.inside, null, { timeout: 30000 });
     const hide = await S((pre) => {
       const G = g();
-      const inside = G.inside.id === 'garage';
+      const inside = G.inside.id === 'garage' && G.followable.position.x > 3000; // the camera must follow you into the pocket
       const startStars = G.stars;
       for (let i = 0; i < 400 && G.stars > 0; i++) G.update(0.05);
       return { doorOk: pre.doorOk, inside, startStars, stars: G.stars };
@@ -110,6 +110,23 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { open, drivingAfter: !!G.driving, state: G.state };
     });
     ok(counter.open && !counter.drivingAfter && counter.state === 'play', 'the garage counter opens the car menu and closes cleanly', JSON.stringify(counter));
+    const bay = await S(() => {
+      const G = g();
+      const room = G.inside;
+      const v0 = G.garageVehicle;
+      const inBay = !!v0 && v0.x > 3000;
+      G.openGarageCounter();
+      G.selectVehicle('sedan');
+      G.update(0.05);
+      const swapped = G.driving.kind === 'sedan' && G.driving.x > 3000;
+      G.closeGarage();
+      return { inBay, swapped, kind: G.garageVehicle.kind, home: !!G.garageHome };
+    });
+    ok(bay.inBay && bay.swapped && bay.kind === 'sedan', 'your car stands in the garage and changes when the menu swaps it', JSON.stringify(bay));
+    await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.exit.x; pl.z = r.exit.z; G.leaveBuilding(); });
+    await p.waitForFunction(() => !window.__smash.game.inside, null, { timeout: 30000 });
+    const back = await S(() => { const G = g(); const v = G.garageVehicle; return { x: Math.round(v.x), far: v.x > 3000 }; });
+    ok(!back.far, 'the car goes back out on the street when you leave', JSON.stringify(back));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
     await b.close(); srv.kill();

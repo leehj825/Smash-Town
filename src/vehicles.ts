@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CarController, type CarEvents } from './carController';
 import type { ControlState } from './input';
 import type { PoliceBrain, TrafficBrain } from './ai';
-import { VehicleFactory, bodyOf, dimsOf, type VehicleKind } from './vehicle';
+import { VehicleFactory, bodyOf, dimsOf, riderGeometry, type VehicleKind } from './vehicle';
 import { MeshBuilder, paletteMaterial } from './geo';
 import type { CircleCollider, World } from './world';
 
@@ -89,6 +89,22 @@ export class GameVehicle {
     this.ctrl.useRamps = true;
     if (this.neonColor) this.applyNeon();
     if (this.modLevel) this.applyMods();
+  }
+
+  private riderKey = '';
+  private riderMesh: THREE.Mesh | null = null;
+  get isBike(): boolean { return this.kind === 'motorbike' || this.kind === 'scooter' || this.kind === 'bicycle'; }
+  /** Put a rider on a bike (in these clothes) or take them off again. Nothing happens for cars. */
+  setRider(on: boolean, pants = 0, shirt = 0, skin = 0): void {
+    if (!this.isBike) return;
+    const key = on ? `${pants}/${shirt}/${skin}` : '';
+    if (key === this.riderKey && (!on || this.riderMesh?.parent === this.ctrl.model.root)) return;
+    this.riderKey = key;
+    if (this.riderMesh) { this.riderMesh.removeFromParent(); this.riderMesh.geometry.dispose(); this.riderMesh = null; }
+    if (!on) return;
+    this.riderMesh = new THREE.Mesh(riderGeometry(this.kind, pants, shirt, skin), paletteMaterial());
+    this.riderMesh.castShadow = true;
+    this.ctrl.model.root.add(this.riderMesh);
   }
 
   private modLevel = 0;

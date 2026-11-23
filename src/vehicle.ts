@@ -4,7 +4,7 @@ import type { I18nKey } from './i18n';
 
 export type VehicleKind =
   | 'sports' | 'supercar' | 'muscle' | 'sedan' | 'taxi' | 'pickup' | 'limo' | 'monster'
-  | 'police' | 'interceptor' | 'swat' | 'armored' | 'ambulance' | 'motorbike' | 'scooter' | 'bicycle';
+  | 'police' | 'interceptor' | 'swat' | 'armored' | 'ambulance' | 'motorbike' | 'scooter' | 'bicycle' | 'bus';
 
 export interface VehicleStats {
   maxSpeed: number; // m/s
@@ -29,6 +29,7 @@ export const STATS: Record<VehicleKind, VehicleStats> = {
   monster:     { maxSpeed: 31, accel: 24, grip: 7,   dmg: 0.35, mass: 3.0, name: 'veh.monster', price: 60000, color: 0xff7a1a },
   police:      { maxSpeed: 36, accel: 28, grip: 9,   dmg: 0.9, mass: 1.2, name: null, price: 0, color: 0x1a1a24 },
   interceptor: { maxSpeed: 42, accel: 34, grip: 10,  dmg: 0.9, mass: 1.1, name: null, price: 0, color: 0x1a1a24 },
+  bus:         { maxSpeed: 20, accel: 12, grip: 7, dmg: 0.3, mass: 3.5, name: null, price: 0, color: 0x2f78d6 },
   scooter:     { maxSpeed: 22, accel: 18, grip: 7, dmg: 0.3, mass: 0.35, name: 'veh.scooter', price: 600, color: 0x2fb87a },
   bicycle:     { maxSpeed: 11, accel: 9, grip: 8, dmg: 0.2, mass: 0.25, name: 'veh.bicycle', price: 150, color: 0xff7a1a },
   motorbike:   { maxSpeed: 46, accel: 40, grip: 7, dmg: 0.4, mass: 0.45, name: 'veh.motorbike', price: 2500, color: 0xe0243c },
@@ -38,7 +39,7 @@ export const STATS: Record<VehicleKind, VehicleStats> = {
 };
 
 export const PLAYER_ROSTER: VehicleKind[] = ['sports', 'sedan', 'taxi', 'bicycle', 'scooter', 'motorbike', 'pickup', 'muscle', 'supercar', 'limo', 'monster'];
-export const CIVILIAN_KINDS: VehicleKind[] = ['sedan', 'sedan', 'taxi', 'pickup', 'muscle'];
+export const CIVILIAN_KINDS: VehicleKind[] = ['sedan', 'sedan', 'taxi', 'pickup', 'muscle', 'bus'];
 export const CIVILIAN_COLORS = [0xe85a4f, 0x3b82f6, 0x2fb87a, 0xf2a73b, 0x8a5cd6, 0xf4a7b9, 0x66d1c9, 0xeceff4, 0x8d99ae];
 
 interface Spec {
@@ -62,6 +63,7 @@ const SPECS: Record<VehicleKind, Spec> = {
   monster: { w: 2.3, len: 5.4, bodyH: 0.85, clr: 1.0, hoodLen: 1.5, wedge: false, trunkLen: 1.8, cabinLen: 1.7, cabinH: 0.7, cabinZ: 0.2, taper: 0.82, cabinColor: DARK, wheelR: 0.95, wheelX: 1.25, wheelZ: 1.7, bed: true, stripe: 0x1a1a24 },
   police:  { w: 1.9, len: 4.7, bodyH: 0.62, clr: 0.3, hoodLen: 1.3, wedge: false, trunkLen: 1.1, cabinLen: 2.2, cabinH: 0.62, cabinZ: -0.1, taper: 0.8, cabinColor: DARK, wheelR: 0.39, wheelX: 0.95, wheelZ: 1.45, bar: true, police: true },
   interceptor: { w: 1.95, len: 4.6, bodyH: 0.5, clr: 0.28, hoodLen: 1.7, wedge: true, trunkLen: 1.2, cabinLen: 1.9, cabinH: 0.52, cabinZ: -0.15, taper: 0.7, cabinColor: DARK, wheelR: 0.39, wheelX: 0.98, wheelZ: 1.4, bar: true, police: true, spoiler: true },
+  bus: { w: 2.4, len: 9, bodyH: 1.5, clr: 0.45, hoodLen: 0.3, wedge: false, trunkLen: 0.2, cabinLen: 8.2, cabinH: 0.95, cabinZ: -0.2, taper: 0.97, cabinColor: null, wheelR: 0.5, wheelX: 1.1, wheelZ: 3.0 },
   scooter: { w: 0.6, len: 1.6, bodyH: 0.3, clr: 0.2, hoodLen: 0.4, wedge: false, trunkLen: 0.3, cabinLen: 0.5, cabinH: 0.2, cabinZ: 0, taper: 0.8, cabinColor: null, wheelR: 0.2, wheelX: 0.05, wheelZ: 0.6 },
   bicycle: { w: 0.5, len: 1.8, bodyH: 0.3, clr: 0.3, hoodLen: 0.4, wedge: false, trunkLen: 0.3, cabinLen: 0.5, cabinH: 0.2, cabinZ: 0, taper: 0.8, cabinColor: null, wheelR: 0.36, wheelX: 0.04, wheelZ: 0.7 },
   motorbike: { w: 0.7, len: 2.1, bodyH: 0.4, clr: 0.4, hoodLen: 0.5, wedge: false, trunkLen: 0.4, cabinLen: 0.6, cabinH: 0.3, cabinZ: 0, taper: 0.8, cabinColor: null, wheelR: 0.34, wheelX: 0.07, wheelZ: 0.8 },
@@ -149,7 +151,36 @@ const taperTweak = (taper: number) => (p: THREE.BufferAttribute) => {
   }
 };
 
-/** A motorbike with a rider: frame, tank, seat, forks, bars, lamp, exhaust, and a blocky rider in a helmet and jacket. */
+
+/** The rider that sits on a bike, bicycle or scooter while the player is on it: legs, jacket, arms and a helmet, in the player's own clothes. */
+export function riderGeometry(kind: VehicleKind, pants: number, shirt: number, skin: number): THREE.BufferGeometry {
+  const b = new MeshBuilder();
+  if (kind === 'motorbike') {
+  b.box(0.2, 0.18, 0.36, 0.1, 0.78, -0.4, pants); b.box(0.2, 0.18, 0.36, -0.1, 0.78, -0.4, pants);   // thighs
+  b.box(0.16, 0.5, 0.16, 0.1, 0.55, -0.15, pants); b.box(0.16, 0.5, 0.16, -0.1, 0.55, -0.15, pants);  // shins on the pegs
+  b.box(0.42, 0.55, 0.26, 0, 1.25, -0.3, shirt);                            // jacket
+  for (const sx of [-1, 1]) b.rotatedBox(0.12, 0.12, 0.62, sx * 0.27, 1.2, 0.02, 0.9, 0, 0, shirt); // arms to the bars
+  b.box(0.3, 0.3, 0.3, 0, 1.68, -0.22, 0x1e2a5a);                              // helmet
+  b.box(0.24, 0.11, 0.05, 0, 1.68, -0.06, 0x9fd6ff);                           // visor
+    b.box(0.2, 0.2, 0.06, 0, 1.6, -0.06, skin);   // face under the visor
+  } else if (kind === 'bicycle') {
+    b.box(0.16, 0.5, 0.16, 0.1, 0.6, -0.1, pants); b.box(0.16, 0.5, 0.16, -0.1, 0.55, -0.02, pants); // legs on the pedals
+    b.box(0.18, 0.18, 0.4, 0.1, 1.15, -0.28, pants); b.box(0.18, 0.18, 0.4, -0.1, 1.15, -0.28, pants); // thighs
+    b.rotatedBox(0.38, 0.55, 0.24, 0, 1.52, -0.18, 0.3, 0, 0, shirt); // torso leaning forward
+    for (const sx of [-1, 1]) b.rotatedBox(0.11, 0.11, 0.6, sx * 0.22, 1.35, 0.3, 0.5, 0, 0, shirt); // arms
+    b.box(0.28, 0.26, 0.28, 0, 1.92, -0.02, 0xffd23a);                   // helmet
+    b.box(0.2, 0.2, 0.06, 0, 1.88, 0.13, skin);
+  } else {
+    b.box(0.17, 0.7, 0.17, 0.1, 0.65, 0.0, pants); b.box(0.17, 0.7, 0.17, -0.1, 0.65, -0.1, pants);
+    b.box(0.42, 0.6, 0.26, 0, 1.3, -0.05, shirt);
+    for (const sx of [-1, 1]) b.rotatedBox(0.11, 0.11, 0.7, sx * 0.24, 1.2, 0.42, 0.25, 0, 0, shirt);
+    b.box(0.3, 0.28, 0.3, 0, 1.78, 0.0, 0x1e2a5a);
+    b.box(0.2, 0.2, 0.06, 0, 1.74, 0.16, skin);
+  }
+  return b.build();
+}
+
+/** A motorbike (no rider; see riderGeometry): frame, tank, seat, forks, bars, lamp, exhaust, and a blocky rider in a helmet and jacket. */
 function buildBike(color: number, bakeWheels: boolean): Built {
   const s = SPECS.motorbike;
   const b = new MeshBuilder();
@@ -163,13 +194,6 @@ function buildBike(color: number, bakeWheels: boolean): Built {
   for (const sx of [-1, 1]) { b.box(0.06, 0.06, 0.16, sx * 0.31, 1.08, 0.82, dark); b.box(0.04, 0.18, 0.1, sx * 0.1, 0.55, -0.2, metal); }
   b.cylinder(0.05, 0.05, 0.7, 7, 0.16, 0.42, -0.55, metal, Math.PI / 2, 0, 0); // exhaust
   b.box(0.1, 0.26, 0.9, 0, 0.47, -0.5, 0x2a2d35);                              // swing arm hint
-  // rider
-  b.box(0.2, 0.18, 0.36, 0.1, 0.78, -0.4, 0x23262f); b.box(0.2, 0.18, 0.36, -0.1, 0.78, -0.4, 0x23262f);   // thighs
-  b.box(0.16, 0.5, 0.16, 0.1, 0.55, -0.15, 0x23262f); b.box(0.16, 0.5, 0.16, -0.1, 0.55, -0.15, 0x23262f);  // shins on the pegs
-  b.box(0.42, 0.55, 0.26, 0, 1.25, -0.3, 0xd62d3a);                            // jacket
-  for (const sx of [-1, 1]) b.rotatedBox(0.12, 0.12, 0.62, sx * 0.27, 1.2, 0.02, 0.9, 0, 0, 0xd62d3a); // arms to the bars
-  b.box(0.3, 0.3, 0.3, 0, 1.68, -0.22, 0x1e2a5a);                              // helmet
-  b.box(0.24, 0.11, 0.05, 0, 1.68, -0.06, 0x9fd6ff);                           // visor
   if (bakeWheels) for (const z of [0.85, -0.85]) {
     b.cylinder(s.wheelR, s.wheelR, 0.16, 10, 0, s.wheelR, z, 0x1a1a1f, 0, 0, Math.PI / 2);
     b.cylinder(s.wheelR * 0.55, s.wheelR * 0.55, 0.18, 8, 0, s.wheelR, z, 0xc9ccd6, 0, 0, Math.PI / 2);
@@ -180,7 +204,7 @@ function buildBike(color: number, bakeWheels: boolean): Built {
   return { chassis: b.build(), head: hb.build(), tail: tb.build(), barRed: null, barBlue: null, lights: lb.build() };
 }
 
-/** A pedal bicycle or a kick scooter with a rider standing or sitting on it. */
+/** A pedal bicycle or a kick scooter (no rider; see riderGeometry). */
 function buildLight(kind: 'bicycle' | 'scooter', color: number, bakeWheels: boolean): Built {
   const s = SPECS[kind];
   const b = new MeshBuilder();
@@ -193,22 +217,11 @@ function buildLight(kind: 'bicycle' | 'scooter', color: number, bakeWheels: bool
     b.box(0.5, 0.04, 0.04, 0, 1.03, 0.62, dark);                         // bars
     b.box(0.14, 0.05, 0.3, 0, 1.12, -0.4, dark);                         // saddle
     b.box(0.18, 0.04, 0.1, 0.12, 0.3, 0.0, dark); b.box(0.18, 0.04, 0.1, -0.12, 0.3, 0.04, dark); // pedals
-    // rider
-    b.box(0.16, 0.5, 0.16, 0.1, 0.6, -0.1, 0x2a4a8a); b.box(0.16, 0.5, 0.16, -0.1, 0.55, -0.02, 0x2a4a8a); // legs on the pedals
-    b.box(0.18, 0.18, 0.4, 0.1, 1.15, -0.28, 0x2a4a8a); b.box(0.18, 0.18, 0.4, -0.1, 1.15, -0.28, 0x2a4a8a); // thighs
-    b.rotatedBox(0.38, 0.55, 0.24, 0, 1.52, -0.18, 0.3, 0, 0, 0x2fb87a); // torso leaning forward
-    for (const sx of [-1, 1]) b.rotatedBox(0.11, 0.11, 0.6, sx * 0.22, 1.35, 0.3, 0.5, 0, 0, 0x2fb87a); // arms
-    b.box(0.28, 0.26, 0.28, 0, 1.92, -0.02, 0xffd23a);                   // helmet
   } else {
     b.box(0.3, 0.08, 0.9, 0, 0.28, 0, color);                            // deck
     b.rotatedBox(0.06, 0.06, 0.95, 0, 0.7, 0.55, -1.15, 0, 0, metal);     // steering column
     b.box(0.5, 0.05, 0.05, 0, 1.12, 0.78, dark);                         // bars
     b.box(0.2, 0.06, 0.3, 0, 0.35, -0.5, dark);                          // rear fender
-    // rider stands on the deck
-    b.box(0.17, 0.7, 0.17, 0.1, 0.65, 0.0, 0x2a4a8a); b.box(0.17, 0.7, 0.17, -0.1, 0.65, -0.1, 0x2a4a8a);
-    b.box(0.42, 0.6, 0.26, 0, 1.3, -0.05, 0xff7a1a);
-    for (const sx of [-1, 1]) b.rotatedBox(0.11, 0.11, 0.7, sx * 0.24, 1.2, 0.42, 0.25, 0, 0, 0xff7a1a);
-    b.box(0.3, 0.28, 0.3, 0, 1.78, 0.0, 0x1e2a5a);
   }
   if (bakeWheels) for (const z of [s.wheelZ, -s.wheelZ]) {
     b.cylinder(s.wheelR, s.wheelR, 0.08, 10, 0, s.wheelR, z, 0x1a1a1f, 0, 0, Math.PI / 2);
@@ -263,6 +276,15 @@ function buildGeometry(kind: VehicleKind, color: number, bakeWheels: boolean): B
     b.box(0.5, 0.04, 0.14, 0, top + s.cabinH + 0.04, s.cabinZ, RED); b.box(0.14, 0.04, 0.5, 0, top + s.cabinH + 0.04, s.cabinZ, RED); // roof cross
     b.box(s.w * 0.8, 0.5, 0.04, 0, s.clr + s.bodyH * 0.65, -s.len / 2 - 0.02, 0xdde2ea);                   // rear doors
     b.box(0.04, 0.46, 0.04, 0, s.clr + s.bodyH * 0.65, -s.len / 2 - 0.04, 0x8a8f99);
+  }
+  if (kind === 'bus') {
+    for (const sx of [-1, 1]) {
+      for (let k = 0; k < 7; k++) b.box(0.04, 0.55, 0.85, sx * (s.w / 2 + 0.02), s.clr + s.bodyH * 0.62, -3.3 + k * 1.15, 0x23323f);  // windows
+      b.box(0.04, 0.14, s.len * 0.9, sx * (s.w / 2 + 0.025), s.clr + 0.35, 0, 0xf2f2f2);                                                  // white stripe
+      b.box(0.04, 1.0, 1.0, sx * (s.w / 2 + 0.025), s.clr + s.bodyH * 0.5, 3.4, 0x23323f);                                                // front door
+    }
+    b.box(s.w - 0.2, 0.55, 0.05, 0, s.clr + s.bodyH * 0.7, s.len / 2 + 0.02, 0x23323f);                                                  // windscreen
+    b.box(0.9, 0.18, 0.05, 0, top + 0.1, s.len / 2 + 0.03, 0xffd23a);                                                                       // destination sign
   }
   if (s.plating) {
     for (const sx of [-1, 1]) b.box(0.08, s.bodyH * 0.7, s.len * 0.7, sx * (s.w / 2 + 0.02), s.clr + s.bodyH * 0.55, -0.2, 0x5b6678);

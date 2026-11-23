@@ -28,6 +28,12 @@ jobs:
       - name: Type-check
         run: npx tsc --noEmit
 
+      - name: Cache the Playwright browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-v1
+
       # The tests drive headless Chromium through Playwright; it is not a project dependency, so install it here without touching the lockfile.
       - name: Install Playwright and Chromium
         run: |

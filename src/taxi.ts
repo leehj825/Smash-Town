@@ -19,6 +19,8 @@ export class TaxiJob {
   private hpAtStart = 1;
   private cooldown = 6;
   private fares = 0;
+  private kind: 'normal' | 'rush' | 'vip' | 'group' = 'normal';
+  private legs = 1;
 
   constructor(private game: Game) {
     game.scene.add(this.pick.group, this.drop.group);
@@ -63,12 +65,15 @@ export class TaxiJob {
     if (G.stars > 0 && this.phase !== 'idle') { this.cancel(bi('Fare cancelled - the police are after you', '경찰이 쫓아와서 손님이 내렸어요')); return; }
     if (this.phase === 'idle') {
       this.cooldown -= dt;
-      if (this.cooldown > 0 || G.stars > 0 || G.gigs.active || G.range.running || G.race.active) return;
+      if (this.cooldown > 0 || G.stars > 0 || G.gigs.active || G.range.running || G.race.active || G.delivery.active) return;
       const p = this.roadPoint(60, 160);
       if (!p) { this.cooldown = 5; return; }
+      const r = Math.random();
+      this.kind = r < 0.5 ? 'normal' : r < 0.7 ? 'rush' : r < 0.85 ? 'vip' : 'group';
       this.from = p; this.phase = 'pickup';
       this.pick.setPosition(p.x, p.z); this.pick.visible = true;
-      G.hud.toast(bi('Taxi! A passenger is waiting - follow the yellow marker.', '택시! 손님이 기다려요 - 노란 마커로 가세요.'), 3200);
+      const label = this.kind === 'rush' ? bi('A passenger in a hurry!', '급한 손님이에요!') : this.kind === 'vip' ? bi('A VIP passenger - double fare!', 'VIP 손님 - 요금 두 배!') : this.kind === 'group' ? bi('A group of friends - two stops!', '일행 손님 - 두 곳에 내려 주세요!') : bi('A passenger is waiting', '손님이 기다려요');
+      G.hud.toast(`${bi('Taxi!', '택시!')} ${label} ${bi('Follow the yellow marker.', '노란 마커로 가세요.')}`, 3400);
       return;
     }
     const sp = d!.ctrl.speed;
@@ -79,7 +84,8 @@ export class TaxiJob {
         if (!dest) { this.cancel(); return; }
         this.to = dest;
         this.dist = Math.hypot(dest.x - this.from.x, dest.z - this.from.z);
-        this.time = 22 + this.dist / 9;
+        this.time = (22 + this.dist / 9) * (this.kind === 'rush' ? 0.65 : 1);
+        this.legs = this.kind === 'group' ? 2 : 1;
         this.hpAtStart = d!.ctrl.hp;
         this.phase = 'ride';
         this.pick.visible = false;
@@ -95,15 +101,31 @@ export class TaxiJob {
     G.hud.showGig(true, bi('TAXI', '택시'), `${bi('Destination', '목적지')}: ${Math.round(left)} m`, `${Math.max(0, Math.ceil(this.time))}s`);
     if (left < 8 && sp < 8) {
       const damage = Math.max(0, this.hpAtStart - d!.ctrl.hp);
+      const mult = this.kind === 'vip' ? 2 : this.kind === 'rush' ? 1.5 : 1;
       const base = 120 + this.dist * 0.5;
-      const bonus = Math.max(0, this.time) * 3;
-      const fare = Math.max(40, Math.round(base + bonus - damage * 250));
+      const bonus = Math.max(0, this.time) * (this.kind === 'rush' ? 6 : 3);
+      const fare = Math.max(40, Math.round((base + bonus) * mult - damage * 250));
       G.addCash(fare, 'gigs');
       G.progress.add('gigs');
       G.progress.add('fares');
       this.fares++;
       G.popups.spawn(d!.x, 3, d!.z, `+$${fare}`, '#ffd23a');
       G.hud.toast(`${bi('Fare paid', '요금')} $${fare}${bonus > 20 ? ` (${bi('tip!', '팁!')})` : ''}`, 2600);
+      if (this.legs > 1) {
+        // the group wants a second stop, a bit further on
+        const next = this.roadPoint(180, 480);
+        if (next) {
+          this.legs--;
+          this.from = { x: d!.x, z: d!.z };
+          this.to = next;
+          this.dist = Math.hypot(next.x - d!.x, next.z - d!.z);
+          this.time = 20 + this.dist / 9;
+          this.hpAtStart = d!.ctrl.hp;
+          this.drop.setPosition(next.x, next.z);
+          G.hud.toast(bi('Next stop: the green marker.', '다음 목적지: 초록 마커.'), 2200);
+          return;
+        }
+      }
       this.cancel();
       this.cooldown = 5;
     } else if (this.time <= -10) {

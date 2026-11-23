@@ -12,20 +12,20 @@ const SLAB = 0.14;
 
 function palmGeometry(): THREE.BufferGeometry {
   const b = new MeshBuilder();
-  const segs = 5;
-  const segH = 1.35;
+  const segs = 3;
+  const segH = 2.25;
   let px = 0;
   let py = 0;
   for (let s = 0; s < segs; s++) {
-    const tilt = 0.06 + s * 0.035;
-    const rBot = 0.34 - s * 0.04;
+    const tilt = 0.06 + s * 0.06;
+    const rBot = 0.34 - s * 0.07;
     const rTop = rBot - 0.04;
-    b.cylinder(rTop, rBot, segH, 6, px + Math.sin(tilt) * segH * 0.5, py + Math.cos(tilt) * segH * 0.5, 0, 0x8a6a45, 0, 0, -tilt);
+    b.cylinder(rTop, rBot, segH, 5, px + Math.sin(tilt) * segH * 0.5, py + Math.cos(tilt) * segH * 0.5, 0, 0x8a6a45, 0, 0, -tilt);
     px += Math.sin(tilt) * segH;
     py += Math.cos(tilt) * segH;
   }
   b.cylinder(0.25, 0.2, 0.3, 6, px, py + 0.1, 0, 0x6e5237);
-  const fronds = 7;
+  const fronds = 6;
   for (let f = 0; f < fronds; f++) {
     const a = (f / fronds) * Math.PI * 2 + (f % 2) * 0.2;
     const color = f % 2 ? 0x3fa34d : 0x4cb85a;
@@ -70,10 +70,10 @@ function lampHeadGeometry(): THREE.BufferGeometry {
 function hydrantGeometry(): THREE.BufferGeometry {
   const red = 0xe62e2d;
   const b = new MeshBuilder();
-  b.cylinder(0.24, 0.28, 0.62, 8, 0, 0.35, 0, red);
+  b.cylinder(0.24, 0.28, 0.62, 6, 0, 0.35, 0, red);
   b.cylinder(0.3, 0.3, 0.08, 8, 0, 0.05, 0, 0xb02323);
   b.cylinder(0.3, 0.3, 0.08, 8, 0, 0.62, 0, 0xb02323);
-  b.add(new THREE.SphereGeometry(0.24, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), red, new THREE.Matrix4().makeTranslation(0, 0.68, 0));
+  b.add(new THREE.SphereGeometry(0.24, 6, 3, 0, Math.PI * 2, 0, Math.PI / 2), red, new THREE.Matrix4().makeTranslation(0, 0.68, 0));
   b.cylinder(0.07, 0.07, 0.34, 6, 0, 0.42, 0, 0xc72827, 0, 0, Math.PI / 2);
   b.cylinder(0.09, 0.09, 0.06, 6, 0.2, 0.42, 0, 0xffd1d1, 0, 0, Math.PI / 2);
   b.cylinder(0.09, 0.09, 0.06, 6, -0.2, 0.42, 0, 0xffd1d1, 0, 0, Math.PI / 2);
@@ -82,11 +82,11 @@ function hydrantGeometry(): THREE.BufferGeometry {
 
 function treeGeometry(pine: boolean): THREE.BufferGeometry {
   const b = new MeshBuilder();
-  b.cylinder(0.2, 0.3, 2.4, 6, 0, 1.2, 0, 0x7a5a3a);
+  b.cylinder(0.2, 0.3, 2.4, 5, 0, 1.2, 0, 0x7a5a3a);
   if (pine) {
     for (let k = 0; k < 3; k++) {
       const r = 1.7 - k * 0.45;
-      b.add(new THREE.ConeGeometry(r, 2.2, 7), k % 2 ? 0x2f7d46 : 0x2a6f3f, new THREE.Matrix4().makeTranslation(0, 2.6 + k * 1.3, 0));
+      b.add(new THREE.ConeGeometry(r, 2.2, 6), k % 2 ? 0x2f7d46 : 0x2a6f3f, new THREE.Matrix4().makeTranslation(0, 2.6 + k * 1.3, 0));
     }
   } else {
     b.add(new THREE.IcosahedronGeometry(1.7, 0), 0x57b368, new THREE.Matrix4().makeTranslation(0, 3.3, 0));
@@ -266,6 +266,8 @@ export interface Props {
   setNight(n: number): void;
   /** 0 = none, 1 = street furniture, 2 = also flowers and grass tufts. */
   setDecor(level: number): void;
+  /** Where the bus shelters stand (they are the stops of the bus line). */
+  busStops(): { x: number; z: number }[];
 }
 
 export function buildProps(world: World, vfx: Vfx): Props {
@@ -579,5 +581,5 @@ export function buildProps(world: World, vfx: Vfx): Props {
     }
   }
 
-  return { group, lampHeadMaterial, smash, update, setVegetation, setSeason, setNight: (n: number) => { pools.visible = n > 0.05; poolMat.opacity = Math.min(0.75, n * 0.8); }, setDecor: (level: number) => { decorMeshes.forEach((m, i) => { m.visible = decorKinds[i] === 'flower' || decorKinds[i] === 'grass' ? level >= 2 : level >= 1; }); } };
+  return { group, lampHeadMaterial, smash, update, setVegetation, setSeason, setNight: (n: number) => { pools.visible = n > 0.05; poolMat.opacity = Math.min(0.75, n * 0.8); }, busStops: () => decor.busstop.map((p) => ({ x: p.x, z: p.z })), setDecor: (level: number) => { decorMeshes.forEach((m, i) => { m.visible = decorKinds[i] === 'flower' || decorKinds[i] === 'grass' ? level >= 2 : level >= 1; }); } };
 }

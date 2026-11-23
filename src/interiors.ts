@@ -69,6 +69,25 @@ export class Interiors {
       const ownable = d.id === 'donut' || d.id === 'motel' || d.id === 'arcade' || d.id === 'bank';
       if (ownable) { b.box(1.9, 0.95, 0.9, ox + 4.6, 0.48, oz - 3.8, 0x3b3f55); b.box(0.7, 0.08, 0.5, ox + 4.6, 1.0, oz - 3.8, 0xffd23a); }
       if (d.id === 'arcade') for (let i = 0; i < 4; i++) b.box(1.0, 2.0, 0.9, ox - 4.5 + i * 3, 1.0, oz + 2.8, [0xff4d6d, 0x35e0ff, 0xffd23a, 0x7dff6a][i]);
+      // little extras that make each shop feel lived in (nothing here blocks the way)
+      if (d.id === 'donut') {
+        for (let i = 0; i < 5; i++) { b.cylinder(0.28, 0.28, 0.08, 10, ox - 2.4 + i * 1.2, 0.72, oz - 1.9, 0xd62d6a); b.cylinder(0.06, 0.06, 0.7, 6, ox - 2.4 + i * 1.2, 0.36, oz - 1.9, 0x8d95a3); }   // stools
+        for (let i = 0; i < 6; i++) b.cylinder(0.2, 0.2, 0.08, 10, ox - 1.5 + i * 0.6, 1.26, oz - 3.4, [0xff8fb8, 0xffd23a, 0x8b5a2b, 0xffffff][i % 4]);   // donuts on the counter
+        b.box(1.4, 0.5, 0.8, ox - 5.5, 0.25, oz + 3.5, 0xf7c6d9); b.box(1.4, 0.9, 0.2, ox - 5.5, 0.95, oz + 3.1, 0xffffff);                                   // a pink booth
+      }
+      if (d.id === 'gun') {
+        for (let i = 0; i < 5; i++) { b.box(0.7, 0.06, 0.08, ox - 3.6 + i * 1.8, 2.0, oz - D / 2 + 0.3, 0x2a2d35); b.box(0.1, 0.1, 0.5, ox - 3.6 + i * 1.8, 2.12, oz - D / 2 + 0.3, 0x23252b); }  // rifles on the wall
+        b.box(1.4, 1.0, 0.7, ox + 4.2, 0.5, oz + 3.2, 0x3b4252); b.box(1.5, 0.08, 0.8, ox + 4.2, 1.04, oz + 3.2, 0x8d95a3);                                   // a glass case
+      }
+      if (d.id === 'clothes') {
+        for (let i = 0; i < 3; i++) { const mx = ox - 3 + i * 3; b.box(0.34, 0.7, 0.2, mx, 1.1, oz - 0.2, [0xd93636, 0x2fb87a, 0xf2a73b][i]); b.box(0.2, 0.22, 0.2, mx, 1.62, oz - 0.2, 0xe9d8c4); b.box(0.06, 0.8, 0.06, mx, 0.4, oz - 0.2, 0x6d7280); b.box(0.5, 0.05, 0.4, mx, 0.03, oz - 0.2, 0x6d7280); }   // mannequins
+        b.box(1.0, 2.0, 0.08, ox + 5.5, 1.0, oz - 3.0, 0x9fd6ff);                                                                                              // a mirror
+      }
+      if (d.id === 'bank') {
+        for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) b.cylinder(0.05, 0.05, 1.0, 6, ox + sx * 1.6, 0.5, oz + 0.6 + i * 1.3, 0xd8c36a);                // queue posts
+        b.box(0.03, 0.03, 2.6, ox - 1.6, 0.95, oz + 1.9, 0xd62d3a); b.box(0.03, 0.03, 2.6, ox + 1.6, 0.95, oz + 1.9, 0xd62d3a);                               // ropes
+        b.cylinder(0.35, 0.3, 0.5, 8, ox + 5.8, 0.25, oz + 3.8, 0x8a5a33); b.add(new THREE.IcosahedronGeometry(0.5, 0), 0x3f9a4f, new THREE.Matrix4().makeTranslation(ox + 5.8, 0.9, oz + 3.8)); // a pot plant
+      }
       if (d.id === 'home') {
         b.box(2.2, 0.5, 3.0, ox + 4.6, 0.25, oz - 3.0, 0xf4f4f4); b.box(2.2, 0.9, 0.2, ox + 4.6, 0.6, oz - 4.4, 0x8b5a2b); b.box(1.0, 0.18, 0.6, ox + 4.6, 0.6, oz - 3.9, 0xffffff);   // bed
         b.box(3.0, 0.5, 1.1, ox - 3.0, 0.3, oz + 3.6, 0x3b82f6); b.box(3.0, 0.7, 0.3, ox - 3.0, 0.65, oz + 4.1, 0x2c64c0);                           // sofa
@@ -79,7 +98,7 @@ export class Interiors {
       if (d.id === 'garage') {
         // two car lifts, a tool bench, tyre stacks, oil drums, hazard stripes by the door
         for (const sx of [-1, 1]) { b.box(0.3, 2.4, 0.3, ox + sx * 3.2, 1.2, oz + 1.6, 0xffd23a); b.box(0.3, 2.4, 0.3, ox + sx * 3.2, 1.2, oz + 3.6, 0xffd23a); b.box(0.4, 0.2, 2.5, ox + sx * 3.2, 0.5, oz + 2.6, 0x6d7280); }
-        b.box(2.6, 0.9, 0.7, ox - 5.4, 0.45, oz - 1.0, 0x8a5a33); b.box(2.6, 0.1, 0.8, ox - 5.4, 0.95, oz - 1.0, 0xcfc8b8);
+        b.box(2.6, 0.9, 0.7, ox - 5.4, 0.45, oz - 4.3, 0x8a5a33); b.box(2.6, 0.1, 0.8, ox - 5.4, 0.95, oz - 4.3, 0xcfc8b8);
         for (let i = 0; i < 4; i++) b.cylinder(0.45, 0.45, 0.28, 10, ox + 5.5, 0.15 + i * 0.3, oz + 3.8, 0x1a1a1f);
         for (let i = 0; i < 3; i++) b.cylinder(0.35, 0.35, 0.9, 8, ox + 5.5 - i * 0.8, 0.45, oz - 4.4, [0x2f6bd6, 0xd62d3a, 0x2fb87a][i]);
         for (let k = 0; k < 8; k++) b.box(0.9, 0.03, 0.4, ox - 3.6 + k * 1.0, 0.03, oz + D / 2 - 0.5, k % 2 ? 0xffd23a : 0x222222);
