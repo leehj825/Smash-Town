@@ -270,6 +270,30 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
     const mArr = await S(() => { const G = g(); const s2 = G.transit.stations[2]; const p = G.humans.player; return { d: Math.round(Math.hypot(p.x - s2.sx, p.z - s2.sz)) }; });
     ok(metro.n === 6 && metro.at === 1000 && metro.prompt && metro.ok && metro.cash === 88 && mArr.d < 3, 'the metro express rides two stations ahead for $12', JSON.stringify({ metro, mArr }));
+    const heli = await S(() => {
+      const G = g(); const H = G.helipad;
+      G.stars = 0; G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null;
+      const sp = H.spotOf();
+      G.humans.setPlayerActive(true, sp.x + 8, sp.z, 0);
+      for (let i = 0; i < 5 && !H.heli; i++) H.update(0.1);
+      const v = H.heli; if (!v) return { parked: false };
+      G.boardVehicle(v);
+      const c = v.ctrl; const ctl = { throttle: 0, steer: 0, handbrake: true, nitro: false };
+      for (let i = 0; i < 80; i++) c.update(0.05, ctl, null);
+      const climbed = c.position.y;
+      ctl.handbrake = false; ctl.throttle = 1;
+      for (let i = 0; i < 60; i++) c.update(0.05, ctl, null);
+      const fast = c.speed;
+      const moved = Math.hypot(c.position.x - sp.x, c.position.z - sp.z);
+      ctl.throttle = 0; ctl.nitro = true;
+      for (let i = 0; i < 300 && c.position.y > 0.01; i++) c.update(0.05, ctl, null);
+      ctl.nitro = false; for (let i = 0; i < 200; i++) c.update(0.05, ctl, null);
+      const landed = c.position.y < 0.05;
+      // a parked helicopter stays on the ground
+      G.driving = null; G.onFoot = true; v.ai = 'parked';
+      return { parked: true, climbed, fast, moved, landed };
+    });
+    ok(heli.parked && heli.climbed > 8 && heli.fast > 10 && heli.moved > 15 && heli.landed, 'a helicopter waits on the helipad: it climbs, flies, and lands again', JSON.stringify(heli));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';

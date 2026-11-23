@@ -99,6 +99,7 @@ export class CarController {
   }
 
   update(dt: number, ctl: ControlState, fx: CarFx | null): void {
+    if (this.flying) { this.fly(dt, ctl); return; }
     const st = this.stats;
     const wrecked = this.wrecked;
     const throttle = wrecked ? 0 : ctl.throttle;
@@ -262,6 +263,78 @@ export class CarController {
 
   /** A car on a showroom stand (the garage turntable) ignores the world: the room is outside the city's bounds. */
   display = false;
+
+  /** A helicopter: flies (see `fly`). `climb` is the vertical speed it was asked for; `rotor` is the spinning blade mesh. */
+  flying = false;
+  rotor: THREE.Object3D | null = null;
+  private rotorSpeed = 0;
+
+  /** Highest ground level under the helicopter: buildings and towers block it below their roofs. */
+  private fly(dt: number, ctl: ControlState): void {
+    const st = this.stats;
+    const wrecked = this.wrecked;
+    const up = !wrecked && ctl.handbrake, down = !wrecked && ctl.nitro;
+    const throttle = wrecked ? 0 : ctl.throttle, steerIn = wrecked ? 0 : ctl.steer;
+    const alt = this.position.y;
+    const landed = alt < 0.05;
+    // the rotors spin up when you lift off or move
+    const power = !wrecked && (up || alt > 0.2 || throttle !== 0);
+    this.rotorSpeed += ((power ? 1 : 0) - this.rotorSpeed) * Math.min(1, dt * 1.6);
+    if (this.rotor) this.rotor.rotation.y += this.rotorSpeed * 34 * dt;
+    // vertical: Space climbs, Shift descends, otherwise it hovers
+    const wantVy = (up ? 12 : down ? -12 : 0) * (this.rotorSpeed > 0.6 ? 1 : 0);
+    this.vy += (wantVy - this.vy) * Math.min(1, dt * 2.4);
+    this.position.y = Math.max(0, Math.min(140, alt + this.vy * dt));
+    if (this.position.y <= 0 && this.vy < 0) {
+      const hard = -this.vy;
+      this.vy = 0;
+      if (hard > 7) { this.events.onImpact(hard); this.damage(hard * 0.01); }
+    }
+    // forward flight (not while sitting on the ground)
+    const grounded = this.position.y < 0.3;
+    this.heading -= steerIn * (grounded ? 0.3 : 1.5) * dt * (0.4 + Math.min(1, this.speed / 12));
+    const fx_ = Math.sin(this.heading), fz_ = Math.cos(this.heading);
+    let vf = this.vx * fx_ + this.vz * fz_;
+    const max = st.maxSpeed * (ctl.nitro && throttle > 0 && !grounded ? 1.0 : 1);
+    if (grounded) vf *= Math.exp(-3 * dt);
+    else if (throttle > 0) vf = Math.min(max, vf + st.accel * dt);
+    else if (throttle < 0) vf = Math.max(-max * 0.3, vf - st.accel * 1.2 * dt);
+    else vf *= Math.exp(-0.5 * dt);
+    this.vx = fx_ * vf; this.vz = fz_ * vf;
+    this.position.x += this.vx * dt;
+    this.position.z += this.vz * dt;
+    // buildings: below their roofs they stop it
+    const R = 3.2, y = this.position.y;
+    const b = this.world.bounds;
+    this.position.x = Math.max(b.minX, Math.min(b.maxX, this.position.x));
+    this.position.z = Math.max(b.minZ, Math.min(b.maxZ, this.position.z));
+    for (const box of this.world.boxes) {
+      const top = box.h ?? 12;
+      if (y > top) continue;
+      const cx = this.position.x, cz = this.position.z;
+      if (cx < box.minX - R || cx > box.maxX + R || cz < box.minZ - R || cz > box.maxZ + R) continue;
+      const nx = Math.max(box.minX, Math.min(cx, box.maxX)), nz = Math.max(box.minZ, Math.min(cz, box.maxZ));
+      const dx = cx - nx, dz = cz - nz, d = Math.hypot(dx, dz);
+      if (d >= R) continue;
+      let ox: number, oz: number, push: number;
+      if (d < 1e-4) { ox = cx - (box.minX + box.maxX) / 2; oz = cz - (box.minZ + box.maxZ) / 2; const l = Math.hypot(ox, oz) || 1; ox /= l; oz /= l; push = R; } else { ox = dx / d; oz = dz / d; push = R - d; }
+      this.position.x += ox * push; this.position.z += oz * push;
+      const hit = Math.abs(this.vx * ox + this.vz * oz);
+      if (hit > 6) { this.events.onImpact(hit); this.damage(hit * 0.012); }
+      this.vx *= 0.3; this.vz *= 0.3;
+    }
+    this.forwardSpeed = this.vx * fx_ + this.vz * fz_;
+    this.lateralSpeed = 0;
+    this.airborne = false; this.drifting = false; this.nitroActive = false;
+    // lean into the turn and the climb
+    const m = this.model;
+    m.root.position.set(this.position.x, this.position.y + 0.08, this.position.z);
+    m.root.rotation.y = this.heading;
+    const k = 1 - Math.exp(-dt * 4);
+    this.roll += (-steerIn * 0.25 * (grounded ? 0 : 1) - this.roll) * k;
+    this.pitch += ((landed ? 0 : Math.min(0.28, vf * 0.008)) - this.pitch) * k;
+    m.body.rotation.set(this.pitch, 0, this.roll);
+  }
 
   /** A boat: sails on water only, ignores the roads and buildings, no skid marks. */
   boat = false;
