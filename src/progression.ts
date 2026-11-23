@@ -32,7 +32,8 @@ export class Progression {
   stage(): Stage {
     const G = this.game;
     if (G.mode !== 'story') return 4;
-    const ch = G.story.done ? 99 : G.story.ch;
+    // (the intro chapter is not counted: stage 2 is the first real chapter done)
+    const ch = G.story.done ? 99 : G.story.ch - 1;
     const turf = G.gangs.ownedCount;
     let rep = -100;
     for (const a of AREAS) rep = Math.max(rep, G.reputation.get(a));

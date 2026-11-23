@@ -15,8 +15,14 @@ type Step =
   | { k: 'dialog'; lines: Line[] }
   | { k: 'smash'; count: number; text: Pair }
   | { k: 'steal'; text: Pair }
-  | { k: 'drive'; spot: SpotKey; text: Pair };
-interface Chapter { title: Pair; reward: number; finale?: boolean; steps: Step[] }
+  | { k: 'drive'; spot: SpotKey; text: Pair }
+  /** Story mode's opening: deliver Donna's orders on foot (counted by the delivery job). */
+  | { k: 'deliver'; count: number; text: Pair }
+  /** Knock out the two thugs down the street; the bat is the prize. */
+  | { k: 'fight'; text: Pair }
+  /** Get any kind of ride. */
+  | { k: 'ride'; text: Pair };
+interface Chapter { title: Pair; reward: number; finale?: boolean; intro?: boolean; steps: Step[] }
 
 const DONNA: Pair = ['Donna', '도나'];
 const PARK: Pair = ['Mr. Park', '미스터 파크'];
@@ -25,6 +31,24 @@ const LEE: Pair = ['Captain Lee', '이 선장'];
 const MAYOR: Pair = ['Mayor Bigsby', '빅스비 시장'];
 const KIKI: Pair = ['Kiki', '키키'];
 const GUNNY: Pair = ['Gunny', '거니'];
+
+/** The opening of the story mode (a new game starts on foot with $50): a first job, a first fight, a first ride. It is put in front of the chapters below. */
+const INTRO: Chapter = {
+  title: ['Broke in Sunset Bay', '선셋 베이에서 빈털터리'], reward: 150, intro: true,
+  steps: [
+    { k: 'goto', spot: 'donna', text: ["Head to Donna's Donut Shop - you need cash", '돈이 필요해요 - 도나네 도넛 가게로 가세요'] },
+    { k: 'dialog', lines: [
+      { who: DONNA, text: ['You look like you just got off the bus with nothing. Want some work?', '방금 버스에서 맨몸으로 내린 얼굴이네. 일거리 필요해?'] },
+      { who: DONNA, text: ['Step into the pink marker by my door and take the orders. Two deliveries on foot and I will pay you $150 and a donut.', '우리 가게 문 옆 분홍 마커에 들어가서 주문을 받아. 걸어서 두 군데 배달해 주면 $150하고 도넛을 줄게.'] },
+    ] },
+    { k: 'deliver', count: 2, text: ["Deliver Donna's orders on foot (pink marker)", '도나의 주문을 걸어서 배달하세요 (분홍 마커)'] },
+    { k: 'dialog', lines: [
+      { who: DONNA, text: ['Good legs! But the Bigsby crew is leaning on the shopkeepers down the street. Fists only - dodge with Space - and they might drop something useful.', '다리 튼튼하네! 그런데 저 아래 길에서 빅스비 패거리가 가게 주인들을 괴롭히고 있어. 맨주먹으로, 스페이스로 피하면서 혼내 줘. 쓸 만한 걸 떨어뜨릴지도 몰라.'] },
+    ] },
+    { k: 'fight', text: ['Knock out the two thugs down the street (they are marked)', '길 아래 불량배 둘을 쓰러뜨리세요 (표시돼 있어요)'] },
+    { k: 'ride', text: ['Get some wheels: a bike at the garage ($150), a scooter ($600), or borrow a parked car (F)', '탈것을 구하세요: 정비소의 자전거($150), 스쿠터($600), 아니면 세워진 차를 타세요 (F)'] },
+  ],
+};
 
 export const CHAPTERS: Chapter[] = [
   {
@@ -151,6 +175,7 @@ export const CHAPTERS: Chapter[] = [
 ];
 
 export interface StorySave { ch: number; step: number; prog: number }
+const GANG_DOWN = (s: number) => s === 6 || s === 7 || s === 8; // down, getting up or dead
 const FIREWORK_COLORS = [0xff4d6d, 0xffd23a, 0x4dd2ff, 0x7dff6a, 0xc77dff, 0xffffff];
 
 export class StoryManager {
@@ -167,10 +192,15 @@ export class StoryManager {
   private introShown = false;
   private idleT = 0;
   private announced = '';
+  private base: number | null = null;
+  private thugs: import('./humans').Human[] = [];
 
   constructor(game: Game, scene: THREE.Scene, saved?: StorySave) {
     this.game = game;
-    this.ch = saved?.ch ?? 0;
+    // the story mode starts with the intro; a story saved before the intro existed skips it (every chapter moves up one place)
+    if (game.mode === 'story' && !CHAPTERS.includes(INTRO)) CHAPTERS.unshift(INTRO);
+    const shift = game.mode === 'story' && saved && (game.save.storyV ?? 1) < 2 ? 1 : 0;
+    this.ch = (saved?.ch ?? 0) + shift;
     this.step = saved?.step ?? 0;
     this.prog = saved?.prog ?? 0;
     this.done = this.ch >= CHAPTERS.length;
@@ -200,6 +230,7 @@ export class StoryManager {
     this.step++;
     this.prog = 0;
     this.idleT = 0;
+    this.base = null;
     if (this.step >= c.steps.length) this.completeChapter(c);
     this.persist();
   }
@@ -208,6 +239,7 @@ export class StoryManager {
     const g = this.game;
     g.addCash(c.reward, 'story');
     g.hud.toast(`${bi('Chapter complete!', '챕터 완료!')} +$${c.reward.toLocaleString('en-US')}`, 3600);
+    if (c.intro) g.gear.give('donut', 1);
     if (c.finale) {
       const last = this.ch === CHAPTERS.length - 1;
       g.unlockVehicle(last ? 'monster' : 'supercar');
@@ -306,6 +338,28 @@ export class StoryManager {
         if (g.driving === limo && !g.onFoot) this.next();
         break;
       }
+      case 'deliver': {
+        this.beacon.visible = false;
+        if (this.base === null) this.base = g.delivery.completed;
+        if (g.delivery.completed - this.base >= s.count) this.next();
+        break;
+      }
+      case 'fight': {
+        if (this.thugs.length === 0) this.spawnThugs();
+        if (this.thugs.length === 0) { this.next(); break; } // no free slot: skip the fight
+        const alive = this.thugs.filter((h) => h.active && !h.ko && h.hp > 0 && !GANG_DOWN(h.state));
+        if (alive.length === 0) { this.finishFight(); break; }
+        this.beacon.setPosition(alive[0].x, alive[0].z); this.beacon.visible = true;
+        // they start trouble when you get close
+        if (Math.hypot(alive[0].x - g.focusX, alive[0].z - g.focusZ) < 16) for (const h of alive) h.hostile = true;
+        break;
+      }
+      case 'ride': {
+        const gd = g.world.garages[0];
+        if (gd?.door) { this.beacon.setPosition(gd.door.x, gd.door.z); this.beacon.visible = !g.driving; } else this.beacon.visible = false;
+        if (g.driving && !g.onFoot) this.next();
+        break;
+      }
       case 'drive': {
         const limo = this.limo;
         if (!limo || !g.vehicles.includes(limo) || limo.ctrl.wrecked) {
@@ -326,6 +380,36 @@ export class StoryManager {
         break;
       }
     }
+  }
+
+  /** Two thugs on the pavement of a street about fifty metres from Donna's. */
+  private spawnThugs(): void {
+    const g = this.game;
+    const d = this.spot('donna');
+    let best: (typeof g.world.segments)[number] | null = null, bd = Infinity;
+    for (const s of g.world.segments) {
+      if (s.len < 30 || s.hw < 5.5) continue;
+      const dist = Math.hypot(s.x - d.x, s.z - d.z);
+      if (Math.abs(dist - 55) < bd) { bd = Math.abs(dist - 55); best = s; }
+    }
+    if (!best) return;
+    for (let k = 0; k < 2; k++) {
+      const along = (k - 0.5) * 3;
+      const x = best.x + best.dx * along - best.dz * (best.hw + 1.9), z = best.z + best.dz * along + best.dx * (best.hw + 1.9);
+      const h = g.humans.spawnGang(x, z, 0x7a3a3a, false);
+      if (h) { h.hp = h.maxHp = 40; this.thugs.push(h); }
+    }
+  }
+
+  private finishFight(): void {
+    const g = this.game;
+    for (const h of this.thugs) g.humans.removeGangLater(h);
+    this.thugs = [];
+    g.humans.batOwned = true;
+    g.humans.player.weapon = 1;
+    g.hud.toast(bi('You picked up a baseball bat! (V or the number keys switch weapons)', '야구방망이를 주웠어요! (V나 숫자 키로 무기 바꾸기)'), 4200);
+    g.audio.cash();
+    this.next();
   }
 
   private fireworks(dt: number): void {
@@ -374,6 +458,9 @@ export class StoryManager {
     const label = this.stepText(s);
     switch (s.k) {
       case 'goto': { const p = this.spot(s.spot); return { x: p.x, z: p.z, label }; }
+      case 'deliver': { const m = g.delivery.markers()[0]; return m ? { x: m.x, z: m.z, label } : null; }
+      case 'fight': { const t0 = this.thugs.find((h) => h.active && !h.ko && h.hp > 0); return t0 ? { x: t0.x, z: t0.z, label } : null; }
+      case 'ride': { const gd = g.world.garages[0]; return gd?.door ? { x: gd.door.x, z: gd.door.z, label } : null; }
       case 'steal': return this.limo ? { x: this.limo.x, z: this.limo.z, label } : (() => { const p = g.world.landmarks.story.limo; return { x: p.x, z: p.z, label }; })();
       case 'drive': {
         if (g.driving === this.limo && this.limo) { const p = this.spot(s.spot); return { x: p.x, z: p.z, label }; }
@@ -418,6 +505,9 @@ export class StoryManager {
       case 'goto': return { title, text: bi(s.text[0], s.text[1]) };
       case 'smash': return { title, text: `${bi(s.text[0], s.text[1])} (${Math.min(this.prog, s.count)}/${s.count})` };
       case 'steal': return { title, text: bi(s.text[0], s.text[1]) };
+      case 'deliver': return { title, text: `${bi(s.text[0], s.text[1])} (${Math.min(Math.max(0, this.game.delivery.completed - (this.base ?? this.game.delivery.completed)), s.count)}/${s.count})` };
+      case 'fight': return { title, text: bi(s.text[0], s.text[1]) };
+      case 'ride': return { title, text: bi(s.text[0], s.text[1]) };
       case 'drive': return { title, text: this.game.driving === this.limo && this.limo ? bi(s.text[0], s.text[1]) : bi('Get back into the limo!', '리무진에 다시 타세요!') };
       case 'dialog': return { title, text: bi('Talk to them', '대화하기') };
     }
@@ -438,6 +528,8 @@ export class StoryManager {
     const s = this.current;
     if (!s || this.dialog) return;
     if (s.k === 'goto') { const p = this.spot(s.spot); push(p.x, p.z, '#ffd23a', false, 6.5); }
+    else if (s.k === 'fight') { for (const h of this.thugs) if (h.active && !h.ko && h.hp > 0) push(h.x, h.z, '#ffd23a', true, 6); }
+    else if (s.k === 'ride') { const gd = this.game.world.garages[0]; if (gd?.door && !this.game.driving) push(gd.door.x, gd.door.z, '#ffd23a', false, 6.5); }
     else if (s.k === 'steal' && this.limo) push(this.limo.x, this.limo.z, '#ffd23a', false, 6.5);
     else if (s.k === 'drive') {
       if (this.game.driving === this.limo) { const p = this.spot(s.spot); push(p.x, p.z, '#ffd23a', false, 6.5); }

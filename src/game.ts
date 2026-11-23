@@ -87,7 +87,7 @@ export function currentSlot(): number {
 }
 export const slotSaveKey = (slot: number): string => (slot === 1 ? 'smashtown.save.v1' : `smashtown.save.v1.s${slot}`);
 export const SAVE_KEY = slotSaveKey(currentSlot());
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; friends?: Record<string, number>; bat?: boolean; gear?: Record<string, number>; survivalBest?: number; v?: number; hour?: number; milestone?: number; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; friends?: Record<string, number>; bat?: boolean; storyV?: number; gear?: Record<string, number>; survivalBest?: number; v?: number; hour?: number; milestone?: number; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -426,7 +426,8 @@ export class Game {
       const raceBest = Array.isArray(s.raceBest) ? s.raceBest.map((n: unknown) => (typeof n === 'number' && n > 0 ? n : 0)) : [];
       const login = s.login && typeof s.login.day === 'string' ? { day: s.login.day, streak: Number(s.login.streak) || 1 } : undefined;
       const bat = typeof s.bat === 'boolean' ? s.bat : undefined;
-      return { bat, cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, friends, gear, survivalBest: Number(s.survivalBest) > 0 ? Math.floor(Number(s.survivalBest)) : undefined, rep, skills, login, progress: s.progress, v: s.v ?? SAVE_VERSION, milestone: [25, 50, 75, 100].includes(Number(s.milestone)) ? Number(s.milestone) : undefined, hour: typeof s.hour === 'number' && s.hour >= 0 && s.hour < 24 ? s.hour : undefined };
+      const storyV = Number(s.storyV) >= 2 ? 2 : undefined;
+      return { bat, storyV, cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, friends, gear, survivalBest: Number(s.survivalBest) > 0 ? Math.floor(Number(s.survivalBest)) : undefined, rep, skills, login, progress: s.progress, v: s.v ?? SAVE_VERSION, milestone: [25, 50, 75, 100].includes(Number(s.milestone)) ? Number(s.milestone) : undefined, hour: typeof s.hour === 'number' && s.hour >= 0 && s.hour < 24 ? s.hour : undefined };
     } catch {
       this.freshStory = this.mode === 'story';
       return fallback;
@@ -470,6 +471,7 @@ export class Game {
   /** Called by the story when its position changes. */
   saveStory(s: StorySave): void {
     this.save.story = s;
+    if (this.mode === 'story') this.save.storyV = 2; // the story now starts with the intro chapter
     this.saveDirty = true;
   }
 

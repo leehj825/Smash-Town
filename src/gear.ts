@@ -54,6 +54,8 @@ export class Gear {
   }
 
   count(id: GearId): number { return this.game.save.gear?.[id] ?? 0; }
+  /** Hand over some of something (a gift or a reward). */
+  give(id: GearId, n = 1): void { this.add(id, n); }
   /** Use up one of something. */
   spend(id: GearId): void { this.add(id, -1); }
   private add(id: GearId, n: number): void {
