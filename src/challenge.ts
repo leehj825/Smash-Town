@@ -17,7 +17,7 @@ export class Challenge {
 
   constructor(private game: Game) {}
 
-  get unlocked(): boolean { return this.game.story.done || this.game.completion.percent() >= 50; }
+  get unlocked(): boolean { return this.game.mode === 'sandbox' || this.game.story.done || this.game.completion.percent() >= 50; }
   get best(): number { return this.game.save.survivalBest ?? 0; }
 
   toggleChaos(m: ChaosMode): void {

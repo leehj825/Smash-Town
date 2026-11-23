@@ -44,6 +44,8 @@ import { Director } from './director';
 import { Challenge } from './challenge';
 import { Juice } from './juice';
 import { Barricades } from './barricades';
+import { currentMode, type GameMode } from './mode';
+import { Sandbox } from './sandbox';
 import { SAVE_VERSION, migrateSave } from './saveMigrate';
 import { JOBS } from './jobs';
 import { Reputation } from './reputation';
@@ -160,6 +162,11 @@ export class Game {
   challenge!: Challenge;
   juice!: Juice;
   barricades!: Barricades;
+  /** story, sandbox or classic (see mode.ts). */
+  readonly mode: GameMode = currentMode();
+  sandbox!: Sandbox;
+  /** The page gives the sandbox's phone entries a way to change the weather and the time of day. */
+  sandboxHooks: { weather: () => string; time: () => string } | null = null;
   /** Slow motion while the quick wheel is open (1 = normal). */
   timeScale = 1;
   reputation!: Reputation;
@@ -297,6 +304,8 @@ export class Game {
     this.challenge = new Challenge(this);
     this.juice = new Juice(this);
     this.barricades = new Barricades(this);
+    this.sandbox = new Sandbox(this);
+    if (this.mode === 'sandbox') { this.noSave = true; this.story.done = true; }
     this.fires = new Fires(this);
     this.thieves = new Thieves(this);
     this.factions = new Factions(this);
@@ -351,6 +360,12 @@ export class Game {
   // ------------------------------------------------------------------ persistence
   private loadSave(): SaveData {
     const fallback: SaveData = { cash: 2000, unlocked: ['sports', 'sedan'], selected: 'sports' };
+    // the sandbox starts rich and fully unlocked, and never reads (or writes) a story slot
+    if (this.mode === 'sandbox') {
+      const ammo: Partial<Record<GunId, number>> = {};
+      for (const g of GUN_ORDER) ammo[g] = 99;
+      return { cash: 999999, unlocked: [...PLAYER_ROSTER], selected: 'sports', guns: [...GUN_ORDER], ammo, gear: { smoke: 9, c4: 9, spikes: 9, donut: 9, vest: 9 } };
+    }
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return fallback;
@@ -1102,7 +1117,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.clock.update(dt); this.completion.update(dt); this.riots.update(dt); this.crossfire.update(dt); this.truckHeist.update(dt); this.gear.update(dt); this.escapes.update(dt); this.phone.update(dt); this.director.update(dt); this.challenge.update(dt); this.juice.update(); this.barricades.update(dt); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.clock.update(dt); this.completion.update(dt); this.riots.update(dt); this.crossfire.update(dt); this.truckHeist.update(dt); this.gear.update(dt); this.escapes.update(dt); this.phone.update(dt); this.director.update(dt); this.challenge.update(dt); this.juice.update(); this.barricades.update(dt); this.sandbox.update(); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);

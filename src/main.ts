@@ -19,6 +19,7 @@ import { Weather, type WeatherKind } from './weather';
 import { ControlsPanel, HowToPlay, StatsPanel, type Modal } from './overlays';
 import { settings, saveSettings } from './settings';
 import { SAVE_KEY, SLOT_KEY, currentSlot, slotSaveKey } from './game';
+import { MODE_KEY } from './mode';
 import { setupTouch } from './touch';
 
 type Quality = 'high' | 'medium' | 'low';
@@ -180,6 +181,17 @@ function applyWeather(m: 'auto' | WeatherKind): void {
   document.querySelectorAll<HTMLElement>('.weather').forEach((b) => b.classList.toggle('sel', b.dataset.w === m));
 }
 
+/** The sandbox phone's switches for the weather and the time of day. */
+const WEATHER_CYCLE: WeatherKind[] = ['clear', 'rain', 'fog', 'storm', 'snow'];
+game.sandboxHooks = {
+  weather: () => {
+    const next = WEATHER_CYCLE[(WEATHER_CYCLE.indexOf(weather.kind) + 1) % WEATHER_CYCLE.length];
+    applyWeather(next);
+    return next;
+  },
+  time: () => { const t = env.cycleTime(); applyTime(t); return t; },
+};
+
 function applyAudio(on: boolean): void {
   game.audio.setEnabled(on);
   radio.setEnabled(on && radioChoice() !== 'off');
@@ -231,8 +243,33 @@ function buildSlots(): void {
     box.appendChild(b);
   }
 }
+/** The two ways to play, side by side: the story (saved in a slot) and the free sandbox (everything unlocked, nothing saved). */
+function buildModes(): void {
+  const box = document.getElementById('modes');
+  if (!box) return;
+  box.innerHTML = '';
+  const defs: [string, string, string][] = [
+    ['story', bi('STORY', '스토리'), bi('start with nothing, grow', '맨몸으로 시작해 성장')],
+    ['sandbox', bi('FREE SANDBOX', '프리 샌드박스'), bi('everything unlocked, not saved', '모두 해금, 저장 안 됨')],
+  ];
+  for (const [id, name, sub] of defs) {
+    const b = document.createElement('button');
+    const active = game.mode === 'sandbox' ? id === 'sandbox' : id === 'story';
+    b.className = active ? 'sel' : '';
+    b.innerHTML = `${name}<small>${sub}</small>`;
+    b.addEventListener('click', () => {
+      if (active) return;
+      try { localStorage.setItem(MODE_KEY, id); } catch { /* ignore */ }
+      location.reload();
+    });
+    box.appendChild(b);
+  }
+  const slots = document.getElementById('slots');
+  if (slots) slots.style.display = game.mode === 'sandbox' ? 'none' : '';
+}
 buildSlots();
-onLangChange(buildSlots);
+buildModes();
+onLangChange(() => { buildSlots(); buildModes(); });
 
 function startGame(): void {
   if (state !== 'title') return;
@@ -241,7 +278,7 @@ function startGame(): void {
   titleEl.hidden = true;
   hudEl.hidden = false;
   if (!settings.tutorialDone) howto.open();
-  if (!navigator.webdriver) window.setTimeout(() => game.claimLogin(), 1200); // (automated test browsers skip the bonus so cash totals stay exact)
+  if (!navigator.webdriver && game.mode !== 'sandbox') window.setTimeout(() => game.claimLogin(), 1200); // (automated test browsers skip the bonus so cash totals stay exact)
   try {
     game.audio.init(); // needs a user gesture
     applyRadio(radioChoice());
@@ -454,7 +491,7 @@ function tick(): void {
     for (let i = 0; i < steps; i++) game.update(dt / steps);
     vfx.update(dt);
     if (clockEl) {
-      const t = game.clock.text();
+      const t = (game.mode === 'sandbox' ? 'SANDBOX ' : '') + game.clock.text();
       if (t !== clockEl.textContent) clockEl.textContent = t;
       const b = game.clock.band;
       if (b !== lastClockBand) { lastClockBand = b; document.querySelectorAll<HTMLElement>('.tod').forEach((el) => el.classList.toggle('sel', el.dataset.t === b)); }

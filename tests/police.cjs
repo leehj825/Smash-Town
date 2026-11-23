@@ -45,7 +45,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
 
     // helicopter at 5 stars; a rocket aimed at it brings it down
     const hc = await S(() => {
-      const G = g(); G.stars = 5; G.heat = 400; G.heli.cooldown = 0;
+      const G = g(); G.stars = 5; G.heat = 460; G.minHeat = 400; G.heli.cooldown = 0;
       G.updateHeli(6);
       return { active: G.heli.active, unseenZero: true };
     });

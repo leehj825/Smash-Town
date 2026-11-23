@@ -18,7 +18,17 @@ export class Phone {
 
   private services(): Service[] {
     const G = this.game;
+    const sb = G.sandbox;
+    const sandbox: Service[] = G.mode !== 'sandbox' ? [] : [
+      { id: 'sb-stars', en: `Sandbox: wanted level ${G.stars}\u2605 > next`, ko: `샌드박스: 수배 ${G.stars}\u2605 > 다음`, cost: 0, run: () => { sb.cycleStars(); } },
+      { id: 'sb-freeze', en: `Sandbox: hold the wanted level (${sb.frozen !== null ? 'ON' : 'off'})`, ko: `샌드박스: 수배 고정 (${sb.frozen !== null ? '켜짐' : '꺼짐'})`, cost: 0, run: () => { sb.toggleFreeze(); } },
+      { id: 'sb-time', en: 'Sandbox: next time of day', ko: '샌드박스: 다음 시간대', cost: 0, run: () => { G.sandboxHooks?.time(); } },
+      { id: 'sb-weather', en: 'Sandbox: next weather', ko: '샌드박스: 다음 날씨', cost: 0, run: () => { G.hud.toast(G.sandboxHooks?.weather() ?? '', 1400); } },
+      { id: 'sb-car', en: 'Sandbox: spawn the next car', ko: '샌드박스: 다음 차 소환', cost: 0, run: () => { sb.spawnCar(); } },
+      { id: 'sb-god', en: `Sandbox: god mode (${sb.god ? 'ON' : 'off'})`, ko: `샌드박스: 무적 (${sb.god ? '켜짐' : '꺼짐'})`, cost: 0, run: () => { sb.toggleGod(); } },
+    ];
     return [
+      ...sandbox,
       { id: 'dave', en: 'Mechanic Dave: bring my car', ko: '정비사 데이브: 내 차 가져다줘요', cost: 80, need: 'dave', run: () => this.bringCar() },
       { id: 'kane', en: 'Informant Kane: gang intel', ko: '정보원 케인: 갱단 정보', cost: 100, need: 'kane', run: () => {
         const z = G.gangs.weakest();
