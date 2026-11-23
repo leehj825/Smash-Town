@@ -3,7 +3,7 @@ import { AudioEngine } from './audio';
 import { Beacon } from './beacon';
 import { Collectibles } from './collectibles';
 import { StoryManager, type StorySave } from './story';
-import { PoliceBrain, TrafficBrain, type PoliceRole } from './ai';
+import { TrafficBrain } from './ai';
 import type { CameraRig, Followable } from './cameraRig';
 import type { Environment } from './environment';
 import { MeshBuilder, makeRng, paletteMaterial } from './geo';
@@ -24,6 +24,7 @@ import { StreetLife } from './street';
 import { EventBus } from './events';
 import { Crime } from './crime';
 import { Hideouts } from './hideouts';
+import { Police } from './police';
 import { Medics } from './medics';
 import { Machines } from './machines';
 import { TrafficLights } from './lights';
@@ -63,15 +64,6 @@ export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
 const STAR_HEAT = [30, 90, 170, 270, 400];
-const COMPOSITION: Record<number, [PoliceRole, number][]> = {
-  // total police cars: 1, 3, 5, 8, 10
-  1: [['cruiser', 1]],
-  2: [['cruiser', 3]],
-  3: [['cruiser', 3], ['interceptor', 2]],
-  4: [['cruiser', 4], ['interceptor', 2], ['swat', 2]],
-  5: [['cruiser', 4], ['interceptor', 2], ['swat', 2], ['armored', 2]],
-};
-const ROLE_KIND: Record<PoliceRole, VehicleKind> = { cruiser: 'police', interceptor: 'interceptor', swat: 'swat', armored: 'armored' };
 
 interface Roadblock {
   x: number; z: number; mesh: THREE.Mesh; box: { minX: number; maxX: number; minZ: number; maxZ: number }; cars: GameVehicle[];
@@ -141,6 +133,10 @@ export class Game {
   crime!: Crime;
   /** Garages and houses: where you can hide (see hideouts.ts). */
   readonly hideouts: Hideouts = new Hideouts(this);
+  /** The police fleet and the bounty hunter (see police.ts). */
+  readonly police: Police = new Police(this);
+  get hunter(): GameVehicle | null { return this.police.hunter; }
+  set hunter(v: GameVehicle | null) { this.police.hunter = v; }
   /** How many outfits there are. */
   get outfitCount(): number { return Game.OUTFITS.length; }
   private get climb(): Climber['state'] { return this.climber.state; }
@@ -163,7 +159,7 @@ export class Game {
   trafficTarget = 14;
   useBlob = false;
 
-  private rng = makeRng(99);
+  rng = makeRng(99);
   save: SaveData;
   private saveDirty = false;
   private saveTimer = 0;
@@ -174,13 +170,12 @@ export class Game {
   /** Seconds since the last crime: the police do not give up while it is fresh. */
   crimeT = 0;
   stars = 0;
-  private unseen = 0;
+  unseen = 0;
   private minHeat = 0;
   private bustTimer = 0;
   private stateTimer = 0;
-  private policeSpawnTimer = 0;
-  private roadblockTimer = 6;
-  private roadblocks: Roadblock[] = [];
+  roadblockTimer = 6;
+  roadblocks: Roadblock[] = [];
   private heatCooldown = 0;
   private survivalAcc = 0;
 
@@ -465,7 +460,7 @@ export class Game {
     let s = 0;
     for (let i = 0; i < STAR_HEAT.length; i++) if (this.heat >= STAR_HEAT[i]) s = i + 1;
     if (s > prev) {
-      if (prev === 0) this.policeSpawnTimer = Math.max(this.policeSpawnTimer, 3); // first cruiser arrives after a short delay
+      if (prev === 0) this.police.spawnTimer = Math.max(this.police.spawnTimer, 3); // first cruiser arrives after a short delay
       this.stars = s;
       this.hud.toast(tf('ui.toast.wanted', { n: s }), 1600);
       this.bus.emit({ type: 'wantedRaised', stars: s });
@@ -494,99 +489,10 @@ export class Game {
     this.unseen = 0;
     this.bustTimer = 0;
     this.hud.setWanted(0);
-    this.standDownPolice();
+    this.police.standDown();
   }
 
-  /** Cops stop chasing: chasers become ordinary patrols, roadblocks are removed. */
-  private standDownPolice(): void {
-    for (const v of this.vehicles) {
-      if (v.ai === 'police') {
-        v.ai = 'traffic';
-        v.police = null;
-        v.traffic = new TrafficBrain(this.rng);
-        v.traffic.attachNearest(v.x, v.z, v.ctrl.heading);
-        v.despawnT = 6 + this.rng() * 6; // they drive off and are removed once out of sight, so police never pile up in the traffic
-      }
-    }
-    for (const rb of [...this.roadblocks]) this.removeRoadblock(rb);
-  }
-
-  policeVehicles(): GameVehicle[] {
-    return this.vehicles.filter((v) => v.ai === 'police' && !v.ctrl.wrecked);
-  }
-
-  private spawnPolice(role: PoliceRole): void {
-    const px = this.focusX, pz = this.focusZ;
-    let p = TrafficBrain.randomPlacement(this.rng, px, pz, 110);
-    for (let i = 0; i < 8 && Math.hypot(p.x - px, p.z - pz) > 220; i++) p = TrafficBrain.randomPlacement(this.rng, px, pz, 110);
-    const kind = ROLE_KIND[role];
-    const v = this.spawnVehicle(kind, STATS[kind].color, p.x, p.z, Math.atan2(px - p.x, pz - p.z), 'police');
-    v.police = new PoliceBrain(role, this.rng);
-  }
-
-  /** A bounty hunter: a black muscle car that joins a chase at four stars. Wreck it for a $1,500 bounty. */
-  hunter: GameVehicle | null = null;
-  private hunterTimer = 20;
-  private spawnHunter(): void {
-    const px = this.focusX, pz = this.focusZ;
-    let p = TrafficBrain.randomPlacement(this.rng, px, pz, 90);
-    for (let i = 0; i < 8 && Math.hypot(p.x - px, p.z - pz) > 200; i++) p = TrafficBrain.randomPlacement(this.rng, px, pz, 90);
-    const v = this.spawnVehicle('muscle', 0x0d0d12, p.x, p.z, Math.atan2(px - p.x, pz - p.z), 'police');
-    v.police = new PoliceBrain('interceptor', this.rng);
-    v.ctrl.stats = { ...v.ctrl.stats, maxSpeed: v.ctrl.stats.maxSpeed * 0.97 };
-    this.hunter = v;
-    this.hud.toast(bi('A bounty hunter is after you!', '현상금 사냥꾼이 쫓아와요!'), 2600);
-    this.bus.emit({ type: 'hunterSpawned' });
-  }
-
-  private managePolice(dt: number): void {
-    if (this.stars === 0) { this.hunterTimer = Math.max(this.hunterTimer, 15); return; }
-    if (this.hunter && (!this.vehicles.includes(this.hunter) || this.hunter.ctrl.wrecked || this.hunter.ai !== 'police')) this.hunter = null;
-    if (this.stars >= 4 && !this.hunter) { this.hunterTimer -= dt; if (this.hunterTimer <= 0) { this.hunterTimer = 90; this.spawnHunter(); } }
-    const comp = COMPOSITION[this.stars];
-    // while you are evading (police exist but are far behind) no reinforcements are sent, so a clean getaway is possible
-    const evading = this.vehicles.some((v) => v.ai === 'police') && this.unseen > 2;
-    const have: Record<string, number> = {};
-    for (const v of this.policeVehicles()) have[v.police!.role] = (have[v.police!.role] ?? 0) + 1;
-    this.policeSpawnTimer -= dt;
-    if (this.policeSpawnTimer <= 0 && !evading) {
-      for (const [role, n] of comp) {
-        if ((have[role] ?? 0) < n) { this.spawnPolice(role); this.policeSpawnTimer = 2.5; break; }
-      }
-    }
-    // roadblocks from 3 stars
-    if (this.stars >= 3) {
-      this.roadblockTimer -= dt;
-      if (this.roadblockTimer <= 0 && this.roadblocks.length < 1) { this.spawnRoadblock(); this.roadblockTimer = 25; }
-    }
-    this.checkSpikes();
-    for (const rb of [...this.roadblocks]) {
-      if (Math.hypot(rb.x - this.focusX, rb.z - this.focusZ) > 210) this.removeRoadblock(rb);
-    }
-  }
-
-  /** The player's car shredding its tyres on a spike strip. */
-  private checkSpikes(): void {
-    const d = this.driving;
-    if (!d || this.onFoot) return;
-    for (const rb of this.roadblocks) {
-      const s = rb.strip;
-      if (!s || s.used) continue;
-      const rx = d.x - s.x, rz = d.z - s.z;
-      const along = rx * s.dx + rz * s.dz;
-      const cross = -rx * s.dz + rz * s.dx;
-      if (Math.abs(along) < 1.8 && Math.abs(cross) < s.half) {
-        s.used = true;
-        s.mesh.visible = false;
-        if (d.popTire()) {
-          this.hud.toast(bi('Spike strip! Tires shredded - repair at a garage', '스파이크! 타이어 파손 - 차고에서 수리하세요'), 3200);
-          this.vfx.emitSparks(d.x, 0.3, d.z, 16);
-          this.audio.crash(14);
-          this.input.rumble(0.8, 0.5, 200);
-        }
-      }
-    }
-  }
+  policeVehicles(): GameVehicle[] { return this.police.vehicles(); }
 
   // ------------------------------------------------------------------ shops (hidden-pocket interiors)
   static OUTFITS: [number, number][] = [[0xd93636, 0x2a4a8a], [0x2fb87a, 0x23262f], [0xf2a73b, 0x3b3b52], [0x8a5cd6, 0x1a1a24], [0x3b82f6, 0xe8e8ee], [0xf4a7b9, 0x445566], [0x111111, 0x111111], [0xffffff, 0x33415c]];
@@ -715,7 +621,7 @@ export class Game {
   }
 
   /** A barricade across a road segment roughly 115 m ahead of where the player is heading, with two cruisers on the approach side. */
-  private spawnRoadblock(): void {
+  spawnRoadblock(): void {
     const d = this.driving;
     const fx = d ? Math.sin(d.ctrl.heading) : 0, fz = d ? Math.cos(d.ctrl.heading) : 1;
     const px = this.focusX, pz = this.focusZ;
@@ -769,7 +675,7 @@ export class Game {
     this.roadblocks.push(rb);
   }
 
-  private removeRoadblock(rb: Roadblock): void {
+  removeRoadblock(rb: Roadblock): void {
     if (rb.strip) { rb.strip.mesh.removeFromParent(); rb.strip.mesh.geometry.dispose(); }
     rb.mesh.removeFromParent();
     rb.mesh.geometry.dispose();
@@ -1617,7 +1523,7 @@ export class Game {
   }
 
   private updateWanted(dt: number): void {
-    if (this.stars === 0) { this.managePolice(dt); return; }
+    if (this.stars === 0) { this.police.manage(dt); return; }
     let nearest = Infinity;
     for (const v of this.policeVehicles()) nearest = Math.min(nearest, Math.hypot(v.x - this.focusX, v.z - this.focusZ));
     this.crimeT += dt;
@@ -1637,7 +1543,7 @@ export class Game {
       this.survivalAcc += dt * this.stars * 8;
       if (this.survivalAcc >= 50) { this.addCash(Math.floor(this.survivalAcc), 'police'); this.survivalAcc = 0; }
     }
-    this.managePolice(dt);
+    this.police.manage(dt);
 
     // busted: cops on you while stopped
     if (this.state === 'play') {

@@ -32,7 +32,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       if (!s) return { strip: false };
       const d = G.driving; const base = d.ctrl.stats.maxSpeed;
       d.ctrl.position.x = s.x; d.ctrl.position.z = s.z;
-      G.checkSpikes();
+      G.police.checkSpikes();
       return { strip: true, flat: d.flat, ratio: Math.round((d.ctrl.stats.maxSpeed / base) * 100) / 100, used: s.used };
     });
     ok(sp.strip && sp.flat && sp.ratio === 0.55 && sp.used, 'spike strip appears at 4 stars and shreds tyres', JSON.stringify(sp));

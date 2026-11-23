@@ -56,7 +56,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     const hunt = await S(() => {
       const G = g(); G.taxi.cancel && G.taxi.cancel();
       G.humans.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0); G.onFoot = true; G.driving = null; G.state = 'play';
-      G.stars = 4; G.heat = 270; G.hunterTimer = 0; G.crimeT = 0;
+      G.stars = 4; G.heat = 270; G.police.hunterTimer = 0; G.crimeT = 0;
       for (let i = 0; i < 20 && !G.hunter; i++) G.update(0.05);
       const spawned = !!G.hunter;
       const cash0 = G.cash;
