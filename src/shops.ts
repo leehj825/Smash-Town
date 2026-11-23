@@ -79,9 +79,12 @@ export class Shops {
     const G = this.G;
     if (this.heist) return;
     if (this.heistCooldown > 0) { G.hud.toast(bi('The vault was just emptied - come back later', '금고가 방금 털렸어요 - 나중에 다시 오세요'), 2400); return; }
-    this.heist = { t: 18 };
+    // a C4 charge blows the vault door in half the time
+    const c4 = G.gear.count('c4') > 0;
+    if (c4) G.gear.spend('c4');
+    this.heist = { t: c4 ? 8 : 18 };
     G.addHeat(180); // the alarm: three stars the moment you start
-    G.hud.toast(bi('ALARM! Stay at the vault until it opens!', '경보! 금고가 열릴 때까지 버티세요!'), 2600);
+    G.hud.toast(c4 ? bi('BOOM! C4 on the vault door. ALARM! Hold on a few seconds!', '쾅! 금고 문에 C4. 경보! 몇 초만 버티세요!') : bi('ALARM! Stay at the vault until it opens!', '경보! 금고가 열릴 때까지 버티세요!'), 2600);
   }
   /** Runs while you are inside the bank. */
   updateHeist(dt: number, room: Room): void {
@@ -96,13 +99,11 @@ export class Shops {
       this.heist = null;
       this.heistCooldown = 600;
       G.hud.showGig(false);
-      G.addCash(loot, 'other');
-      G.progress.add('gigs');
-      G.progress.add('heists');
       const pl = G.humans.player;
-      G.popups.spawn(pl.x, 3, pl.z, `+$${loot.toLocaleString('en-US')}`, '#ffd23a');
-      G.hud.toast(bi('The vault is open! Grab the cash and get out!', '금고가 열렸어요! 돈을 챙겨 도망가세요!'), 3000);
+      G.popups.spawn(pl.x, 3, pl.z, `$${loot.toLocaleString('en-US')}`, '#ffd23a');
       G.bus.emit({ type: 'heist' });
+      // the cash is hot until you shake the police (Bonnie helps carry it out: +25%)
+      G.truckHeist.beginEscape(loot * (G.buddy.hired ? 1.25 : 1), ['BANK HEIST', '은행 강도']);
     }
   }
 

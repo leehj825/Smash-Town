@@ -53,6 +53,8 @@ export class Gear {
   }
 
   count(id: GearId): number { return this.game.save.gear?.[id] ?? 0; }
+  /** Use up one of something. */
+  spend(id: GearId): void { this.add(id, -1); }
   private add(id: GearId, n: number): void {
     const g = (this.game.save.gear ??= {});
     g[id] = Math.max(0, (g[id] ?? 0) + n);

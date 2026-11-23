@@ -90,12 +90,17 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       const stars = G.stars;
       const cash0 = G.cash;
       for (let i = 0; i < 400 && G.shops.heist; i++) G.shops.updateHeist(0.05, r);
+      const hot = G.truckHeist.hot; const escaping = G.truckHeist.phase === 'escape'; const cashHeld = G.cash === cash0;
+      G.inside = null;
+      G.stars = 0; G.truckHeist.update(0.1);
       const loot = G.cash - cash0;
       G.shops.startHeist(); // the vault is empty for a while
-      G.inside = null;
-      return { near, stars, loot, again: !!G.shops.heist };
+      const again = !!G.shops.heist;
+      // with C4 in the bag the door goes in half the time
+      G.shops.heistCooldown = 0; G.save.gear = { c4: 1 }; G.inside = r; G.shops.startHeist(); const quick = !!G.shops.heist && G.shops.heist.t === 8 && G.gear.count('c4') === 0; G.shops.heist = null; G.inside = null; G.save.gear = {}; G.stars = 0; G.heat = 0; G.hud.showGig(false);
+      return { near, stars, loot, hot, escaping, cashHeld, quick, again };
     });
-    ok(heist.near && heist.stars >= 3 && heist.loot >= 3500 && !heist.again, 'cracking the bank vault sets off the alarm, pays out, then the vault stays empty', JSON.stringify(heist));
+    ok(heist.near && heist.stars >= 3 && heist.hot >= 3500 && heist.escaping && heist.cashHeld && heist.loot >= 3500 && heist.quick && !heist.again, 'the bank vault: alarm, hot cash you must get away with before it pays out, C4 halves the time, then the vault stays empty', JSON.stringify(heist));
     const homeBuy = await S(() => {
       const G = g(); const h = G.world.homes[0];
       G.stars = 0; G.cash = 30000; G.save.homes = []; G.inside = null; G.driving = null; G.onFoot = true; G.state = 'play';
@@ -500,9 +505,10 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       const n0 = G.vehicles.length;
       P.show();
       const items = [...document.querySelectorAll('#phone .phone-item')];
-      items[0].click();                                  // Dave brings the car
+      const byText = (t) => items.find((b) => b.textContent.includes(t));
+      byText('Dave').click();                            // Dave brings the car
       out.car = { added: G.vehicles.length > n0, owned: G.lastDriven && G.lastDriven.owned, cash: G.cash };
-      H.player.hp = 5; items[2].click();                // Rosa
+      H.player.hp = 5; byText('Rosa').click();          // Rosa
       out.rosa = H.player.hp === H.player.maxHp;
       P.close();
       out.locked = locked >= 3;
@@ -536,7 +542,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       G.stars = 2; for (let i = 0; i < 100; i++) D.update(1);
       const busyQuiet = D.quiet === 0 && D.throws === 0;
       G.stars = 0; G.humans.combatTimer = 0;
-      for (let i = 0; i < 100 && D.throws === 0; i++) D.update(1);
+      for (let i = 0; i < 400 && D.throws === 0; i++) D.update(1);
       out.director = { busyQuiet, threw: D.throws >= 1, last: D.last };
       G.clock.auto = wasAuto;
       G.fires.list.length = 0; G.riots.current = null; if (G.thieves.active) G.thieves.release(null);
@@ -573,6 +579,25 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { ring, ringGone, flash: flash.classList.contains('go'), heat4, heat0 };
     });
     ok(fx.ring && fx.ringGone && fx.flash && fx.heat4 && fx.heat0, 'a blast sends out a shockwave ring and a screen flash; the wanted level tints the screen edge', JSON.stringify(fx));
+    const bar = await S(() => {
+      const G = g(); const B = G.barricades; const out = {};
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true;
+      B.update(0.1);
+      out.n = B.list.length;
+      const b = B.list[0];
+      out.solid = G.world.boxes.includes(b.box);
+      const car = G.spawnVehicle('sports', 0xff0000, b.x, b.z - 6, 0, 'parked'); G.boardVehicle(car);
+      car.ctrl.vx = 0; car.ctrl.vz = 14; car.ctrl.position.z = b.z - 1.5; car.ctrl.position.x = b.x;
+      const hp0 = car.ctrl.hp;
+      B.update(0.05);
+      out.smashed = b.broken > 0 && !G.world.boxes.includes(b.box) && !b.mesh.visible;
+      out.slowed = car.ctrl.vz < 14 && car.ctrl.hp < hp0;
+      B.update(95);
+      out.rebuilt = b.broken === 0 && b.mesh.visible && G.world.boxes.includes(b.box);
+      G.onFoot = true; G.driving = null; G.removeVehicle(car); G.skills.off = false;
+      return out;
+    });
+    ok(bar.n >= 3 && bar.solid && bar.smashed && bar.slowed && bar.rebuilt, 'barricades stand at the edge of parks: a car at speed smashes through, and they are rebuilt later', JSON.stringify(bar));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';

@@ -26,6 +26,9 @@ export class TruckHeist {
   private bagGroup = new THREE.Group();
   private t = 0;
   hot = 0;
+  /** The $500 plan fee was paid (and is paid back); a tip or a bank job has none. */
+  private paid = true;
+  private label: [string, string] = ['CASH TRUCK', '현금 수송차'];
   private cooldown = 6;
   done = 0;
   private bagGeo: THREE.BufferGeometry;
@@ -78,10 +81,19 @@ export class TruckHeist {
     const v = G.spawnVehicle('armored', 0xd8c25a, p.x, p.z, p.heading, 'parked');
     v.isGigTarget = true;
     this.truck = v;
-    this.phase = 'hunt'; this.t = 240; this.hot = 0;
+    this.phase = 'hunt'; this.t = 240; this.hot = 0; this.paid = !free; this.label = ['CASH TRUCK', '현금 수송차'];
     G.hud.toast(bi('The plan is set: an armoured cash truck is parked on the map (gold marker). Wreck it, grab the cash, and get away!', '계획 완료: 현금 수송 장갑차가 지도에 표시돼요(금색). 부수고, 돈을 줍고, 달아나세요!'), 5000);
     G.audio.tink();
     return true;
+  }
+
+  /** Another job (the bank vault) hands over hot cash: now the player has to get away with it. */
+  beginEscape(hot: number, title: [string, string]): void {
+    const G = this.game;
+    if (this.phase !== 'idle') return;
+    this.phase = 'escape'; this.hot = Math.round(hot); this.paid = false; this.label = title; this.t = 0;
+    while (G.stars < 3) G.addHeat(30);
+    G.hud.toast(bi('The vault is open! The cash is hot - get out and lose the police!', '금고가 열렸어요! 훔친 돈이에요 - 나가서 경찰을 따돌리세요!'), 4200);
   }
 
   private end(msg: string, ok: boolean): void {
@@ -168,7 +180,7 @@ export class TruckHeist {
       return;
     }
     // escape: lose the wanted level
-    G.hud.showGig(true, bi('CASH TRUCK', '현금 수송차'), `${bi('Lose the police', '경찰을 따돌리세요')} · ${bi('hot cash', '훔친 돈')} $${this.hot}`, '★'.repeat(G.stars));
+    G.hud.showGig(true, bi(this.label[0], this.label[1]), `${bi('Lose the police', '경찰을 따돌리세요')} · ${bi('hot cash', '훔친 돈')} $${this.hot}`, '★'.repeat(G.stars));
     if (G.stars === 0) this.finish();
   }
 
@@ -176,12 +188,13 @@ export class TruckHeist {
     const G = this.game;
     const bonus = G.buddy.hired ? 1.25 : 1;
     const cut = Math.round(this.hot * bonus);
-    const total = cut + PLAN_COST;
+    const refund = this.paid ? PLAN_COST : 0;
+    const total = cut + refund;
     G.addCash(total, 'other');
     G.progress.add('heists');
     this.done++;
     G.popups.spawn(G.focusX, 3, G.focusZ, `+$${total}`, '#ffd23a');
     G.audio.cash();
-    this.end(bi(`You got away clean! Your cut: $${cut}${bonus > 1 ? ' (Bonnie helped carry: +25%)' : ''} + $${PLAN_COST} back.`, `깨끗하게 달아났어요! 몫 $${cut}${bonus > 1 ? ' (보니가 거들어서 +25%)' : ''} + 선금 $${PLAN_COST} 환급.`), true);
+    this.end(bi(`You got away clean! Your cut: $${cut}${bonus > 1 ? ' (Bonnie helped carry: +25%)' : ''} ${refund ? ` + $${refund} back` : ''}.`, `깨끗하게 달아났어요! 몫 $${cut}${bonus > 1 ? ' (보니가 거들어서 +25%)' : ''}${refund ? ` + 선금 $${refund} 환급` : ''}.`), true);
   }
 }

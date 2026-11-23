@@ -49,8 +49,7 @@ export class Director {
     if (this.busy()) { this.quiet = 0; return; }
     this.quiet += dt;
     if (this.quiet >= 90 && this.cooldown <= 0) {
-      this.quiet = 0;
-      if (this.throwOne()) this.cooldown = 150;
+      if (this.throwOne()) { this.quiet = 0; this.cooldown = 150; } else this.quiet = 70; // nothing suitable right now: try again in twenty seconds
     }
   }
 }
