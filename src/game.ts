@@ -29,6 +29,8 @@ import { Gangs } from './gangs';
 import { Paramedic } from './paramedic';
 import { Reputation } from './reputation';
 import { Npcs } from './npcs';
+import { Skills } from './skills';
+import { Buddy } from './buddy';
 import { Medics } from './medics';
 import { Machines } from './machines';
 import { TrafficLights } from './lights';
@@ -63,7 +65,7 @@ export function currentSlot(): number {
 }
 export const slotSaveKey = (slot: number): string => (slot === 1 ? 'smashtown.save.v1' : `smashtown.save.v1.s${slot}`);
 export const SAVE_KEY = slotSaveKey(currentSlot());
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; rep?: Record<string, number>; login?: { day: string; streak: number }; progress?: ProgressSave }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -122,6 +124,8 @@ export class Game {
   paramedic!: Paramedic;
   reputation!: Reputation;
   npcs!: Npcs;
+  skills!: Skills;
+  buddy!: Buddy;
   transit!: Transit;
   fishing!: Fishing;
   /** A storm has cut the power: windows, signs and street lamps go dark for a while. */
@@ -243,6 +247,8 @@ export class Game {
     this.paramedic = new Paramedic(this);
     this.reputation = new Reputation(this);
     this.npcs = new Npcs(this);
+    this.skills = new Skills(this);
+    this.buddy = new Buddy(this);
     this.transit = new Transit(this);
     this.fishing = new Fishing(this);
     this.lights = new TrafficLights();
@@ -315,12 +321,14 @@ export class Game {
       const outfit = Number.isInteger(s.outfit) ? Number(s.outfit) : 0;
       const bank = typeof s.bank === 'number' && s.bank > 0 ? Math.floor(s.bank) : 0;
       const homes = Array.isArray(s.homes) ? s.homes.filter((n: unknown) => Number.isInteger(n)) as number[] : [];
+      const skills: Record<string, number> = {};
+      if (s.skills && typeof s.skills === 'object') for (const [k, v] of Object.entries(s.skills)) if (typeof v === 'number' && v >= 0) skills[k] = v;
       const rep: Record<string, number> = {};
       if (s.rep && typeof s.rep === 'object') for (const [k, v] of Object.entries(s.rep)) if (typeof v === 'number') rep[k] = Math.max(-100, Math.min(100, v));
       const turf = Array.isArray(s.turf) ? s.turf.filter((n: unknown) => Number.isInteger(n)) as number[] : [];
       const raceBest = Array.isArray(s.raceBest) ? s.raceBest.map((n: unknown) => (typeof n === 'number' && n > 0 ? n : 0)) : [];
       const login = s.login && typeof s.login.day === 'string' ? { day: s.login.day, streak: Number(s.login.streak) || 1 } : undefined;
-      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, rep, login, progress: s.progress };
+      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, rep, skills, login, progress: s.progress };
     } catch {
       return fallback;
     }
@@ -469,7 +477,7 @@ export class Game {
 
   // ------------------------------------------------------------------ wanted
   addHeat(n: number): void {
-    if (n > 0) this.crimeT = 0;
+    if (n > 0) { this.crimeT = 0; n = Math.max(1, Math.round(n * this.skills.heatMul)); } // stealth takes the edge off
     this.heat = Math.min(400, Math.max(this.heat + n, this.minHeat));
     const prev = this.stars;
     let s = 0;
@@ -854,11 +862,13 @@ export class Game {
   }
 
   pay(price: number): boolean {
+    price = Math.round(price * this.skills.priceMul); // charm gets you a discount
     if (this.cash < price) { this.hud.toast(t('ui.toast.notenough')); return false; }
     this.cash -= price;
     this.saveDirty = true;
     this.hud.setCash(this.cash);
     this.audio.cash();
+    this.skills.add('charm', price / 100);
     return true;
   }
 
@@ -1059,6 +1069,7 @@ export class Game {
     // bikes show the player only while the player is riding them
     {
       const look = this.humans.player.look;
+      for (const v of this.vehicles) v.ctrl.guard = v === this.driving ? this.skills.crashGuard : 1;
       for (const v of this.vehicles) if (v.isBike) v.setRider(v === this.driving && !this.onFoot, look.pants, look.shirt, look.skin);
     }
     // night and rain empty the streets: fewer people out walking
@@ -1089,7 +1100,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.reputation.update(dt); this.npcs.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);
@@ -1371,6 +1382,7 @@ export class Game {
         this.hitStop = Math.max(this.hitStop, atk.stop);
         this.cameraRig.shake(Math.min(0.6, atk.dmg / 90));
         this.audio.impact(att.weapon === 1 ? 'bat' : atk.kind === 'kick' ? 'kick' : 'punch');
+        if (att.role === Role.Player && !tgt.ally) this.skills.fought();
         if (att.role === Role.Player && this.assaultCooldown <= 0) {
           this.addHeat(tgt.gang ? 0 : tgt.role === Role.Cop ? 20 : 8);
           this.assaultCooldown = 0.8;

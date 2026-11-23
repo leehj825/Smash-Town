@@ -1,6 +1,7 @@
 import { bi, onLangChange } from './i18n';
 import type { Game } from './game';
 import { AREAS, AREA_NAMES } from './reputation';
+import { SKILLS, SKILL_NAMES, SKILL_EFFECT } from './skills';
 import { ACHIEVEMENTS, OWNABLE, dailyById, type OwnableShop, type StatKey } from './progress';
 import { ACTIONS, RESERVED, bindKey, keyFor, prettyKey, resetBinds, settings, saveSettings } from './settings';
 
@@ -129,6 +130,7 @@ export class StatsPanel implements Modal {
     this.el.innerHTML = `<div class="panel wide"><h2>${bi('STATS', '기록')}</h2><div class="scroll statsbox">
       <h3>${bi('DAILY CHALLENGES', '오늘의 도전')}</h3>${daily}
       <h3>${bi('YOUR SHOPS', '내 가게')}</h3>${shops}
+      <h3>${bi('SKILLS', '스킬')}</h3>${SKILLS.map((k) => `<div class="erow"><span>${bi(SKILL_NAMES[k][0], SKILL_NAMES[k][1])} <small>${bi(SKILL_EFFECT[k][0], SKILL_EFFECT[k][1])}</small><i class="pbar"><i style="width:${Math.round(this.game.skills.progress(k) * 100)}%"></i></i></span><b>${bi('Lv', '레벨')} ${this.game.skills.level(k)}</b></div>`).join('')}
       <h3>${bi('REPUTATION', '평판')}</h3>${AREAS.map((a) => `<div class="erow"><span>${bi(AREA_NAMES[a][0], AREA_NAMES[a][1])}</span><b>${this.game.reputation.get(a) > 0 ? '+' : ''}${this.game.reputation.get(a)}</b></div>`).join('')}
       <h3>${bi('LIFETIME', '누적 기록')}</h3>${stats}
       <h3>${bi('ACHIEVEMENTS', '업적')} ${p.ach.length}/${ACHIEVEMENTS.length}</h3>${ach}</div>

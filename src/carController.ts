@@ -95,7 +95,7 @@ export class CarController {
   /** Apply damage scaled by this vehicle's toughness. */
   damage(amount: number): void {
     if (this.wrecked) return;
-    this.hp = Math.max(0, this.hp - amount * this.stats.dmg);
+    this.hp = Math.max(0, this.hp - amount * this.stats.dmg * this.guard);
   }
 
   update(dt: number, ctl: ControlState, fx: CarFx | null): void {
@@ -265,6 +265,8 @@ export class CarController {
 
   /** A boat: sails on water only, ignores the roads and buildings, no skid marks. */
   boat = false;
+  /** The driving skill's protection (1 = none): the car the player drives takes this share of crash damage. */
+  guard = 1;
 
   private boatCollide(): void {
     const rects = this.world.waterRects;

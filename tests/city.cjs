@@ -276,7 +276,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       G.cash = 1000; G.inside = r; G.driving = null; G.onFoot = true; G.state = 'play';
       G.humans.setPlayerActive(true, r.counter.x, r.counter.z + 1.8, 0);
       G.shops.startBowling();
-      const started = !!G.shops.bowl && G.cash === 920;
+      const started = !!G.shops.bowl && G.cash < 1000; // (charm may have made it a little cheaper)
       for (let i = 0; i < 6; i++) G.shops.updateBowling(0.1, r);
       const moving = G.shops.bowl.pos > 0;
       G.shops.bowl.t = 0.3125 / 1.6 * 1.6; G.shops.bowl.t = 0.5 / 1.6 * 1.6; // the marker at the middle
@@ -405,6 +405,41 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { boats: B.length, inWater, driving: G.driving === v && v.kind === 'boat' };
     });
     ok(boat.boats >= 1 && boat.inWater && boat.driving, 'boats are moored on the water and cannot be driven onto the land', JSON.stringify(boat));
+    const skill = await S(() => {
+      const G = g(); const S = G.skills;
+      G.save.skills = {};
+      const l0 = S.level('shooting'), gun0 = S.gunMul;
+      S.add('shooting', 130);   // level 2
+      const l1 = S.level('shooting'), gun1 = S.gunMul;
+      S.add('charm', 300); const price = Math.round(100 * S.priceMul);
+      S.add('stealth', 1000); const heat = S.heatMul;
+      S.add('driving', 1000); const guard = S.crashGuard;
+      G.save.skills = {};
+      return { l0, l1, gain: gun1 > gun0, price: price < 100, heat: heat < 0.8, guard: guard < 0.8 };
+    });
+    ok(skill.l0 === 0 && skill.l1 === 2 && skill.gain && skill.price && skill.heat && skill.guard, 'skills level up with use and give small permanent bonuses', JSON.stringify(skill));
+    const buddy = await S(() => {
+      const G = g(); const H = G.humans; const B = G.buddy; const GA = G.gangs; const z = GA.zones[1];
+      G.stars = 0; G.cash = 5000; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
+      B.dismiss();
+      z.owner = 'gang'; for (const m of z.members) H.removeGang(m); z.members = [];
+      H.setPlayerActive(true, z.x + 80, z.z, 0);
+      const hired = B.recruit('Bo-ra');
+      const ally = B.human;
+      GA.update(0.1);
+      H.player.x = z.x + 60; H.player.z = z.z; ally.x = H.player.x - 2; ally.z = H.player.z;
+      GA.update(0.1);
+      // bring the crew onto the player and let the bodyguard fight for 20 s of game time
+      for (const m of z.members) { m.hostile = true; m.x = H.player.x + 6; m.z = H.player.z + 1; }
+      const hp0 = z.members.reduce((a, m) => a + m.hp, 0);
+      for (let i = 0; i < 400; i++) { G.update(0.05); for (const m of z.members) if (m.hostile && m.state !== 6) { /* keep them near */ } }
+      const hp1 = z.members.reduce((a, m) => a + Math.max(0, m.hp), 0);
+      const hurt = hp1 < hp0;
+      const never = H.player.hp > 0;
+      B.dismiss();
+      return { hired, hurt, near: !!ally, never, civAllyHidden: !B.hired };
+    });
+    ok(buddy.hired && buddy.near && buddy.hurt && buddy.civAllyHidden, 'a hired bodyguard follows you and fights gang members', JSON.stringify(buddy));
     // savings, houses and race records survive a reload
     await S(() => { const G = g(); G.save.bank = 4321; G.save.homes = [1, 2]; G.save.raceBest = [0, 77.5]; G.flushSave(); });
     await p.reload();

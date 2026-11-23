@@ -11,13 +11,15 @@ import type { GameVehicle } from './vehicles';
 import type { CircleCollider, Lot, World } from './world';
 
 export const Role = { Civ: 0, Cop: 1, Player: 2 } as const;
-const N = 68;
+const N = 70;
 const COP_FIRST = 1, COP_LAST = 10;
 /** Gang members: their own pool of slots, so they never mix with the police. */
 const GANG_FIRST = 11, GANG_LAST = 16;
 /** Named people (see npcs.ts): civilians who stand in one place. */
 const NAMED_FIRST = 17, NAMED_LAST = 22;
-const CIV_FIRST = 23;
+/** The one bodyguard friend (see buddy.ts). */
+const ALLY_SLOT = 23;
+const CIV_FIRST = 24;
 const GROUND = 0.1;
 const SHIRTS = [0xe85a4f, 0x3b82f6, 0x2fb87a, 0xf2a73b, 0x8a5cd6, 0xf4a7b9, 0x66d1c9, 0xeceff4];
 const PANTS = [0x2c3e50, 0x4a4e59, 0x6b4f3a, 0x1f2d3d, 0x7f8c8d, 0x3b5a8c];
@@ -64,6 +66,8 @@ export class Human {
   gang = false;
   /** A named person of the city: stands at home, goes back there when knocked about. */
   named = false;
+  /** The hired bodyguard: follows the player and fights gang members. */
+  ally = false;
   hostile = false;
   homeX = 0; homeZ = 0;
   /** The roof this human stands on (null at street level) and the highest point of the current fall. */
@@ -237,6 +241,8 @@ export class Humans {
 
   /** Garage training: melee damage and run speed multipliers for the player (health sets maxHp). */
   bodyPower = 1;
+  /** The fighting skill's bonus on top of the body training. */
+  skillPower = 1;
   /** Armor absorbs damage before health (0..50). */
   armor = 0;
   bodySpeed = 1;
@@ -275,10 +281,10 @@ export class Humans {
   gunHit(att: Human, t: Human, dmg: number, nx: number, nz: number, heavy: boolean): boolean {
     if (!t.active || t.state === St.Dead) return false;
     const a: Attack = { ...ATTACKS.cross, dmg, push: heavy ? 7 : 3, up: heavy ? 2 : 0, heavy, popup: heavy ? 'wham' : 'pow', gun: true };
-    const bp = this.bodyPower;
-    this.bodyPower = 1;
+    const bp = this.bodyPower, sp = this.skillPower;
+    this.bodyPower = 1; this.skillPower = 1;
     const r = this.applyHit(att, t, a, nx, nz);
-    this.bodyPower = bp;
+    this.bodyPower = bp; this.skillPower = sp;
     return r;
   }
 
@@ -401,6 +407,8 @@ export class Humans {
     for (const t of this.list) {
       if (!t.active || t === h || t.state === St.Dead || t.state === St.Down) continue;
       if (h.role === Role.Cop && t.role !== Role.Player) continue;
+      if (h.ally && !t.gang) continue;                 // the bodyguard only fights gang members
+      if (h.role === Role.Player && t.ally) continue;   // and you never hit your friend
       const d = Math.hypot(t.x - h.x, t.z - h.z);
       if (d > bd) continue;
       const ang = Math.abs(wrap(Math.atan2(t.x - h.x, t.z - h.z) - h.heading));
@@ -476,7 +484,9 @@ export class Humans {
     for (const t of this.list) {
       if (!t.active || t === h || t.state === St.Dead || t.ko) continue;
       if (h.role === Role.Cop && t.role !== Role.Player) continue;
-      if (h.role === Role.Civ) continue;
+      if (h.ally && !t.gang) continue;                 // the bodyguard only fights gang members
+      if (h.role === Role.Player && t.ally) continue;   // and you never hit your friend
+      if (h.role === Role.Civ && !h.ally) continue;
       const dx = t.x - h.x, dz = t.z - h.z;
       const d = Math.hypot(dx, dz);
       if (d > a.reach + 0.4) continue;
@@ -516,7 +526,7 @@ export class Humans {
     if (t.invuln > 0) { if (t.role === Role.Player) this.hooks.onWhiff(att); return false; }
     // a riot shield soaks most hits that come from the front
     const blocked = t.riot && !this.ignoreShield && Math.sin(t.heading) * -nx + Math.cos(t.heading) * -nz > 0.25;
-    const dmg = (att.role === Role.Cop ? 8 : a.dmg * (att.role === Role.Player ? this.bodyPower : 1)) * (blocked ? 0.2 : 1);
+    const dmg = (att.role === Role.Cop ? 8 : a.dmg * (att.role === Role.Player ? this.bodyPower * this.skillPower : 1)) * (blocked ? 0.2 : 1);
     let take = dmg;
     if (t.role === Role.Player && this.armor > 0) { const a2 = Math.min(this.armor, take); this.armor -= a2; take -= a2; }
     t.hp -= take;
@@ -554,7 +564,7 @@ export class Humans {
     this.hooks.onHit(att, t, a, hx, t.y + 1.2, hz, killed);
     if (killed && t.gang) this.hooks.onGangDown?.(t);
     else if (killed && t.role === Role.Cop) { this.copsDefeated++; this.hooks.onCopDown(t); this.dropBaton(t.x, t.z); }
-    else if (killed && t.role === Role.Civ) this.hooks.onCivDown?.(t, att);
+    else if (killed && t.role === Role.Civ && !t.ally) this.hooks.onCivDown?.(t, att);
     return true;
   }
 
@@ -661,6 +671,49 @@ export class Humans {
     h.attack = null; h.invuln = 0; h.leaving = false; h.speed = 0;
     h.state = St.GetUp; h.stateDur = h.stateT = 0.7; // tumbles out of the car, then stands up
     this.renderer.setLook(h.slot, h.look);
+  }
+
+  /** Bring the bodyguard to a spot beside the player. */
+  spawnAlly(x: number, z: number, heading: number): Human | null {
+    const h = this.list[ALLY_SLOT];
+    h.active = true; h.role = Role.Civ; h.ally = true; h.named = false; h.gang = false; h.ko = false; h.leaving = false; h.fleeing = false; h.calling = 0;
+    h.x = x; h.z = z; h.y = GROUND; h.vy = 0; h.vx = h.vz = h.mvx = h.mvz = 0; h.grounded = true;
+    h.state = St.Idle; h.hp = h.maxHp = 110; h.weapon = 1; h.cd = 0.5; h.atkScale = 0.6; h.scale = 1.05; h.attack = null; h.invuln = 0;
+    h.heading = heading;
+    h.look = { shirt: 0x14141f, pants: 0x1a1a24, skin: 0xc68642, shoe: 0x111111, hair: 0x0a0a0a, cap: false };
+    this.renderer.setLook(h.slot, h.look);
+    return h;
+  }
+  removeAlly(h: Human): void { h.active = false; h.ally = false; this.hide(h); }
+
+  /** The bodyguard: stays a few steps behind you, and goes for any gang member close by. */
+  private updateAlly(h: Human, dt: number): void {
+    h.cd -= dt;
+    h.flash = Math.max(0, h.flash - dt);
+    const free = h.state === St.Idle || h.state === St.Walk || h.state === St.Run;
+    if (!free) return;
+    const p = this.player;
+    let foe: Human | null = null, fd = 12;
+    for (let i = GANG_FIRST; i <= GANG_LAST; i++) {
+      const g = this.list[i];
+      if (!g.active || !g.gang || g.ko || g.state === St.Down || g.state === St.Dead || g.state === St.GetUp) continue;
+      const d = Math.hypot(g.x - h.x, g.z - h.z);
+      if (d < fd && (g.hostile || Math.hypot(g.x - p.x, g.z - p.z) < 14)) { fd = d; foe = g; }
+    }
+    const tx = foe ? foe.x : p.x - Math.sin(p.heading) * 2.6, tz = foe ? foe.z : p.z - Math.cos(p.heading) * 2.6;
+    const dx = tx - h.x, dz = tz - h.z, dist = Math.hypot(dx, dz);
+    const stop = foe ? 1.9 : 0.8;
+    if (dist > stop) {
+      const sp = foe ? 5.6 : Math.min(6.2, 2.2 + dist * 0.9);
+      h.mvx = (dx / dist) * sp; h.mvz = (dz / dist) * sp;
+      h.speed = sp; h.state = sp > 5 ? St.Run : St.Walk;
+      h.heading += wrap(Math.atan2(dx, dz) - h.heading) * Math.min(1, dt * 9);
+    } else {
+      h.mvx *= Math.exp(-8 * dt); h.mvz *= Math.exp(-8 * dt);
+      h.speed = Math.hypot(h.mvx, h.mvz); h.state = h.speed > 0.4 ? St.Walk : St.Idle;
+      if (foe && h.cd <= 0 && dist < 2.4) { h.heading = Math.atan2(dx, dz); this.beginAttack(h, ATTACKS.cross); h.cd = 1.0; }
+      else if (!foe) h.heading += wrap(p.heading - h.heading) * Math.min(1, dt * 3);
+    }
   }
 
   /** Put a named person at their spot. Returns null if all slots are taken. */
@@ -871,7 +924,8 @@ export class Humans {
         if (h.stateT <= 0) {
           h.state = St.Idle;
           if (h.ko) { h.leaving = true; h.leaveT = 4; } // a knocked-out cop dusts themselves off and walks away
-          if (h.role === Role.Civ && h.named) { h.hp = h.maxHp; h.x = h.homeX; h.z = h.homeZ; h.state = St.Idle; h.fleeing = false; }
+          if (h.role === Role.Civ && h.ally) { h.hp = h.maxHp; h.state = St.Idle; }
+          else if (h.role === Role.Civ && h.named) { h.hp = h.maxHp; h.x = h.homeX; h.z = h.homeZ; h.state = St.Idle; h.fleeing = false; }
           else if (h.role === Role.Civ) {
             h.hp = h.maxHp;
             if (h.freeT > 0) { h.state = St.Walk; h.fleeing = true; } // an ejected driver runs off the road
@@ -912,7 +966,7 @@ export class Humans {
   panic(x: number, z: number, r: number): Human[] {
     const shouters: Human[] = [];
     for (const h of this.list) {
-      if (!h.active || h.role !== Role.Civ || h.state !== St.Walk) continue;
+      if (!h.active || h.role !== Role.Civ || h.ally || h.state !== St.Walk) continue;
       if ((h.x - x) ** 2 + (h.z - z) ** 2 > r * r) continue;
       h.fleeing = true;
       if (shouters.length < 2 && Math.random() < 0.5) shouters.push(h);
@@ -925,7 +979,7 @@ export class Humans {
     let n = 0;
     for (const h of this.list) {
       if (n >= max) break;
-      if (!h.active || h.role !== Role.Civ || h.state !== St.Walk || h.calling > 0 || h.freeT > 0) continue;
+      if (!h.active || h.role !== Role.Civ || h.ally || h.state !== St.Walk || h.calling > 0 || h.freeT > 0) continue;
       if ((h.x - x) ** 2 + (h.z - z) ** 2 > r * r) continue;
       if ((h.x - this.player.x) ** 2 + (h.z - this.player.z) ** 2 > 120 * 120) continue; // frozen, far-away people never see it
       h.calling = 5; n++;
@@ -996,10 +1050,11 @@ export class Humans {
       h.invuln = Math.max(0, h.invuln - dt);
       if (h.role === Role.Player) this.updatePlayer(h, dt);
       else if (h.role === Role.Cop) this.updateCop(h, dt);
+      else if (h.ally) this.updateAlly(h, dt);
       else this.updateCivilian(h, dt);
       this.updateTimedStates(h, dt);
       if (!h.active) continue;
-      const civWalking = h.role === Role.Civ && h.state === St.Walk && h.freeT <= 0;
+      const civWalking = h.role === Role.Civ && !h.ally && h.state === St.Walk && h.freeT <= 0;
       if (!civWalking) this.integrate(h, dt, true);
       this.animate(h, dt);
     }

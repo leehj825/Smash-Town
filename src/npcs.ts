@@ -91,6 +91,21 @@ export class Npcs {
         act: (g, t) => { if (t !== 'friendly') return null; g.race.bonus = 1.2; return bi('Your next race pays 20% extra.', '다음 레이스 상금 20% 추가.'); },
       },
       {
+        id: 'bora', name: ['Bo-ra', '보라'], job: ['Bodyguard', '경호원'], look: { shirt: 0x14141f, pants: 0x1a1a24, skin: 0xc68642, hair: 0x0a0a0a },
+        where: () => { const r = G.interiors.rooms.find((q) => q.id === 'gun'); return r ? { x: r.door.x + Math.cos(r.door.h) * -3, z: r.door.z + Math.sin(r.door.h) * 3 } : null; },
+        lines: {
+          friendly: [['For a friend of the neighbourhood, half price: $300. I will fight beside you until I am knocked out.', '동네 친구에게는 반값, $300이에요. 쓰러질 때까지 곁에서 같이 싸울게요.']],
+          neutral: [['Need muscle? Six hundred dollars and I walk with you. I fight the gangs, not the little people.', '든든한 사람이 필요해요? $600이면 함께 다녀요. 갱단하고만 싸우고, 보통 사람은 안 건드려요.']],
+          hostile: [['I have my standards. Not for you.', '저도 기준이 있어요. 당신은 안 돼요.']],
+        },
+        act: (g, t) => {
+          if (g.buddy.hired) return bi('I am already with you!', '이미 함께하고 있잖아요!');
+          if (!g.pay(t === 'friendly' ? 300 : 600)) return null;
+          g.buddy.recruit(bi('Bo-ra', '보라'));
+          return bi('Bo-ra joins you. She will fight the gangs beside you.', '보라가 합류했어요. 갱단과 함께 싸울 거예요.');
+        },
+      },
+      {
         id: 'kang', name: ['Kang', '강 형'], job: ['Informant', '정보원'], look: { shirt: 0x23262f, pants: 0x1a1a24, skin: 0xc68642, hair: 0x0a0a0a },
         where: () => { const z = G.gangs.zones[0]; return z ? { x: z.spots[0].x + 3, z: z.spots[0].z } : null; },
         lines: {
