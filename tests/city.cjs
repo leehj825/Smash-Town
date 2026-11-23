@@ -441,7 +441,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       G.humans.setPlayerActive(true, spot.x + 1.5, spot.z, 0);
       const near = N.nearest(); const prompt = near ? N.prompt(near) : '';
       G.humans.player.hp = 20; G.save.rep[area] = 50; mia.last = -999;
-      N.talk(near); const open = N.dialogOpen; N.advance(); N.advance();
+      N.talk(near); const open = N.dialogOpen; for (let k = 0; k < 6 && N.dialogOpen; k++) N.advance(); N.errand = null;
       const healed = G.humans.player.hp >= G.humans.player.maxHp;
       G.humans.player.hp = 20; G.save.rep[area] = -60; N.clock = 1000;
       N.talk(N.nearest()); const refused = N.dialog.lines.length === 1 && N.dialog.lines[0][0].startsWith('I have nothing'); N.advance();
@@ -454,6 +454,22 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { placed, near: !!near, prompt: /Mia|미아/.test(prompt), open, healed, refused, stayedHurt, down, up: R.get(area) };
     });
     ok(npc.placed >= 5 && npc.near && npc.prompt && npc.open && npc.healed && npc.refused && npc.stayedHurt && npc.down === -8 && npc.up === 2, 'named people talk by your reputation (a favour, or a refusal) and reputation moves with what you do', JSON.stringify(npc));
+    const errand = await S(() => {
+      const G = g(); const N = G.npcs; G.save.rep = {}; G.save.friends = {}; G.save.turf = [];
+      G.stars = 0; G.cash = 0; N.clock = 5000; N.errandCd = 0; N.errand = null;
+      const a = N.list.find((q) => q.human && q.def.id === 'kai') ?? N.list.filter((q) => q.human)[0];
+      const placed = N.list.filter((q) => q.human).length;
+      G.humans.setPlayerActive(true, a.human.x + 1.5, a.human.z, 0);
+      N.talk(N.nearest()); for (let k = 0; k < 6 && N.dialogOpen; k++) N.advance();
+      const e = N.errand; const marker = N.markers().length === 1;
+      if (!e) return { placed, got: false };
+      const b = N.list.find((q) => q.def.id === e.to);
+      G.humans.setPlayerActive(true, b.human.x + 1.5, b.human.z, 0);
+      N.clock += 100; N.talk(N.nearest()); for (let k = 0; k < 6 && N.dialogOpen; k++) N.advance();
+      const lvl = N.level(e.from);
+      return { placed, got: true, marker, done: !N.errand, cash: G.cash, reward: e.reward, friend: N.friendship(e.from), lvl };
+    });
+    ok(errand.placed >= 10 && errand.got && errand.marker && errand.done && errand.cash >= errand.reward && errand.friend >= 3, 'an errand carries a parcel between two named people, pays, and builds friendship', JSON.stringify(errand));
     const boat = await S(() => {
       const G = g(); const B = G.boats;
       if (!B.length) return { boats: 0 };

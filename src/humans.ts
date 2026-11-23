@@ -11,15 +11,15 @@ import type { GameVehicle } from './vehicles';
 import type { CircleCollider, Lot, World } from './world';
 
 export const Role = { Civ: 0, Cop: 1, Player: 2 } as const;
-const N = 70;
+const N = 77;
 const COP_FIRST = 1, COP_LAST = 10;
 /** Gang members: their own pool of slots, so they never mix with the police. */
 const GANG_FIRST = 11, GANG_LAST = 16;
 /** Named people (see npcs.ts): civilians who stand in one place. */
-const NAMED_FIRST = 17, NAMED_LAST = 22;
+const NAMED_FIRST = 17, NAMED_LAST = 29;
 /** The one bodyguard friend (see buddy.ts). */
-const ALLY_SLOT = 23;
-const CIV_FIRST = 24;
+const ALLY_SLOT = 30;
+const CIV_FIRST = 31;
 const GROUND = 0.1;
 const SHIRTS = [0xe85a4f, 0x3b82f6, 0x2fb87a, 0xf2a73b, 0x8a5cd6, 0xf4a7b9, 0x66d1c9, 0xeceff4];
 const PANTS = [0x2c3e50, 0x4a4e59, 0x6b4f3a, 0x1f2d3d, 0x7f8c8d, 0x3b5a8c];
