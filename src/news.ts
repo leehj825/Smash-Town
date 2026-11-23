@@ -18,7 +18,7 @@ const HEADLINES: Record<Kind, [string, string][]> = {
     ['The suspect slipped away. Police have called off the search.', '용의자가 달아났습니다. 경찰이 수색을 중단했습니다.'],
   ],
   heist: [
-    ['Smash Bank was robbed tonight. Losses are in the thousands.', '스매시 은행에 강도가 들었습니다. 피해액은 수천 달러에 이릅니다.'],
+    ['Smash Bank was robbed tonight. Losses are in the thousands.', '스매시 뱅크에 강도가 들었습니다. 피해액은 수천 달러에 이릅니다.'],
   ],
   police: [
     ['Officers down: several police have been knocked out in clashes.', '경찰관 여러 명이 충돌 중 쓰러졌습니다.'],

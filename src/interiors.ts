@@ -28,11 +28,11 @@ export interface Room {
 }
 
 const DEFS: { id: ShopKind; en: string; ko: string; color: number; css: string; floor: number; wall: number; frac: number }[] = [
-  { id: 'donut', en: "Donna's Donuts", ko: '도나의 도넛', color: 0xff8fb8, css: '#ff8fb8', floor: 0xf2e3d0, wall: 0xf7c6d9, frac: -1 },
+  { id: 'donut', en: "Donna's Donuts", ko: '도나스 도넛', color: 0xff8fb8, css: '#ff8fb8', floor: 0xf2e3d0, wall: 0xf7c6d9, frac: -1 },
   { id: 'gun', en: 'Gun Shop', ko: '총기 상점', color: 0xff9a3d, css: '#ff9a3d', floor: 0x4a4a52, wall: 0x6b7280, frac: 0.22 },
   { id: 'clothes', en: 'Clothes Shop', ko: '옷 가게', color: 0xb084ff, css: '#b084ff', floor: 0xd9d2e9, wall: 0x9a85d6, frac: 0.48 },
   { id: 'arcade', en: 'Arcade', ko: '오락실', color: 0x35e0ff, css: '#35e0ff', floor: 0x1d1f33, wall: 0x2c3057, frac: 0.7 },
-  { id: 'bank', en: 'Smash Bank', ko: '스매시 은행', color: 0xffd23a, css: '#ffd23a', floor: 0xcfd3da, wall: 0x3c4a6b, frac: 0.86 },
+  { id: 'bank', en: 'Smash Bank', ko: '스매시 뱅크', color: 0xffd23a, css: '#ffd23a', floor: 0xcfd3da, wall: 0x3c4a6b, frac: 0.86 },
   { id: 'garage', en: 'Garage', ko: '차고', color: 0x3dff8a, css: '#3dff8a', floor: 0x3a3d46, wall: 0x56606f, frac: -3 },
   { id: 'home', en: 'Your House', ko: '우리 집', color: 0x6bd1ff, css: '#6bd1ff', floor: 0xb08a5a, wall: 0xe9dcc6, frac: -3 },
   { id: 'motel', en: '24h Motel', ko: '24시 모텔', color: 0x7dff6a, css: '#7dff6a', floor: 0xcdb99a, wall: 0xd9c9a8, frac: -2 },

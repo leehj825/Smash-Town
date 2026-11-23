@@ -125,7 +125,7 @@ export class StatsPanel implements Modal {
     }).join('');
     const shops = (Object.keys(OWNABLE) as OwnableShop[]).map((id) => {
       const own = p.owned.includes(id);
-      return `<div class="erow"><span>${id === 'donut' ? bi("Donna's Donuts", '도나의 도넛') : id === 'motel' ? bi('24h Motel', '24시 모텔') : bi('Arcade', '오락실')}</span><b>${own ? `$${Math.floor(p.pending[id]).toLocaleString('en-US')} ${bi('waiting', '대기 중')}` : `${bi('for sale', '판매 중')} $${OWNABLE[id].price.toLocaleString('en-US')}`}</b></div>`;
+      return `<div class="erow"><span>${id === 'donut' ? bi("Donna's Donuts", '도나스 도넛') : id === 'motel' ? bi('24h Motel', '24시 모텔') : bi('Arcade', '오락실')}</span><b>${own ? `$${Math.floor(p.pending[id]).toLocaleString('en-US')} ${bi('waiting', '대기 중')}` : `${bi('for sale', '판매 중')} $${OWNABLE[id].price.toLocaleString('en-US')}`}</b></div>`;
     }).join('');
     this.el.innerHTML = `<div class="panel wide"><h2>${bi('STATS', '기록')}</h2><div class="scroll statsbox">
       <h3>${bi('DAILY CHALLENGES', '오늘의 도전')}</h3>${daily}
