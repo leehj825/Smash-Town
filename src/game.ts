@@ -796,6 +796,7 @@ export class Game {
     if (this.state !== 'play') return;
     if (this.driving && !this.onFoot) {
       const v = this.driving;
+      if (this.garageNear()) { this.hideouts.parkInGarage(); return; }
       if (v.ctrl.speed > 9) return;
       const h = v.ctrl.heading;
       this.humans.setPlayerActive(true, v.x + Math.cos(h) * 2.6, v.z - Math.sin(h) * 2.6, h);
@@ -1735,7 +1736,7 @@ export class Game {
     });
   }
 
-  private updateGarageZones(): void {
+  updateGarageZones(): void {
     for (const b of this.garageBeacons) b.update(1 / 60);
     const d = this.driving;
     if (!d || this.onFoot || this.state !== 'play') return;
@@ -1746,7 +1747,15 @@ export class Game {
     if (!near) { this.garageLock = false; return; }
     if (this.garageLock || d.ctrl.speed > 14) return;
     if (this.gigs.onGarageArrival()) { this.garageLock = true; return; }
-    this.hideouts.parkInGarage();
+    // (driving up to a garage no longer takes you in by itself: the prompt asks, and F says yes)
+  }
+
+  /** Is your car stopped by a garage door, with nothing else in the way, so that F would drive in? */
+  garageNear(): boolean {
+    const d = this.driving;
+    if (!d || this.onFoot || this.state !== 'play' || this.inside || this.garageLock || d.ctrl.speed > 9) return false;
+    for (const g of this.world.garages) if (Math.hypot(g.x - d.x, g.z - d.z) < 7) return true;
+    return false;
   }
 
   private updateStateMachine(dt: number): void {
@@ -1828,6 +1837,7 @@ export class Game {
         this.hud.setPrompt(this.witnesses.near() ? this.witnesses.prompt() : mach ? this.machines.prompt(mach) : nn ? this.npcs.prompt(nn) : bs >= 0 ? this.transit.prompt(bs) : fp ? fp : hm >= 0 ? (this.hideouts.ownsHome(hm) ? bi('[F] Go home', '[F] 집에 들어가기') : `${bi('[F] Buy this house', '[F] 이 집 사기')} - $${Hideouts.HOME_PRICE.toLocaleString('en-US')}`) : this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
       }
     }
+    else if (this.garageNear()) this.hud.setPrompt(bi('[F] Drive into the garage (or just drive on)', '[F] 차고에 들어가기 (싫으면 그냥 가세요)'));
     else if (this.driving && this.driving.ctrl.speed < 2.5 && this.stars === 0) this.hud.setPrompt(t('ui.hint.exit_car'));
     else this.hud.setPrompt(null);
   }

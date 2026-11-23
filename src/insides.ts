@@ -32,10 +32,12 @@ export class Insides {
     const G = this.game;
     G.fadeThen(() => {
       const r = G.ret;
-      if (G.inside?.id === 'garage') G.hideouts.returnCarToStreet();
+      const car = G.inside?.id === 'garage' ? G.hideouts.returnCarToStreet() : null;
       G.inside = null;
       document.body.classList.remove('can-rob');
       G.humans.setPlayerActive(true, r.x, r.z, r.h);
+      // coming out of your garage you are back behind the wheel (and the door does not take you straight back in)
+      if (car && !car.ctrl.wrecked && G.vehicles.includes(car)) { G.boardVehicle(car); G.garageLock = true; }
       G.syncFoot();
       G.cameraRig.snap();
     });

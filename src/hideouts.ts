@@ -116,7 +116,7 @@ export class Hideouts {
     v.ctrl.update(0.001, v.control, null);
   }
 
-  returnCarToStreet(): void {
+  returnCarToStreet(): GameVehicle | null {
     const G = this.G;
     const v = this.bayCar();
     const h = this.garageHome;
@@ -125,6 +125,7 @@ export class Hideouts {
     this.garageVehicle = v;
     this.garageHome = null;
     if (this.bayCircle) { const i = G.world.circles.indexOf(this.bayCircle); if (i >= 0) G.world.circles.splice(i, 1); this.bayCircle = null; }
+    return v;
   }
 
   /** A slow turn on the turntable; whatever the menu changes (car, paint, neon, parts) shows on the car right away. */

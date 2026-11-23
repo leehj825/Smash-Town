@@ -629,6 +629,25 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(petty.pre && petty.faded && petty.questFree && petty.otherSmall, 'petty heat fades by itself, and smashing the quest junk is no crime', JSON.stringify(petty));
+    const gar = await S(() => {
+      const G = g(); const out = {};
+      G.inside = null; G.state = 'play'; G.stars = 0; G.heat = 0; G.garageLock = false;
+      const gr = G.world.garages[0];
+      const car = G.spawnVehicle('sports', 0xff0000, gr.x + 3, gr.z + 6, 0, 'parked'); G.boardVehicle(car);
+      car.ctrl.vx = car.ctrl.vz = 0;
+      for (let i = 0; i < 20; i++) G.updateGarageZones();
+      out.notAuto = !G.inside && !G.onFoot;           // driving up does not take you in
+      out.asks = G.garageNear();
+      G.enterExit();                                   // F says yes
+      out.fading = G.fading;
+      return out;
+    });
+    await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
+    const inGar = await S(() => { const G = g(); return { inside: G.inside && G.inside.id === 'garage', foot: G.onFoot }; });
+    await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.exit.x; pl.z = r.exit.z; G.leaveBuilding(); });
+    await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
+    const outGar = await S(() => { const G = g(); const d = G.driving; const out = { outside: !G.inside, driving: !!d && !G.onFoot && d.kind === 'sports', locked: G.garageLock, notAgain: !G.garageNear() }; if (d) G.removeVehicle(d); G.driving = null; G.onFoot = true; G.garageLock = false; return out; });
+    ok(gar.notAuto && gar.asks && inGar.inside && outGar.outside && outGar.driving && outGar.locked && outGar.notAgain, 'a garage asks first (F), and coming out you are back in your car without being pulled back in', JSON.stringify({ gar, inGar, outGar }));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
