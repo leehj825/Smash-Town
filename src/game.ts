@@ -35,6 +35,7 @@ import { Clock } from './clock';
 import { Completion } from './completion';
 import { Riots } from './riots';
 import { Crossfire } from './crossfire';
+import { Witnesses } from './witness';
 import { SAVE_VERSION, migrateSave } from './saveMigrate';
 import { JOBS } from './jobs';
 import { Reputation } from './reputation';
@@ -142,6 +143,7 @@ export class Game {
   completion!: Completion;
   riots!: Riots;
   crossfire!: Crossfire;
+  witnesses!: Witnesses;
   reputation!: Reputation;
   npcs!: Npcs;
   skills!: Skills;
@@ -268,6 +270,7 @@ export class Game {
     this.completion = new Completion(this);
     this.riots = new Riots(this);
     this.crossfire = new Crossfire(this);
+    this.witnesses = new Witnesses(this);
     this.fires = new Fires(this);
     this.thieves = new Thieves(this);
     this.factions = new Factions(this);
@@ -978,7 +981,9 @@ export class Game {
         const home = this.onFoot && !lo && !door && !mach && !this.humans.player.roof ? this.hideouts.homeNear() : -1;
         const npc = this.onFoot && !lo && !door && !mach && home < 0 && !this.humans.player.roof ? this.npcs.nearest() : null;
         const stop = this.onFoot && !lo && !door && !mach && home < 0 && !npc && !this.humans.player.roof ? this.transit.near() : -1;
-        if (home >= 0) { if (this.hideouts.ownsHome(home)) this.enterBuilding(this.interiors.rooms.find((r) => r.id === 'home')!); else this.hideouts.buyHome(home); }
+        const wit = this.onFoot && !this.humans.player.roof ? this.witnesses.near() : null;
+        if (wit) this.witnesses.act(wit);
+        else if (home >= 0) { if (this.hideouts.ownsHome(home)) this.enterBuilding(this.interiors.rooms.find((r) => r.id === 'home')!); else this.hideouts.buyHome(home); }
         else if (npc) this.npcs.talk(npc);
         else if (stop >= 0) this.transit.ride(stop);
         else if (this.onFoot && !lo && !door && !mach && !this.humans.player.roof && (this.fishing.active || this.fishing.atWater()) && this.fishing.press()) { /* fishing */ }
@@ -1731,7 +1736,7 @@ export class Game {
         const nn = mach || hm >= 0 ? null : this.npcs.nearest();
         const bs = mach || hm >= 0 || nn ? -1 : this.transit.near();
         const fp = mach || hm >= 0 || bs >= 0 ? null : this.fishing.prompt();
-        this.hud.setPrompt(mach ? this.machines.prompt(mach) : nn ? this.npcs.prompt(nn) : bs >= 0 ? this.transit.prompt(bs) : fp ? fp : hm >= 0 ? (this.hideouts.ownsHome(hm) ? bi('[F] Go home', '[F] 집에 들어가기') : `${bi('[F] Buy this house', '[F] 이 집 사기')} - $${Hideouts.HOME_PRICE.toLocaleString('en-US')}`) : this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
+        this.hud.setPrompt(this.witnesses.near() ? this.witnesses.prompt() : mach ? this.machines.prompt(mach) : nn ? this.npcs.prompt(nn) : bs >= 0 ? this.transit.prompt(bs) : fp ? fp : hm >= 0 ? (this.hideouts.ownsHome(hm) ? bi('[F] Go home', '[F] 집에 들어가기') : `${bi('[F] Buy this house', '[F] 이 집 사기')} - $${Hideouts.HOME_PRICE.toLocaleString('en-US')}`) : this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
       }
     }
     else if (this.driving && this.driving.ctrl.speed < 2.5 && this.stars === 0) this.hud.setPrompt(t('ui.hint.exit_car'));

@@ -33,6 +33,8 @@ export type GameEvent =
   | { type: 'helped'; x: number; z: number; amount: number }
   /** Something caught fire in the street. */
   | { type: 'fire'; x: number; z: number }
+  /** A witness was talked out of calling the police. */
+  | { type: 'witnessSilenced'; x: number; z: number }
   /** The police and a gang started shooting at each other. */
   | { type: 'crossfire'; x: number; z: number }
   /** Unrest broke out. */

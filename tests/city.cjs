@@ -352,6 +352,30 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(xf.crew === 5 && xf.cross === 1 && xf.shots >= 10 && xf.boom >= 1 && xf.fires >= 1 && xf.cooled, 'lead the police into a gang block: they shoot each other, your heat drops, a blast starts a fire', JSON.stringify(xf));
+    const wit = await S(() => {
+      const G = g(); const W = G.witnesses; const H = G.humans;
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.cash = 100; G.skills.off = true; G.save.rep = {};
+      H.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0);
+      const civs = H.list.filter((h) => h.active && h.role === 0 && !h.named && !h.ally);
+      const out = { civs: civs.length };
+      const place = (h) => { h.x = H.player.x + 2; h.z = H.player.z; h.calling = 5; h.state = 0; };
+      const real = G.guns.current;
+      G.guns.current = () => null;
+      const a = civs[0]; place(a);
+      const sees = W.near() === a; const askBribe = /40/.test(W.prompt());
+      W.act(a);
+      out.bribe = { sees, askBribe, quiet: a.calling === 0, fled: a.fleeing, cash: G.cash };
+      G.guns.current = () => ({ id: 'pistol' });
+      const b = civs[1]; place(b);
+      const area = G.reputation.area(b.x, b.z);
+      const askScare = /Scare|겁/.test(W.prompt());
+      const repBefore = G.reputation.get(area);
+      W.act(b);
+      out.scare = { askScare, quiet: b.calling === 0, cash: G.cash, rep: G.reputation.get(area) - repBefore };
+      G.guns.current = real; G.skills.off = false; G.save.rep = {};
+      return out;
+    });
+    ok(wit.bribe.sees && wit.bribe.askBribe && wit.bribe.quiet && wit.bribe.fled && wit.bribe.cash === 60 && wit.scare.askScare && wit.scare.quiet && wit.scare.cash === 60 && wit.scare.rep === -1, 'a witness on the phone can be bribed for $40 or scared off with a gun, and the call never goes out', JSON.stringify(wit));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
