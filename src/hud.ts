@@ -18,6 +18,7 @@ export interface GarageModel {
   car: CarProgress;
   body: BodyProgress;
   arms: { owned: GunId[]; reserve: Record<GunId, number>; up: Record<GunId, [number, number]> };
+  gear: { id: string; en: string; ko: string; icon: string; price: number; have: number; max: number }[];
 }
 export interface GarageHandlers {
   onRepair: () => void;
@@ -30,6 +31,7 @@ export interface GarageHandlers {
   onBody: (i: number) => void;
   onBuyGun: (g: GunId) => void;
   onBuyAmmo: (g: GunId) => void;
+  onBuyGear: (id: string) => void;
   onGunUp: (g: GunId, which: 0 | 1) => void;
   onClose: () => void;
 }
@@ -444,7 +446,7 @@ export class Hud {
         const ups = upBtn(0, bi('Damage', '피해')) + upBtn(1, bi('Magazine', '탄창'));
         const ammoBtn = has && !g.infinite ? `<button class="seg gammo" data-g="${id}">+${g.pack} ${bi('ammo', '탄약')} ${money(g.packPrice)}</button>` : '';
         return `<div class="urow"><div><b>${g.icon} ${bi(g.en, g.ko)}</b> <span class="lv">${has ? `${bi('ammo', '탄약')} ${res}` : ''}</span><small>${bi('Magazine', '탄창')} ${g.mag} \u00B7 ${g.dmg ? bi('damage', '피해') + ' ' + g.dmg + (g.pellets > 1 ? 'x' + g.pellets : '') : bi('harmless fun', '무해한 장난감')}</small></div><div class="gbtns">${buyBtn}${ammoBtn}${ups}</div></div>`;
-      }).join('') + '</div>';
+      }).join('') + `<h3>${bi('Gear (Z use tool, G wheel, U donut, I armour)', '장비 (Z 도구 사용, G 휠, U 도넛, I 방탄복)')}</h3>` + m.gear.map((d) => `<div class="urow"><div><b>${d.icon} ${bi(d.en, d.ko)}</b> <span class="lv">${d.have}/${d.max}</span></div><button class="seg ggear" data-id="${d.id}" ${d.have >= d.max ? 'disabled' : ''}>${d.have >= d.max ? bi('Full', '가득') : money(d.price)}</button></div>`).join('') + '</div>';
     } else {
       body = '<div class="ulist">' + BODY_KEYS.map((k, i) => {
         const lv = m.body[k];
@@ -480,6 +482,7 @@ export class Hud {
     q('button.gbuy').forEach((b) => b.addEventListener('click', () => h.onBuyGun(b.dataset.g as GunId)));
     q('button.gup').forEach((b) => b.addEventListener('click', () => h.onGunUp(b.dataset.g as GunId, Number(b.dataset.w) as 0 | 1)));
     q('button.gammo').forEach((b) => b.addEventListener('click', () => h.onBuyAmmo(b.dataset.g as GunId)));
+    q('button.ggear').forEach((b) => b.addEventListener('click', () => h.onBuyGear(b.dataset.id!)));
     q('button.bup').forEach((b) => b.addEventListener('click', () => h.onBody(Number(b.dataset.i))));
     q('.swatch.paint').forEach((b) => b.addEventListener('click', () => h.onPaint(Number(b.dataset.c))));
     q('.swatch.neon').forEach((b) => b.addEventListener('click', () => h.onNeon(Number(b.dataset.c))));

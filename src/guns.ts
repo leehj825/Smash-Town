@@ -588,7 +588,7 @@ export class Guns {
   private curX = 0;
   private curZ = 0;
 
-  private explode(x: number, z: number, R = 8, power = 1): void {
+  explode(x: number, z: number, R = 8, power = 1): void {
     const G = this.game;
     G.vfx.explosion(x, z);
     G.bus.emit({ type: 'explosion', x, z, byPlayer: true });

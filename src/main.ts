@@ -436,6 +436,7 @@ function tick(): void {
     game.hitStop -= dt;
     dt = 0;
   }
+  dt *= game.timeScale;
 
   if (autoQuality && state === 'playing' && !modal && rawDt > 0 && rawDt < 1) {
     slowT = rawDt > 1 / 24 ? slowT + rawDt : Math.max(0, slowT - rawDt * 2);

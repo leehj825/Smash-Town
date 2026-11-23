@@ -37,6 +37,7 @@ import { Riots } from './riots';
 import { Crossfire } from './crossfire';
 import { Witnesses } from './witness';
 import { TruckHeist } from './truckheist';
+import { Gear, type GearId } from './gear';
 import { SAVE_VERSION, migrateSave } from './saveMigrate';
 import { JOBS } from './jobs';
 import { Reputation } from './reputation';
@@ -77,7 +78,7 @@ export function currentSlot(): number {
 }
 export const slotSaveKey = (slot: number): string => (slot === 1 ? 'smashtown.save.v1' : `smashtown.save.v1.s${slot}`);
 export const SAVE_KEY = slotSaveKey(currentSlot());
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; friends?: Record<string, number>; v?: number; hour?: number; milestone?: number; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; friends?: Record<string, number>; gear?: Record<string, number>; v?: number; hour?: number; milestone?: number; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -146,6 +147,9 @@ export class Game {
   crossfire!: Crossfire;
   witnesses!: Witnesses;
   truckHeist!: TruckHeist;
+  gear!: Gear;
+  /** Slow motion while the quick wheel is open (1 = normal). */
+  timeScale = 1;
   reputation!: Reputation;
   npcs!: Npcs;
   skills!: Skills;
@@ -274,6 +278,7 @@ export class Game {
     this.crossfire = new Crossfire(this);
     this.witnesses = new Witnesses(this);
     this.truckHeist = new TruckHeist(this);
+    this.gear = new Gear(this);
     this.fires = new Fires(this);
     this.thieves = new Thieves(this);
     this.factions = new Factions(this);
@@ -360,12 +365,14 @@ export class Game {
       if (s.skills && typeof s.skills === 'object') for (const [k, v] of Object.entries(s.skills)) if (typeof v === 'number' && v >= 0) skills[k] = v;
       const friends: Record<string, number> = {};
       if (s.friends && typeof s.friends === 'object') for (const [k, v] of Object.entries(s.friends)) if (typeof v === 'number' && v > 0) friends[k] = Math.floor(v);
+      const gear: Record<string, number> = {};
+      if (s.gear && typeof s.gear === 'object') for (const [k, v] of Object.entries(s.gear)) if (typeof v === 'number' && v > 0) gear[k] = Math.min(20, Math.floor(v));
       const rep: Record<string, number> = {};
       if (s.rep && typeof s.rep === 'object') for (const [k, v] of Object.entries(s.rep)) if (typeof v === 'number') rep[k] = Math.max(-100, Math.min(100, v));
       const turf = Array.isArray(s.turf) ? s.turf.filter((n: unknown) => Number.isInteger(n)) as number[] : [];
       const raceBest = Array.isArray(s.raceBest) ? s.raceBest.map((n: unknown) => (typeof n === 'number' && n > 0 ? n : 0)) : [];
       const login = s.login && typeof s.login.day === 'string' ? { day: s.login.day, streak: Number(s.login.streak) || 1 } : undefined;
-      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, friends, rep, skills, login, progress: s.progress, v: s.v ?? SAVE_VERSION, milestone: [25, 50, 75, 100].includes(Number(s.milestone)) ? Number(s.milestone) : undefined, hour: typeof s.hour === 'number' && s.hour >= 0 && s.hour < 24 ? s.hour : undefined };
+      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, friends, gear, rep, skills, login, progress: s.progress, v: s.v ?? SAVE_VERSION, milestone: [25, 50, 75, 100].includes(Number(s.milestone)) ? Number(s.milestone) : undefined, hour: typeof s.hour === 'number' && s.hour >= 0 && s.hour < 24 ? s.hour : undefined };
     } catch {
       return fallback;
     }
@@ -831,6 +838,7 @@ export class Game {
       car: cp,
       body: this.save.body ?? emptyBody(),
       arms: { owned: [...this.guns.owned], reserve: { ...this.guns.reserve }, up: { ...this.guns.up } },
+      gear: this.gear.shopList(),
     };
   }
 
@@ -935,6 +943,7 @@ export class Game {
         this.guns.addAmmo(id, d.pack);
         refresh();
       },
+      onBuyGear: (id) => { this.gear.buy(id as GearId); refresh(); },
       onClose: () => this.closeGarage(),
     }, mode === 'arms' ? ['arms'] : undefined);
   }
@@ -1075,7 +1084,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.clock.update(dt); this.completion.update(dt); this.riots.update(dt); this.crossfire.update(dt); this.truckHeist.update(dt); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.clock.update(dt); this.completion.update(dt); this.riots.update(dt); this.crossfire.update(dt); this.truckHeist.update(dt); this.gear.update(dt); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);

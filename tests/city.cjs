@@ -402,6 +402,40 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { ...ok1, lost };
     });
     ok(tk.started && tk.afterPay === 1500 && tk.marked && tk.spilled && tk.hot >= 2000 && tk.escaping && tk.paid === tk.hot + 500 && tk.back && tk.lost, 'the cash truck job: plan, wreck it, grab the bags, lose the police to keep the money; busted loses it', JSON.stringify(tk));
+    const gear = await S(() => {
+      const G = g(); const GR = G.gear; const H = G.humans;
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true; G.cash = 5000; G.save.gear = {};
+      H.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0);
+      for (const id of ['smoke', 'smoke', 'c4', 'spikes', 'donut', 'vest']) GR.buy(id);
+      const bought = { smoke: GR.count('smoke'), c4: GR.count('c4'), cash: G.cash };
+      // smoke hides you: heat falls inside the cloud
+      GR.sel = 'smoke'; GR.useTool(); G.stars = 3; G.heat = 150; const h0 = G.heat;
+      const c = GR.clouds[0]; H.player.x = c.x; H.player.z = c.z;
+      for (let i = 0; i < 10; i++) GR.update(0.1);
+      const smoke = { left: GR.count('smoke'), cooled: G.heat < h0 };
+      G.stars = 0; G.heat = 0;
+      // a police car crossing a spike strip loses a tyre
+      GR.sel = 'spikes'; GR.useTool();
+      const st = GR.strips[0];
+      const car = G.spawnVehicle('police', 0x1a1a24, st.x, st.z, 0, 'parked'); car.ai = 'police';
+      GR.update(0.05);
+      const spikes = { flat: car.flat, gone: GR.strips.length === 0 };
+      G.removeVehicle(car);
+      // C4: plant, then detonate with the same key
+      GR.sel = 'c4'; let boom = 0; const off = G.bus.on('explosion', () => boom++);
+      GR.useTool(); const planted = GR.charges.length === 1; GR.useTool();
+      off();
+      const c4 = { planted, boom, left: GR.count('c4'), cleared: GR.charges.length === 0 };
+      // quick items
+      H.player.hp = 10; const donut = GR.quick('donut') && H.player.hp > 50;
+      H.armor = 0; const vest = GR.quick('vest') && H.armor === 50;
+      // the wheel slows time and closes again
+      GR.openWheel(); const slow = G.timeScale < 0.5 && GR.wheelOpen; const items = document.querySelectorAll('#wheel .wheel-item').length;
+      GR.closeWheel(); const back = G.timeScale === 1 && !GR.wheelOpen;
+      G.skills.off = false; G.save.gear = {}; G.fires.list.length = 0; G.news.cooldown = 0; G.stars = 0; G.heat = 0;
+      return { bought, smoke, spikes, c4, donut, vest, slow, items, back };
+    });
+    ok(gear.bought.smoke === 2 && gear.bought.cash === 5000 - 150 * 2 - 300 - 250 - 40 - 200 && gear.smoke.left === 1 && gear.smoke.cooled && gear.spikes.flat && gear.spikes.gone && gear.c4.planted && gear.c4.boom >= 1 && gear.c4.cleared && gear.donut && gear.vest && gear.slow && gear.items >= 4 && gear.back, 'gear: buy, smoke hides you, spikes flatten a police tyre, C4 blows on demand, donut and armour work, the wheel slows time', JSON.stringify(gear));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';

@@ -373,3 +373,12 @@ html.cb-safe #news b { color: #14378c; }
 }
 
 #clock { position: fixed; top: 6px; right: 70px; z-index: 30; padding: 2px 8px; border-radius: 6px; background: rgba(0,0,0,.45); color: #fff; font: 600 12px/1.4 ui-monospace, Menlo, monospace; pointer-events: none; }
+
+#gear { position: fixed; top: 26px; right: 70px; z-index: 30; padding: 2px 8px; border-radius: 6px; background: rgba(0,0,0,.45); color: #fff; font: 600 11px/1.4 ui-monospace, Menlo, monospace; pointer-events: none; white-space: nowrap; }
+body:not(.is-touch) #btn-gear, body:not(.is-touch) #btn-tool { display: none; }
+#wheel { position: fixed; inset: 0; z-index: 60; display: none; background: radial-gradient(circle, rgba(0,0,0,.35), rgba(0,0,0,.6)); }
+#wheel.open { display: block; }
+#wheel .wheel-item { position: absolute; transform: translate(-50%, -50%); min-width: 96px; max-width: 130px; padding: 8px 10px; border-radius: 12px; border: 2px solid rgba(255,255,255,.7); background: rgba(14,18,28,.85); color: #fff; font: inherit; font-size: 13px; line-height: 1.25; cursor: pointer; touch-action: manipulation; }
+#wheel .wheel-item small { display: block; opacity: .75; font-size: 11px; }
+#wheel .wheel-item:hover, #wheel .wheel-item:active { background: rgba(255,213,0,.5); }
+#wheel .wheel-hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 13px; text-align: center; max-width: 150px; opacity: .85; pointer-events: none; }
