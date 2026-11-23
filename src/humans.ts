@@ -54,6 +54,8 @@ export class Human {
   phase = 0; speed = 0; fleeing = false;
   /** A bag snatcher on the run (see thieves.ts): sprints away along the pavement. */
   thief = false;
+  /** Seconds left of a pause in a stroll (looking at the phone, window shopping). */
+  pauseT = 0;
   scale = 1;
   look: Look = { shirt: 0xffffff, pants: 0x222222, skin: 0xf1c27d, shoe: 0x222222, hair: 0x222222, cap: false };
   anim = new AnimPlayer();
@@ -1020,6 +1022,10 @@ export class Humans {
     const near = (this.ctx.playerActive && dxp * dxp + dzp * dzp < 90 && this.combatTimer > 0)
       || ((h.x - ctx.playerCarX) ** 2 + (h.z - ctx.playerCarZ) ** 2 < 100 && ctx.playerCarSpeed > 9);
     if (near || h.thief) h.fleeing = true; else if (h.fleeing && this.rng() < dt * 0.15) h.fleeing = false;
+    // everyday routine: now and then a stroller stops for a moment (phone, window shopping), unless something scary is going on
+    if (h.pauseT > 0 && !h.fleeing && !h.thief) { h.pauseT -= dt; h.speed = 0; h.mvx = h.mvz = 0; return; }
+    h.pauseT = 0;
+    if (!h.fleeing && !h.thief && this.rng() < dt * 0.04) h.pauseT = 2 + this.rng() * 5;
     const v = h.thief ? 6.6 : h.fleeing ? 5.2 : h.pathSpeed;
     const p = this.perim(h.lot);
     h.s += h.dir * v * dt;

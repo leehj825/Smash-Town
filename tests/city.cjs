@@ -257,6 +257,19 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
     const arrived = await S(() => { const G = g(); const s1 = G.transit.stops[1]; const p = G.humans.player; return { d: Math.round(Math.hypot(p.x - s1.sx, p.z - s1.sz)) }; });
     ok(arrived.d < 3, 'the bus drops you at the next stop', JSON.stringify(arrived));
+    const metro = await S(() => {
+      const G = g(); const T = G.transit;
+      G.stars = 0; G.cash = 100; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play'; G.skills.off = true;
+      const s0 = T.stations[0];
+      G.humans.setPlayerActive(true, s0.sx, s0.sz, 0);
+      const at = T.near(); const prompt = at >= 1000 ? T.prompt(at) : '';
+      const ok = T.ride(at);
+      G.skills.off = false;
+      return { n: T.stations.length, at, prompt: /12/.test(prompt), ok, cash: G.cash };
+    });
+    await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
+    const mArr = await S(() => { const G = g(); const s2 = G.transit.stations[2]; const p = G.humans.player; return { d: Math.round(Math.hypot(p.x - s2.sx, p.z - s2.sz)) }; });
+    ok(metro.n === 6 && metro.at === 1000 && metro.prompt && metro.ok && metro.cash === 88 && mArr.d < 3, 'the metro express rides two stations ahead for $12', JSON.stringify({ metro, mArr }));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';

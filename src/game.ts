@@ -1833,6 +1833,7 @@ export class Game {
     this.blipCount = 0;
     for (const g of this.world.garages) this.pushBlip(g.x, g.z, '#3dff8a', false, 5);
     for (const st of this.transit.stops) this.pushBlip(st.x, st.z, '#6bd1ff', false, 3.5);
+    for (const st of this.transit.stations) this.pushBlip(st.x, st.z, '#b072d6', false, 4);
     this.world.homes.forEach((h, i) => this.pushBlip(h.x, h.z, this.hideouts.ownsHome(i) ? '#ffd23a' : '#6bd1ff', false, 4.5));
     this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
