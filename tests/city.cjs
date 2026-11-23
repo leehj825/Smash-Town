@@ -391,6 +391,20 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { placed, near: !!near, prompt: /Minji|민지/.test(prompt), open, healed, refused, stayedHurt, down, up: R.get(area) };
     });
     ok(npc.placed >= 5 && npc.near && npc.prompt && npc.open && npc.healed && npc.refused && npc.stayedHurt && npc.down === -8 && npc.up === 2, 'named people talk by your reputation (a favour, or a refusal) and reputation moves with what you do', JSON.stringify(npc));
+    const boat = await S(() => {
+      const G = g(); const B = G.boats;
+      if (!B.length) return { boats: 0 };
+      const v = B[0];
+      const r = G.world.waterRects.find((q) => v.x > q.minX && v.x < q.maxX && v.z > q.minZ && v.z < q.maxZ);
+      G.humans.setPlayerActive(false, 0, 0, 0); G.boardVehicle(v); G.state = 'play'; G.inside = null;
+      // push the boat well onto the land: it must be put back on the water
+      v.ctrl.position.x = r.maxX + 60; v.ctrl.position.z = (r.minZ + r.maxZ) / 2; v.ctrl.vx = 5; v.ctrl.vz = 0;
+      v.ctrl.update(0.05, v.control, null);
+      const inWater = G.world.waterRects.some((q) => v.x >= q.minX && v.x <= q.maxX && v.z >= q.minZ && v.z <= q.maxZ);
+      v.ctrl.vx = v.ctrl.vz = 0;
+      return { boats: B.length, inWater, driving: G.driving === v && v.kind === 'boat' };
+    });
+    ok(boat.boats >= 1 && boat.inWater && boat.driving, 'boats are moored on the water and cannot be driven onto the land', JSON.stringify(boat));
     // savings, houses and race records survive a reload
     await S(() => { const G = g(); G.save.bank = 4321; G.save.homes = [1, 2]; G.save.raceBest = [0, 77.5]; G.flushSave(); });
     await p.reload();

@@ -53,6 +53,8 @@ export interface Landmarks {
 }
 
 export interface World {
+  /** The water surfaces boats can sail on (the sea, the harbour basin and the river). */
+  waterRects: BoxCollider[];
   /** Houses for sale: where you stand at the front door. */
   homes: Spot[];
   group: THREE.Group;
@@ -570,6 +572,7 @@ export function buildWorld(): World {
     suburb: 0x9ccf86, park: 0x8fc77a, plaza: 0xd2cbb9, water: 0xe9d6a0, forest: 0x5f9a58,
   };
   const waterB = new MeshBuilder();
+  const waterRects: BoxCollider[] = [];
   for (const lot of lots) {
     const lx = (lot.x0 + lot.x1) / 2, lz = (lot.z0 + lot.z1) / 2;
     if (!lot.river) chunkOf(slabChunks, lx, lz).box(lot.x1 - lot.x0, SLAB_H, lot.z1 - lot.z0, lx, SLAB_H / 2, lz, slabColor[lot.district]);
@@ -584,6 +587,7 @@ export function buildWorld(): World {
       if (lot.river) waterB.box(lot.x1 - lot.x0, 0.05, lot.z1 - lot.z0, lx, 0.0, lz, 0x2a9fd0);
       else waterB.box(lot.x1 - lot.x0 - r * 2, 0.05, lot.z1 - lot.z0 - r * 2, lx, SLAB_H + 0.03, lz, 0x2aa7d8);
       boxes.push({ minX: lot.x0 + r * 0.5, maxX: lot.x1 - r * 0.5, minZ: lot.z0 + r * 0.5, maxZ: lot.z1 - r * 0.5 }); // no driving into the water
+      waterRects.push(lot.river ? { minX: lot.x0, maxX: lot.x1, minZ: lot.z0, maxZ: lot.z1 } : { minX: lot.x0 + r, maxX: lot.x1 - r, minZ: lot.z0 + r, maxZ: lot.z1 - r });
     }
   }
   // ---- paved sidewalk bands, curb stones and storm drains round the hard-surfaced lots
@@ -1182,7 +1186,7 @@ export function buildWorld(): World {
   }
 
   return {
-    group, detail, homes, lots, boxes, circles, ramps, garages, landmarks, roofs, segments, bounds, width: W, depth: D,
+    group, detail, homes, waterRects, lots, boxes, circles, ramps, garages, landmarks, roofs, segments, bounds, width: W, depth: D,
     windowMaterial, signMaterial, spawn, minimap: { canvas: mm, scale: MM, pad: PAD },
   };
 }

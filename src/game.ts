@@ -715,6 +715,21 @@ export class Game {
   /** Move a conversation on (a named person's, or the story's). */
   advanceDialog(): void { if (this.npcs.dialogOpen) this.npcs.advance(); else this.story.advanceDialog(); }
 
+  /** Speedboats moored on the water: one on each stretch big enough (up to five). Climb in with F like any vehicle. */
+  boats: GameVehicle[] = [];
+  private boatsTried = false;
+  private spawnBoats(): void {
+    this.boatsTried = true;
+    for (const r of this.world.waterRects) {
+      if (this.boats.length >= 5) break;
+      const w = r.maxX - r.minX, d = r.maxZ - r.minZ;
+      if (w < 14 || d < 14) continue;
+      const v = this.spawnVehicle('boat', 0xd62d3a, r.minX + 4.5, (r.minZ + r.maxZ) / 2, d > w ? 0 : Math.PI / 2, 'parked');
+      v.isGigTarget = true; // never cleaned up as an abandoned car
+      this.boats.push(v);
+    }
+  }
+
   /** Put the player behind the wheel of a car right away (no walking up to it). */
   boardVehicle(v: GameVehicle): void {
     v.ai = 'player';
@@ -1074,7 +1089,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); this.paramedic.update(dt); this.reputation.update(dt); this.npcs.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.reputation.update(dt); this.npcs.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);
@@ -1789,6 +1804,7 @@ export class Game {
     this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
     if (this.hunter) this.pushBlip(this.hunter.x, this.hunter.z, '#ff9a3d', true, 5);
+    if (!this.driving || this.driving.kind !== 'boat') for (const b of this.boats) this.pushBlip(b.x, b.z, '#35e0ff', false, 3.5);
     for (const m of this.paramedic.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5);
     for (const m of this.gangs.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5.5);
     for (const m of this.festival.markers()) this.pushBlip(m.x, m.z, '#ff5db1', true, 5.5);

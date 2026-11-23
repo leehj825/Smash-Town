@@ -164,7 +164,7 @@ export class CarController {
 
     // --- drift FX ---
     this.drifting = !this.airborne && Math.abs(this.lateralSpeed) > 3.2 && this.speed > 8;
-    if (fx) {
+    if (fx && !this.boat) {
       if (this.drifting) {
         this.skidAccum += this.speed * dt;
         if (this.skidAccum > 0.6) {
@@ -263,8 +263,30 @@ export class CarController {
   /** A car on a showroom stand (the garage turntable) ignores the world: the room is outside the city's bounds. */
   display = false;
 
+  /** A boat: sails on water only, ignores the roads and buildings, no skid marks. */
+  boat = false;
+
+  private boatCollide(): void {
+    const rects = this.world.waterRects;
+    const p = this.position;
+    const m = 1.4;
+    let best: { x: number; z: number } | null = null, bd = Infinity;
+    for (const r of rects) {
+      const nx = Math.max(r.minX + m, Math.min(p.x, r.maxX - m)), nz = Math.max(r.minZ + m, Math.min(p.z, r.maxZ - m));
+      if (r.maxX - r.minX < m * 2 || r.maxZ - r.minZ < m * 2) continue;
+      const d = Math.hypot(nx - p.x, nz - p.z);
+      if (d < bd) { bd = d; best = { x: nx, z: nz }; }
+    }
+    if (best && bd > 0.001) {
+      const ax = best.x - p.x, az = best.z - p.z;
+      p.x = best.x; p.z = best.z;
+      this.bounce(Math.sign(ax), Math.sign(az)); // the bank pushes you back
+    }
+  }
+
   private collide(): void {
     if (this.display) return;
+    if (this.boat) { this.boatCollide(); return; }
     const b = this.world.bounds;
     if (this.position.x < b.minX) { this.position.x = b.minX; this.bounce(1, 0); }
     if (this.position.x > b.maxX) { this.position.x = b.maxX; this.bounce(-1, 0); }

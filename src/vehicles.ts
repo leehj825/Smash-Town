@@ -69,6 +69,7 @@ export class GameVehicle {
     } satisfies CarEvents);
     // Only the player's car climbs ramps by default; AI cars drive straight over.
     this.ctrl.useRamps = full;
+    this.ctrl.boat = kind === 'boat';
   }
 
   get isPolice(): boolean {
