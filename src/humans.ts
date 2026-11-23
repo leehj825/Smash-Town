@@ -804,7 +804,8 @@ export class Humans {
         h.mvx *= Math.exp(-8 * dt); h.mvz *= Math.exp(-8 * dt);
         h.speed = 0; h.state = St.Idle;
         if (dist < 26) h.heading += wrap(Math.atan2(dx, dz) - h.heading) * Math.min(1, dt * 3);
-        if (dist < 12 && this.ctx.playerActive) { h.hostile = true; this.provokeGang(h.x, h.z, 24); }
+        // pulling a gun on them within twelve metres is a challenge; just walking by is not
+        if (dist < 12 && this.ctx.playerActive && p.weapon >= 3) { h.hostile = true; this.provokeGang(h.x, h.z, 24); }
         return;
       }
       if (dist > 70 || !this.ctx.playerActive) { h.hostile = false; return; } // lost interest

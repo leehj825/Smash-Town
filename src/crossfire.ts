@@ -41,7 +41,6 @@ export class Crossfire {
       if (f.t <= 0) { f.cool = 120; continue; }
       if (!f.told) {
         f.told = true;
-        for (const m of z.members) m.hostile = true;
         G.bus.emit({ type: 'crossfire', x: z.x, z: z.z });
         G.hud.toast(bi(`The cops and ${z.name} are shooting at each other!`, `경찰과 ${z.nameKo}가 서로 총격전을 벌여요!`), 3200);
       }

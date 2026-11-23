@@ -13,6 +13,8 @@ interface Zone {
   /** Where the members stand: along the pavement either side of the road. */
   spots: { x: number; z: number }[];
   owner: 'gang' | 'player';
+  /** The "you are on their turf" warning was shown (reset once you leave). */
+  warned: boolean;
   /** Which kind of crew: the street gangs, or the tougher Mafia. */
   faction: 'gang' | 'mafia';
   reward: number; income: number; hp: number;
@@ -55,9 +57,21 @@ export class Gangs {
       const ring = new Beacon(g.color, 5);
       ring.setPosition(s.x, s.z);
       game.scene.add(ring.group);
-      this.zones.push({ name: g.name, nameKo: g.ko, color: g.color, css: g.css, x: s.x, z: s.z, spots, owner: owned.has(i) ? 'player' : 'gang', faction: g.mafia ? 'mafia' : 'gang', reward: g.mafia ? 1500 : 500, income: g.mafia ? 300 : 120, hp: g.mafia ? 130 : 70, members: [], ring, away: 0 });
+      this.zones.push({ name: g.name, nameKo: g.ko, color: g.color, css: g.css, x: s.x, z: s.z, spots, owner: owned.has(i) ? 'player' : 'gang', warned: false, faction: g.mafia ? 'mafia' : 'gang', reward: g.mafia ? 1500 : 500, income: g.mafia ? 300 : 120, hp: g.mafia ? 130 : 70, members: [], ring, away: 0 });
     });
     game.bus.on('gangDown', () => this.check());
+    // what turns a crew against you: your gunfire or a blast of yours close to them (hitting one of them does it in humans.ts)
+    const provoke = (x: number, z: number, r: number) => {
+      for (const zone of this.zones) {
+        if (zone.owner !== 'gang') continue;
+        if (zone.members.some((m) => m.active && Math.hypot(m.x - x, m.z - z) < r)) {
+          for (const m of zone.members) m.hostile = true;
+          game.hud.toast(bi(`${zone.name} turn on you!`, `${zone.nameKo}가 당신에게 덤벼요!`), 2200);
+        }
+      }
+    };
+    game.bus.on('gunshot', (e) => { if (!e.ambient) provoke(e.x, e.z, 30); });
+    game.bus.on('explosion', (e) => { if (e.byPlayer) provoke(e.x, e.z, 30); });
   }
 
   /** The gang whose block is easiest to take: the one with the fewest members (or the nearest, if none are out yet). */
@@ -131,10 +145,11 @@ export class Gangs {
       if (z.owner === 'gang') {
         if (d < 120 && !z.members.length) this.spawnCrew(z);
         else if (d > 170 && z.members.length) { for (const m of z.members) G.humans.removeGang(m); z.members = []; }
-        if (d < RADIUS && !z.members.some((m) => m.hostile) && z.members.length && G.humans.player.hp > 0) {
-          for (const m of z.members) m.hostile = true;
-          G.hud.toast(bi(`You are on ${z.name} turf!`, `${z.nameKo} 구역에 들어왔어요!`), 2200);
-        }
+        // walking in is not a crime: they watch you. They only turn on you when you start something (see provoke below)
+        if (d < RADIUS && z.members.length && !z.warned && G.humans.player.hp > 0) {
+          z.warned = true;
+          G.hud.toast(bi(`${z.name} turf. They are watching - do not start anything.`, `${z.nameKo} 구역이에요. 지켜보고 있어요 - 먼저 시비 걸지 마세요.`), 2600);
+        } else if (d > RADIUS + 25) z.warned = false;
       } else {
         // the gang wants it back if you stay away for five minutes of play
         z.away = d > 250 ? z.away + dt : Math.max(0, z.away - dt * 2);

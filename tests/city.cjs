@@ -638,7 +638,9 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       GA.update(0.1);
       const crew = z.members.length;
       H.player.x = z.x + 10; H.player.z = z.z; GA.update(0.1);
-      const provoked = z.members.some((m) => m.hostile);
+      const calm = !z.members.some((m) => m.hostile);          // walking onto their turf is not a challenge
+      G.bus.emit({ type: 'gunshot', x: z.x + 10, z: z.z });     // your gunfire is
+      const provoked = calm && z.members.every((m) => m.hostile);
       const heatBefore = G.heat;
       for (const m of [...z.members]) H.gunHit(H.player, m, 999, 1, 0, true);
       const captured = z.owner === 'player';
