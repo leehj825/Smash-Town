@@ -100,10 +100,10 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       const G = g(); const h = G.world.homes[0];
       G.stars = 0; G.cash = 30000; G.save.homes = []; G.inside = null; G.driving = null; G.onFoot = true; G.state = 'play';
       G.humans.setPlayerActive(true, h.x, h.z, 0);
-      const near = G.homeNear() === 0;
-      G.buyHome(0);
+      const near = G.hideouts.homeNear() === 0;
+      G.hideouts.buyHome(0);
       const room = G.interiors.rooms.find((r) => r.id === 'home');
-      return { homes: G.world.homes.length, near, owned: G.ownsHome(0), doors: room.doors.length, cash: G.cash };
+      return { homes: G.world.homes.length, near, owned: G.hideouts.ownsHome(0), doors: room.doors.length, cash: G.cash };
     });
     ok(homeBuy.homes >= 3 && homeBuy.near && homeBuy.owned && homeBuy.doors === 1 && homeBuy.cash === 10000, 'houses are for sale and the one you buy gets a door you can enter', JSON.stringify(homeBuy));
     const mods = await S(() => {
@@ -233,7 +233,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       G.stars = 3; G.heat = 170; G.inside = r; G.humans.setPlayerActive(true, r.ox + 5.6, r.oz + 3.0, 0);
       const near = G.shops.wardrobeNear(r);
       const o0 = G.save.outfit ?? 0;
-      G.wardrobe();
+      G.hideouts.wardrobe();
       const out = { near, outfit: G.save.outfit !== o0, heat: Math.round(G.heat) };
       G.inside = null; G.stars = 0; G.heat = 0;
       return out;

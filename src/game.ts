@@ -23,6 +23,7 @@ import { Climber } from './climb';
 import { StreetLife } from './street';
 import { EventBus } from './events';
 import { Crime } from './crime';
+import { Hideouts } from './hideouts';
 import { Medics } from './medics';
 import { Machines } from './machines';
 import { TrafficLights } from './lights';
@@ -90,11 +91,6 @@ export interface GameDeps {
 }
 
 /** Owns the simulation: vehicles, AI, wanted level, combos, gigs, garage and persistence. */
-/** Where the car stands in the garage, in front of the entrance (offset from the room centre along z). */
-const BAY_Z = -1.0;
-/** ...and to the left of centre, so the menu panel on the right never covers it. */
-const BAY_X = -3.3;
-
 export class Game {
   readonly scene: THREE.Scene;
   readonly world: World;
@@ -135,14 +131,18 @@ export class Game {
   readonly mood: Mood;
   /** The shop the player is inside (null on the street). While inside, the city is frozen and unseen. */
   inside: Room | null = null;
-  private ret = { x: 0, z: 0, h: 0 };
-  private fading = false;
+  ret = { x: 0, z: 0, h: 0 };
+  fading = false;
   /** Ladders and rooftops (see climb.ts). */
   private climber!: Climber;
   street!: StreetLife;
   /** Everything that happens in the city is announced here (see events.ts). */
   readonly bus = new EventBus();
   crime!: Crime;
+  /** Garages and houses: where you can hide (see hideouts.ts). */
+  readonly hideouts: Hideouts = new Hideouts(this);
+  /** How many outfits there are. */
+  get outfitCount(): number { return Game.OUTFITS.length; }
   private get climb(): Climber['state'] { return this.climber.state; }
   readonly heli = new Helicopter();
   private heliTimer = 0;
@@ -172,7 +172,7 @@ export class Game {
   // wanted
   private heat = 0;
   /** Seconds since the last crime: the police do not give up while it is fresh. */
-  private crimeT = 0;
+  crimeT = 0;
   stars = 0;
   private unseen = 0;
   private minHeat = 0;
@@ -194,7 +194,7 @@ export class Game {
   private assaultCooldown = 0;
   private marker: THREE.Sprite;
   private dustAcc = 0;
-  private garageLock = false;
+  garageLock = false;
   private garageBeacons: Beacon[] = [];
   private time = 0;
   private blipPool: (Blip & { x: number; z: number })[] = [];
@@ -243,7 +243,7 @@ export class Game {
     {
       const gr = this.interiors.rooms.find((r) => r.id === 'garage');
       if (gr) gr.doors = this.world.garages.map((g) => g.door ?? { x: g.x, z: g.z, h: 0 });
-      this.refreshHomeDoors();
+      this.hideouts.refreshHomeDoors();
     }
     this.roofDash = new RoofDash(this);
     this.policeFire = new PoliceFire(this);
@@ -473,7 +473,21 @@ export class Game {
     this.hud.setWanted(this.stars);
   }
 
-  private clearWanted(): void {
+  /** Cool the heat (`amount` off, then multiplied by `factor`) and drop any star it no longer earns. Returns true when that cleared the wanted level. */
+  coolHeat(amount: number, factor = 1): boolean {
+    if (this.heat <= this.minHeat) return false;
+    this.heat = Math.max(this.minHeat, this.heat * factor - amount);
+    let st = 0;
+    for (let i = 0; i < STAR_HEAT.length; i++) if (this.heat >= STAR_HEAT[i]) st = i + 1;
+    if (st < this.stars) {
+      this.stars = st;
+      this.hud.setWanted(st);
+      if (st === 0) { this.clearWanted(); return true; }
+    }
+    return false;
+  }
+
+  clearWanted(): void {
     this.heat = 0;
     this.minHeat = 0;
     this.stars = 0;
@@ -497,7 +511,7 @@ export class Game {
     for (const rb of [...this.roadblocks]) this.removeRoadblock(rb);
   }
 
-  private policeVehicles(): GameVehicle[] {
+  policeVehicles(): GameVehicle[] {
     return this.vehicles.filter((v) => v.ai === 'police' && !v.ctrl.wrecked);
   }
 
@@ -589,15 +603,15 @@ export class Game {
     this.hud.fade(() => { cb(); this.fading = false; });
   }
 
-  private enterBuilding(room: Room): void {
+  enterBuilding(room: Room): void {
     if (this.fading || this.state !== 'play') return;
-    if (this.stars > 0 && !((room.id === 'garage' || room.id === 'home') && this.canHide())) { this.hud.toast(room.id === 'garage' || room.id === 'home' ? bi('The police are too close to hide!', '경찰이 너무 가까워서 숨을 수 없어요!') : bi('The door is locked - the police are watching!', '문이 잠겨 있어요 - 경찰이 지켜보고 있어요!'), 2400); return; }
+    if (this.stars > 0 && !((room.id === 'garage' || room.id === 'home') && this.hideouts.canHide())) { this.hud.toast(room.id === 'garage' || room.id === 'home' ? bi('The police are too close to hide!', '경찰이 너무 가까워서 숨을 수 없어요!') : bi('The door is locked - the police are watching!', '문이 잠겨 있어요 - 경찰이 지켜보고 있어요!'), 2400); return; }
     const pl = this.humans.player;
     this.ret = { x: pl.x, z: pl.z, h: pl.heading };
     this.progress.add('shops');
     this.fadeThen(() => {
       this.inside = room;
-      if (room.id === 'garage') this.parkCarInBay(room);
+      if (room.id === 'garage') this.hideouts.parkCarInBay(room);
       this.humans.setPlayerActive(true, room.exit.x, room.exit.z - 2.2, Math.PI);
       this.cameraRig.ignore = null;
       this.syncFoot();
@@ -609,60 +623,13 @@ export class Game {
   private leaveBuilding(): void {
     this.fadeThen(() => {
       const r = this.ret;
-      if (this.inside?.id === 'garage') this.returnCarToStreet();
+      if (this.inside?.id === 'garage') this.hideouts.returnCarToStreet();
       this.inside = null;
       document.body.classList.remove('can-rob');
       this.humans.setPlayerActive(true, r.x, r.z, r.h);
       this.syncFoot();
       this.cameraRig.snap();
     });
-  }
-
-  /** The turntable sits in front of the entrance, between you and the counter. */
-  private bayCircle: { x: number; z: number; r: number } | null = null;
-  /** Where the car in the garage bay stood outside, so it goes back there when you leave. */
-  private garageHome: { x: number; z: number; h: number } | null = null;
-  private bayCar(): GameVehicle | null {
-    return this.driving && this.garageTemp ? this.driving : this.garageVehicle;
-  }
-  /** The garage shows your car on the turntable: the one you drove up in, or your nearest own car. */
-  private parkCarInBay(room: Room): void {
-    let v = this.garageVehicle && !this.garageVehicle.ctrl.wrecked ? this.garageVehicle : null;
-    if (!v) {
-      let bd = 80;
-      for (const q of this.vehicles) { if (!q.owned || q.ctrl.wrecked) continue; const k = Math.hypot(q.x - this.ret.x, q.z - this.ret.z); if (k < bd) { bd = k; v = q; } }
-    }
-    if (!v) { this.garageHome = null; return; }
-    this.garageVehicle = v;
-    this.garageHome = { x: v.x, z: v.z, h: v.ctrl.heading };
-    v.ctrl.display = true;
-    v.ctrl.reset(room.ox + BAY_X, room.oz + BAY_Z, 2.6);
-    this.bayCircle = { x: room.ox + BAY_X, z: room.oz + BAY_Z, r: 2.1 };
-    this.world.circles.push(this.bayCircle);
-    v.ctrl.vx = v.ctrl.vz = 0;
-    v.ctrl.update(0.001, v.control, null);
-  }
-  private returnCarToStreet(): void {
-    const v = this.bayCar();
-    const h = this.garageHome;
-    if (v) v.ctrl.display = false;
-    if (v && h) { v.ctrl.reset(h.x, h.z, h.h); v.ctrl.vx = v.ctrl.vz = 0; v.ctrl.update(0.001, v.control, null); }
-    this.garageVehicle = v;
-    this.garageHome = null;
-    if (this.bayCircle) { const i = this.world.circles.indexOf(this.bayCircle); if (i >= 0) this.world.circles.splice(i, 1); this.bayCircle = null; }
-  }
-  /** A slow turn on the turntable; whatever the menu changes (car, paint, neon, parts) shows on the car right away. */
-  private spinBayCar(dt: number): void {
-    const v = this.bayCar();
-    const room = this.inside;
-    if (!v || !room || room.id !== 'garage' || !this.garageHome) return;
-    const c = v.ctrl;
-    c.display = true; // a swapped-in car joins the turntable
-    if (Math.hypot(v.x - (room.ox + BAY_X), v.z - (room.oz + BAY_Z)) > 3) { c.reset(room.ox + BAY_X, room.oz + BAY_Z, c.heading); } // a swapped-in car appears on the turntable too
-    c.vx = c.vz = 0;
-    c.heading += dt * 0.5;
-    v.control.throttle = 0; v.control.steer = 0; v.control.handbrake = true;
-    c.update(0.001, v.control, null);
   }
 
   /** Inside a shop only you move: the street is frozen far away. */
@@ -685,17 +652,17 @@ export class Game {
       playerCarX: pl.x, playerCarZ: pl.z, playerCarSpeed: 0, policeCars: [], time: this.time,
     });
     this.syncFoot();
-    this.spinBayCar(dt);
+    this.hideouts.spin(dt);
     this.popups.update(dt);
     this.slash.update(dt);
     this.guns.tick(dt);
     this.interiors.update(dt);
-    if ((room.id === 'garage' || room.id === 'home') && this.stars > 0) this.hideDecay(dt);
+    if ((room.id === 'garage' || room.id === 'home') && this.stars > 0) this.hideouts.hideDecay(dt);
     if (room.id === 'bank') this.shops.updateHeist(dt, room);
     if (playing && (input.wasPressed('KeyF') || input.wasPressed('KeyE'))) {
       if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) this.leaveBuilding();
       else if (room.id === 'bank' && this.shops.vaultNear(room)) this.shops.startHeist();
-      else if (room.id === 'home' && this.shops.wardrobeNear(room)) this.wardrobe();
+      else if (room.id === 'home' && this.shops.wardrobeNear(room)) this.hideouts.wardrobe();
       else if (this.shops.deskNear(room)) this.shops.deskAction(room);
       else if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shops.action(room);
     }
@@ -859,7 +826,7 @@ export class Game {
       this.audio.thump();
     }
   }
-  private lastDriven: GameVehicle | null = null;
+  lastDriven: GameVehicle | null = null;
 
   private nearestGarage(x: number, z: number): { x: number; z: number } {
     let best = this.world.garages[0], bd = Infinity;
@@ -1043,11 +1010,7 @@ export class Game {
     if (this.state !== 'garage') return;
     this.hud.closeGarage();
     document.getElementById('garage')?.classList.remove('in-garage');
-    if (this.garageTemp) {
-      const v = this.driving;
-      this.driving = null; this.garageTemp = false;
-      if (v) { v.ai = 'parked'; this.lastDriven = v; this.garageVehicle = v; }
-    }
+    this.hideouts.menuClosed();
     this.state = 'play';
     this.garageLock = true;
     this.flushSave();
@@ -1085,9 +1048,9 @@ export class Game {
         const lo = this.climber.option();
         const door = this.onFoot && !this.climb ? this.interiors.roomAt(this.humans.player.x, this.humans.player.z, 2.6) : null;
         const mach = this.onFoot && !lo && !door ? this.machines.nearest(this.humans.player.x, this.humans.player.z) : null;
-        const home = this.onFoot && !lo && !door && !mach && !this.humans.player.roof ? this.homeNear() : -1;
+        const home = this.onFoot && !lo && !door && !mach && !this.humans.player.roof ? this.hideouts.homeNear() : -1;
         const stop = this.onFoot && !lo && !door && !mach && home < 0 && !this.humans.player.roof ? this.transit.near() : -1;
-        if (home >= 0) { if (this.ownsHome(home)) this.enterBuilding(this.interiors.rooms.find((r) => r.id === 'home')!); else this.buyHome(home); }
+        if (home >= 0) { if (this.hideouts.ownsHome(home)) this.enterBuilding(this.interiors.rooms.find((r) => r.id === 'home')!); else this.hideouts.buyHome(home); }
         else if (stop >= 0) this.transit.ride(stop);
         else if (this.onFoot && !lo && !door && !mach && !this.humans.player.roof && (this.fishing.active || this.fishing.atWater()) && this.fishing.press()) { /* fishing */ }
         else if (lo) this.climber.start(lo);
@@ -1718,21 +1681,6 @@ export class Game {
   }
 
   /** Once a day: a login bonus that grows with the streak of days in a row (up to a week). Returns the amount, or 0 if already claimed today. */
-  /** At home the wardrobe changes your clothes for free; with the police after you it also throws them off the scent (a third of the heat). */
-  wardrobe(): void {
-    this.save.outfit = ((this.save.outfit ?? 0) + 1) % Game.OUTFITS.length;
-    this.applyOutfit(this.save.outfit);
-    const pl = this.humans.player;
-    if (this.stars > 0) {
-      this.heat *= 0.67;
-      let s = 0;
-      for (let i = 0; i < STAR_HEAT.length; i++) if (this.heat >= STAR_HEAT[i]) s = i + 1;
-      if (s < this.stars) { this.stars = s; this.hud.setWanted(s); if (s === 0) this.clearWanted(); }
-      this.popups.spawn(pl.x, 3, pl.z, bi('New disguise!', '변장 완료!'), '#b084ff');
-    } else this.popups.spawn(pl.x, 3, pl.z, bi('New look!', '새 옷!'), '#b084ff');
-    this.flushSave();
-  }
-
   claimLogin(now = new Date()): number {
     const today = todayKey(now);
     const prev = this.save.login;
@@ -1747,28 +1695,6 @@ export class Game {
     return bonus;
   }
 
-  static readonly HOME_PRICE = 20000;
-  ownsHome(i: number): boolean { return (this.save.homes ?? []).includes(i); }
-  private refreshHomeDoors(): void {
-    const room = this.interiors.rooms.find((r) => r.id === 'home');
-    if (room) room.doors = this.world.homes.filter((_, i) => this.ownsHome(i)).map((h) => h.door!);
-  }
-  /** Index of the house whose front door you are standing at (-1 = none). */
-  homeNear(): number {
-    const p = this.humans.player;
-    for (let i = 0; i < this.world.homes.length; i++) if (Math.hypot(this.world.homes[i].x - p.x, this.world.homes[i].z - p.z) < 2.6) return i;
-    return -1;
-  }
-  buyHome(i: number): void {
-    if (this.ownsHome(i)) return;
-    if (!this.pay(Game.HOME_PRICE)) return;
-    (this.save.homes ??= []).push(i);
-    this.refreshHomeDoors();
-    this.progress.add('shops');
-    this.flushSave();
-    this.hud.toast(bi('You bought a house! A bed to rest and a place to hide.', '집을 샀어요! 쉴 수 있고 숨을 수도 있어요.'), 3200);
-  }
-
   /** Fade out and arrive somewhere else on foot (the bus line uses this). */
   travelTo(x: number, z: number, heading: number, label: string): void {
     if (this.fading || this.state !== 'play') return;
@@ -1778,65 +1704,6 @@ export class Game {
       this.cameraRig.snap();
       this.hud.toast(label, 1600);
     });
-  }
-
-  /** True when no police car or cop is close enough to see you slip into a garage. */
-  canHide(): boolean {
-    for (const v of this.policeVehicles()) if (Math.hypot(v.x - this.focusX, v.z - this.focusZ) < 28) return false;
-    const p = this.humans.player;
-    for (const h of this.humans.list) if (h.active && h.role === Role.Cop && !h.leaving && Math.hypot(h.x - p.x, h.z - p.z) < 14) return false;
-    return true;
-  }
-
-  /** The car that the garage counter works on: the one you came in with, or your own car parked nearby. */
-  garageVehicle: GameVehicle | null = null;
-  private garageTemp = false;
-
-  /** Drive up to a garage: the car stops outside, you step out and the shutter opens. */
-  private parkInGarage(): void {
-    const room = this.interiors.rooms.find((r) => r.id === 'garage');
-    const d = this.driving;
-    if (!room || !d || this.fading) return;
-    if (this.stars > 0 && !this.canHide()) { this.hud.toast(bi('The police are too close to hide!', '경찰이 너무 가까워서 숨을 수 없어요!'), 2200); this.garageLock = true; return; }
-    d.ctrl.vx = d.ctrl.vz = 0;
-    d.ai = 'parked';
-    this.lastDriven = d;
-    this.garageVehicle = d;
-    this.driving = null;
-    this.onFoot = true;
-    let door = room.doors![0], bd = Infinity;
-    for (const dr of room.doors!) { const k = Math.hypot(dr.x - d.x, dr.z - d.z); if (k < bd) { bd = k; door = dr; } }
-    this.humans.setPlayerActive(true, door.x, door.z, door.h);
-    this.enterBuilding(room);
-  }
-
-  /** The garage counter: repair, paint and vehicle menus for the car outside. */
-  openGarageCounter(): void {
-    const room = this.inside;
-    let v = this.garageVehicle && !this.garageVehicle.ctrl.wrecked ? this.garageVehicle : null;
-    if (!v) {
-      let bd = 80;
-      for (const q of this.vehicles) { if (!q.owned || q.ctrl.wrecked) continue; const k = Math.hypot(q.x - this.ret.x, q.z - this.ret.z); if (k < bd) { bd = k; v = q; } }
-    }
-    if (!v || !room) { this.hud.toast(bi('Bring your car to the garage', '차를 차고 앞에 세워 주세요'), 2200); return; }
-    this.garageVehicle = v;
-    this.driving = v;
-    this.garageTemp = true;
-    this.openGarage('garage');
-  }
-
-  /** While hiding in a garage the heat drains away quickly. */
-  private hideDecay(dt: number): void {
-    this.crimeT += dt;
-    if (this.crimeT < 3 || this.heat <= this.minHeat) return;
-    this.heat = Math.max(this.minHeat, this.heat - 30 * dt);
-    let s = 0;
-    for (let i = 0; i < STAR_HEAT.length; i++) if (this.heat >= STAR_HEAT[i]) s = i + 1;
-    if (s < this.stars) {
-      this.stars = s;
-      this.hud.setWanted(s);
-      if (s === 0) { this.hud.toast(t('ui.toast.lost')); this.clearWanted(); this.progress.add('hides'); }
-    }
   }
 
   private updateGarageZones(): void {
@@ -1850,7 +1717,7 @@ export class Game {
     if (!near) { this.garageLock = false; return; }
     if (this.garageLock || d.ctrl.speed > 14) return;
     if (this.gigs.onGarageArrival()) { this.garageLock = true; return; }
-    this.parkInGarage();
+    this.hideouts.parkInGarage();
   }
 
   private updateStateMachine(dt: number): void {
@@ -1925,10 +1792,10 @@ export class Game {
       else if (door && !this.humans.player.roof) this.hud.setPrompt(`${bi('[F] Enter', '[F] 들어가기')} ${bi(door.en, door.ko)}`);
       else {
         const mach = this.machines.nearest(this.humans.player.x, this.humans.player.z);
-        const hm = mach ? -1 : this.homeNear();
+        const hm = mach ? -1 : this.hideouts.homeNear();
         const bs = mach || hm >= 0 ? -1 : this.transit.near();
         const fp = mach || hm >= 0 || bs >= 0 ? null : this.fishing.prompt();
-        this.hud.setPrompt(mach ? this.machines.prompt(mach) : bs >= 0 ? this.transit.prompt(bs) : fp ? fp : hm >= 0 ? (this.ownsHome(hm) ? bi('[F] Go home', '[F] 집에 들어가기') : `${bi('[F] Buy this house', '[F] 이 집 사기')} - $${Game.HOME_PRICE.toLocaleString('en-US')}`) : this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
+        this.hud.setPrompt(mach ? this.machines.prompt(mach) : bs >= 0 ? this.transit.prompt(bs) : fp ? fp : hm >= 0 ? (this.hideouts.ownsHome(hm) ? bi('[F] Go home', '[F] 집에 들어가기') : `${bi('[F] Buy this house', '[F] 이 집 사기')} - $${Hideouts.HOME_PRICE.toLocaleString('en-US')}`) : this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
       }
     }
     else if (this.driving && this.driving.ctrl.speed < 2.5 && this.stars === 0) this.hud.setPrompt(t('ui.hint.exit_car'));
@@ -1970,7 +1837,7 @@ export class Game {
     this.blipCount = 0;
     for (const g of this.world.garages) this.pushBlip(g.x, g.z, '#3dff8a', false, 5);
     for (const st of this.transit.stops) this.pushBlip(st.x, st.z, '#6bd1ff', false, 3.5);
-    this.world.homes.forEach((h, i) => this.pushBlip(h.x, h.z, this.ownsHome(i) ? '#ffd23a' : '#6bd1ff', false, 4.5));
+    this.world.homes.forEach((h, i) => this.pushBlip(h.x, h.z, this.hideouts.ownsHome(i) ? '#ffd23a' : '#6bd1ff', false, 4.5));
     this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
     if (this.hunter) this.pushBlip(this.hunter.x, this.hunter.z, '#ff9a3d', true, 5);

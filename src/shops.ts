@@ -144,7 +144,7 @@ export class Shops {
         break;
       }
       case 'gun': this.G.openGarage('arms'); break;
-      case 'garage': this.G.openGarageCounter(); break;
+      case 'garage': this.G.hideouts.openCounter(); break;
       case 'home': {
         pl.hp = pl.maxHp;
         this.G.flushSave();

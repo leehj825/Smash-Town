@@ -90,7 +90,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       v.ctrl.reset(gar.x, gar.z, 0); G.humans.setPlayerActive(false, 0, 0, 0);
       v.ai = 'player'; G.driving = v; G.onFoot = false; G.state = 'play'; G.inside = null;
       G.stars = 3; G.heat = 170; G.crimeT = 0;
-      G.parkInGarage();
+      G.hideouts.parkInGarage();
       return { doorOk: !!gar.door };
     });
     await p.waitForFunction(() => window.__smash.game.inside, null, { timeout: 30000 });
@@ -104,7 +104,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     ok(hide.doorOk && hide.inside && hide.startStars === 3 && hide.stars === 0, 'a garage building lets you slip in and lie low until the wanted level is gone', JSON.stringify(hide));
     const counter = await S(() => {
       const G = g();
-      G.openGarageCounter();
+      G.hideouts.openCounter();
       const open = G.state === 'garage' && !!G.driving;
       G.closeGarage();
       return { open, drivingAfter: !!G.driving, state: G.state };
@@ -113,19 +113,19 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     const bay = await S(() => {
       const G = g();
       const room = G.inside;
-      const v0 = G.garageVehicle;
+      const v0 = G.hideouts.garageVehicle;
       const inBay = !!v0 && v0.x > 3000;
-      G.openGarageCounter();
+      G.hideouts.openCounter();
       G.selectVehicle('sedan');
       G.update(0.05);
       const swapped = G.driving.kind === 'sedan' && G.driving.x > 3000;
       G.closeGarage();
-      return { inBay, swapped, kind: G.garageVehicle.kind, home: !!G.garageHome };
+      return { inBay, swapped, kind: G.hideouts.garageVehicle.kind, home: !!G.hideouts.garageHome };
     });
     ok(bay.inBay && bay.swapped && bay.kind === 'sedan', 'your car stands in the garage and changes when the menu swaps it', JSON.stringify(bay));
     await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.exit.x; pl.z = r.exit.z; G.leaveBuilding(); });
     await p.waitForFunction(() => !window.__smash.game.inside, null, { timeout: 30000 });
-    const back = await S(() => { const G = g(); const v = G.garageVehicle; return { x: Math.round(v.x), far: v.x > 3000 }; });
+    const back = await S(() => { const G = g(); const v = G.hideouts.garageVehicle; return { x: Math.round(v.x), far: v.x > 3000 }; });
     ok(!back.far, 'the car goes back out on the street when you leave', JSON.stringify(back));
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
