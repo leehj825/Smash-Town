@@ -607,12 +607,8 @@ export class Humans {
       if (!t.active || t.role === Role.Player || t.state === St.Down || t.state === St.Dead) continue;
       if (Math.abs(t.x - cx) > r + 0.7 || Math.abs(t.z - cz) > r + 0.7) continue;
       if (Math.hypot(t.x - cx, t.z - cz) > r + 0.45) continue;
+      if (this.gentle) continue; // Kids Play: cars never touch people
       t.attack = null;
-      if (this.gentle) { // a car only bumps them: they run off
-        t.vx = vx * 0.2; t.vz = vz * 0.2; t.flash = 0.14; t.fleeing = true;
-        if (t.role === Role.Cop) { t.leaving = true; t.leaveT = 6; t.hostile = false; }
-        return t;
-      }
       const fast = Math.hypot(vx, vz) > 9;
       let killed = (t.role === Role.Cop || t.role === Role.Civ) && (t.hp -= fast || t.role === Role.Cop ? 40 : 12) <= 0;
       if (this.kids && killed) { t.hp = 1; killed = false; if (t.role === Role.Cop) t.ko = true; else this.hooks.onCivDown?.(t, null); }

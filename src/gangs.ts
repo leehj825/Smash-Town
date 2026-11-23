@@ -87,6 +87,7 @@ export class Gangs {
   get ownedCount(): number { return this.zones.filter((z) => z.owner === 'player').length; }
 
   markers(): { x: number; z: number; color: string; flash: boolean }[] {
+    if (this.game.mode === 'kids') return [];
     const now = performance.now() / 1000;
     return this.zones.map((z, i) => ({ x: z.x, z: z.z, color: z.owner === 'player' ? '#ffd23a' : z.css, flash: (z.owner === 'gang' && z.members.some((m) => m.hostile)) || (this.revealUntil[i] ?? 0) > now }));
   }
@@ -133,6 +134,7 @@ export class Gangs {
   }
 
   update(dt: number): void {
+    if (this.game.mode === 'kids') { for (const z of this.zones) z.ring.visible = false; return; } // no gangs in Kids Play
     const G = this.game;
     if (G.state !== 'play' || G.inside) return;
     const px = G.focusX, pz = G.focusZ;

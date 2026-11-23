@@ -46,6 +46,7 @@ export class Thieves {
 
   update(dt: number): void {
     const G = this.game;
+    if (G.mode === 'kids') return;
     if (G.state !== 'play') return;
     if (!this.thief) {
       if (G.inside || G.stars > 0) return;

@@ -8,7 +8,8 @@ const KIDS_CARS: VehicleKind[] = PLAYER_ROSTER;
 /**
  * Kids Play, a mode of its own (like the sandbox): everything is gentle.
  *  - Fists only: no guns, no bat, no baton, and no gun shop to buy them in.
- *  - Nobody is knocked down or hurt. A person you hit runs away instead; so do cops and gangsters. The police are still after you when you
+ *  - No pedestrians, no gangs, no thieves or riots: the streets are for driving, and cars never touch people. Cops are the only people you can
+ *    meet when you get a wanted level. Nobody is knocked down or hurt: a cop you hit runs away instead. The police are still after you when you
  *    are wanted: the ones who run off are replaced by others, so the chase goes on.
  *  - Getting away is easy: get a short way off and they lose you in a few seconds (see updateWanted in game.ts).
  *  - Your car cannot be wrecked and you cannot be hurt, and U (or the CAR button, or the phone) swaps your car for the next one on the spot.

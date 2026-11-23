@@ -183,6 +183,14 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       cop.x = H.player.x + 1.5; cop.z = H.player.z; cop.hp = 30; cop.state = 0;
       H.gunHit(H.player, cop, 999, 1, 0, true);
       out.cop = { leaving: cop.leaving, hp: cop.hp === 30, noDown: H.copsDefeated === downs };
+      // no pedestrians, no gangs, and a car goes through people without a touch
+      G.update(0.05);
+      out.empty = H.civLimit === 0;
+      const some = H.list.find((h) => h.active && h.role === 0 && !h.named && !h.ally);
+      some.x = H.player.x + 8; some.z = H.player.z; some.state = 0;
+      out.noRunOver = H.hitByVehicle(some.x, some.z, 2, 12, 0) === null && some.state === 0;
+      const gz = G.gangs.zones[0]; H.setPlayerActive(true, gz.x + 40, gz.z, 0); G.gangs.update(0.1);
+      out.noGangs = gz.members.length === 0 && G.gangs.markers().length === 0;
       // the player cannot be hurt
       H.player.hp = H.player.maxHp; const hurt = H.gunHit(cop, H.player, 50, 1, 0, true);
       out.safe = hurt === false && H.player.hp === H.player.maxHp;
@@ -201,7 +209,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       out.escape = G.stars === 0;
       return out;
     });
-    ok(r.civ.hit && r.civ.up && r.civ.hp && r.civ.fled && !r.civ.dead && r.cop.leaving && r.cop.hp && r.cop.noDown && r.safe && r.swap.changed && r.swap.near && r.swap.gone && r.swap.driving && r.tough && r.escape, 'Kids Play: hits make people and cops run, you cannot be hurt, U swaps the car, and the police lose you quickly', JSON.stringify(r));
+    ok(r.civ.hit && r.civ.up && r.civ.hp && r.civ.fled && !r.civ.dead && r.cop.leaving && r.cop.hp && r.cop.noDown && r.empty && r.noRunOver && r.noGangs && r.safe && r.swap.changed && r.swap.near && r.swap.gone && r.swap.driving && r.tough && r.escape, 'Kids Play: no pedestrians or gangs, cars never touch people, hits make cops run, you cannot be hurt, U swaps the car, and the police lose you quickly', JSON.stringify(r));
     await ctx.close();
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));

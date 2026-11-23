@@ -1124,7 +1124,8 @@ export class Game {
       for (const v of this.vehicles) if (v.isBike) v.setRider(v === this.driving && !this.onFoot, look.pants, look.shirt, look.skin);
     }
     // night and rain empty the streets: fewer people out walking
-    this.humans.civLimit = Math.min(46, Math.max(8, Math.round(45 * (this.clock.rush ? 1.25 : 1) * (1 - 0.65 * this.env.night - (this.humans.raining ? 0.2 : 0)))));
+    // Kids Play has no pedestrians at all: the streets are for driving
+    this.humans.civLimit = this.mode === 'kids' ? 0 : Math.min(46, Math.max(8, Math.round(45 * (this.clock.rush ? 1.25 : 1) * (1 - 0.65 * this.env.night - (this.humans.raining ? 0.2 : 0)))));
     this.medics.update(dt);
     this.race.drive(dt);
     this.lights.update(dt);

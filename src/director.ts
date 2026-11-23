@@ -49,6 +49,7 @@ export class Director {
 
   update(dt: number): void {
     const G = this.game;
+    if (G.mode === 'kids') return;
     if (!G.clock.auto) return;
     this.cooldown = Math.max(0, this.cooldown - dt);
     if (this.busy()) { this.quiet = 0; return; }

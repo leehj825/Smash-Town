@@ -56,6 +56,7 @@ export class Riots {
 
   update(dt: number): void {
     const G = this.game;
+    if (G.mode === 'kids') return;
     if (G.state !== 'play') return;
     const c = this.current;
     if (!c) {
