@@ -23,6 +23,12 @@ export class AudioEngine {
   private sirenGain!: GainNode;
   private rainGain!: GainNode;
   private cityGain!: GainNode;
+  private waveGain!: GainNode;
+  private ambArea = 'downtown';
+  private ambNight = 0;
+  private ambInside = false;
+  private birdT = 2;
+  private hornT = 30;
   private t = 0;
   enabled = true;
   volume = 0.8;
@@ -87,6 +93,13 @@ export class AudioEngine {
     city.start();
     rain.start();
 
+    // the sea: noise through a low-pass, swelling and fading like waves (harbour and beach only)
+    const wave = ctx.createBufferSource(); wave.buffer = this.noiseBuf; wave.loop = true;
+    const wf = ctx.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 520;
+    this.waveGain = ctx.createGain(); this.waveGain.gain.value = 0;
+    wave.connect(wf); wf.connect(this.waveGain); this.waveGain.connect(this.master);
+    wave.start();
+
     // siren
     this.sirenOsc = ctx.createOscillator(); this.sirenOsc.type = 'square';
     const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800;
@@ -119,6 +132,7 @@ export class AudioEngine {
     this.scrGain.gain.setTargetAtTime(s.inCar ? Math.min(0.2, s.slip * 0.22) : 0, now, 0.05);
     this.scrFilter.frequency.setTargetAtTime(1400 + s.slip * 900, now, 0.1);
 
+    this.ambience(dt, now);
     if (s.sirenDist !== null) {
       const wail = 0.5 + 0.5 * Math.sin(this.t * 3.2);
       this.sirenOsc.frequency.setTargetAtTime(650 + wail * 520, now, 0.02);
@@ -180,6 +194,53 @@ export class AudioEngine {
   tink(): void { this.burst(0.03, 6800, 0.1); }
   click(): void { this.burst(0.03, 5200, 0.25); }
   reload(): void { this.burst(0.05, 4000, 0.25); window.setTimeout(() => this.burst(0.05, 3000, 0.3), 280); }
+  /** Which part of town you are in, how dark it is, and whether you are indoors: the ambience follows (waves, birds, crickets, a ship's horn). */
+  setAmbience(area: string, night: number, inside: boolean): void {
+    this.ambArea = area; this.ambNight = night; this.ambInside = inside;
+  }
+
+  private chirp(base: number, dur: number, gain: number): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(base, ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(base * 1.4, ctx.currentTime + dur * 0.5);
+    o.frequency.exponentialRampToValueAtTime(base * 0.9, ctx.currentTime + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(gain, ctx.currentTime + dur * 0.2);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+    o.connect(g); g.connect(this.master);
+    o.start(); o.stop(ctx.currentTime + dur + 0.05);
+  }
+
+  private ambience(dt: number, now: number): void {
+    const a = this.ambArea, out = !this.ambInside;
+    const sea = out ? (a === 'beach' ? 0.14 : a === 'harbor' ? 0.1 : 0) : 0;
+    this.waveGain.gain.setTargetAtTime(sea * (0.65 + 0.35 * Math.sin(this.t * 0.6)), now, 0.4);
+    const green = out && (a === 'park' || a === 'suburb' || a === 'beach');
+    if (green && this.ambNight < 0.4) {
+      this.birdT -= dt;
+      if (this.birdT <= 0) { this.birdT = 1.2 + Math.random() * 4; const f = 2300 + Math.random() * 1400; this.chirp(f, 0.14, 0.04); if (Math.random() < 0.5) window.setTimeout(() => this.chirp(f * 1.1, 0.1, 0.035), 170); }
+    } else if (green && this.ambNight > 0.5) {
+      this.birdT -= dt;
+      if (this.birdT <= 0) { this.birdT = 0.22; this.chirp(4300, 0.05, 0.018); }   // crickets
+    }
+    if (out && a === 'harbor') {
+      this.hornT -= dt;
+      if (this.hornT <= 0) {
+        this.hornT = 30 + Math.random() * 40;
+        const ctx = this.ctx!;
+        const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 110;
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.06, ctx.currentTime + 0.25); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.5);
+        o.connect(lp); lp.connect(g); g.connect(this.master);
+        o.start(); o.stop(ctx.currentTime + 1.6);
+      }
+    }
+  }
+
   /** Background city hum 0..1 (traffic and crowds near you). */
   setCity(level: number): void {
     if (this.ctx) this.cityGain.gain.setTargetAtTime(level * 0.09, this.ctx.currentTime, 0.8);

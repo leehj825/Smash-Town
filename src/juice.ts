@@ -26,8 +26,13 @@ export class Juice {
     el.classList.add('go');
   }
 
+  private areaT = 0;
+
   update(): void {
     const G = this.game;
+    // the ambience follows the district you stand in (looked up twice a second, not every frame)
+    this.areaT -= 1 / 60;
+    if (this.areaT <= 0) { this.areaT = 0.5; G.audio.setAmbience(G.reputation.area(G.focusX, G.focusZ), G.env.night, !!G.inside); }
     const hp = G.humans.player.hp;
     if (this.lastHp >= 0 && hp < this.lastHp - 3 && G.state === 'play') this.restart(this.hurt);
     this.lastHp = hp;

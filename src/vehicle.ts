@@ -287,6 +287,14 @@ function buildGeometry(kind: VehicleKind, color: number, bakeWheels: boolean): B
   const cabinTop = top + s.cabinH;
   b.box(s.w * 0.86, s.cabinH, s.cabinLen, 0, top + s.cabinH / 2, s.cabinZ, cabinCol, taperTweak(s.taper));
   b.box(s.w * 0.86 * s.taper * 0.9, 0.05, s.cabinLen * s.taper * 0.9, 0, cabinTop + 0.02, s.cabinZ, body);
+  // small details that make a car read as a car close up: wing mirrors, door seams, a grille and number plates
+  for (const sx of [-1, 1]) {
+    b.box(0.1, 0.09, 0.2, sx * (s.w * 0.43 + 0.1), top + 0.2, s.cabinZ + s.cabinLen * 0.4, body);
+    b.box(0.02, s.bodyH * 0.72, 0.03, sx * (s.w / 2 + 0.012), s.clr + s.bodyH * 0.5, s.cabinZ + s.cabinLen * 0.18, 0x15151a);
+    b.box(0.02, s.bodyH * 0.72, 0.03, sx * (s.w / 2 + 0.012), s.clr + s.bodyH * 0.5, s.cabinZ - s.cabinLen * 0.2, 0x15151a);
+  }
+  b.box(s.w * 0.5, 0.16, 0.04, 0, s.clr + 0.3, s.len / 2 + 0.01, DARK);
+  b.box(0.5, 0.13, 0.03, 0, s.clr + 0.22, -s.len / 2 - 0.02, 0xf2f2f2);
   if (s.police) {
     // white door panels
     b.box(s.w + 0.03, s.bodyH * 0.5, s.cabinLen + 0.8, 0, s.clr + s.bodyH * 0.52, s.cabinZ, 0xffffff);

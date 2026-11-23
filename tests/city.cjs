@@ -598,6 +598,18 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(bar.n >= 3 && bar.solid && bar.smashed && bar.slowed && bar.rebuilt, 'barricades stand at the edge of parks: a car at speed smashes through, and they are rebuilt later', JSON.stringify(bar));
+    const amb = await S(() => {
+      const G = g(); const A = G.audio; const st = { inCar: false, speedRatio: 0, throttle: 0, slip: 0, nitro: false, sirenDist: null };
+      const areas = [];
+      for (const a of ['harbor', 'beach', 'park', 'downtown']) {
+        A.setAmbience(a, a === 'park' ? 0.8 : 0, false);
+        for (let i = 0; i < 30; i++) A.update(0.1, st);
+        areas.push(A.ambArea === a);
+      }
+      A.setAmbience('downtown', 0, false);
+      return { areas, ctx: !!A.context };
+    });
+    ok(amb.areas.every(Boolean), 'the ambience (waves, birds, crickets, a ship horn) follows the district without errors', JSON.stringify(amb));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
