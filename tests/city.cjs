@@ -292,6 +292,44 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { oldCash: old.cash, oldV: old.v, rush, paced, night, noon, sunset, text: C.text() };
     });
     ok(clk.oldCash === 777 && clk.oldV === 2 && clk.rush && clk.paced && clk.night && clk.noon && clk.sunset, 'an old save loads into the current version, and the game clock drives the sky and the crowd', JSON.stringify(clk));
+    const comp = await S(() => {
+      const G = g(); const C = G.completion;
+      G.inside = null; G.state = 'play'; G.save.milestone = 0; G.cash = 0; G.skills.off = true;
+      const before = C.percent();
+      for (const z of G.gangs.zones) z.owner = 'player';
+      const after = C.percent();
+      G.save.milestone = 0; C.t = 0; C.update(0.1);
+      const paid = G.cash; const ms = G.save.milestone;
+      C.t = 0; C.update(0.1); const again = G.cash - paid;
+      for (const z of G.gangs.zones) z.owner = 'gang';
+      G.skills.off = false;
+      return { before, after, paid, ms, again, goals: C.goals().length, html: (() => { G.stats && 0; return true; })() };
+    });
+    ok(comp.after >= comp.before + 20 && comp.goals >= 8 && comp.paid >= 1000 && comp.ms >= 25 && comp.again === 0, 'city completion counts what you did, and pays each milestone once', JSON.stringify(comp));
+    const riot = await S(() => {
+      const G = g(); const R = G.riots; const P = G.patrol;
+      G.stars = 0; G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.save.rep = {}; G.fires.list.length = 0;
+      for (const j of [G.paramedic, G.firefighter, G.patrol]) if (j.onDuty) j.end('x', 0);
+      // unattended: fires start and it burns out
+      R.current = null; R.start(G.focusX + 100, G.focusZ);
+      const heard = G.bus.recent.some((e) => e.type === 'riot');
+      for (let i = 0; i < 105; i++) R.update(1);
+      const fires = G.fires.list.length; const ended = !R.current; const mafiaUp = G.factions.get('mafia') > 0;
+      // a patrol calms it
+      G.fires.list.length = 0;
+      P.update(0.05); P.cooldown = 0;
+      const sp = P.spot; G.humans.setPlayerActive(true, sp.x, sp.z, 0); P.update(0.05);
+      R.start(G.driving.x + 60, G.driving.z);
+      const called = P.calls.some((c) => c.why.length > 0 && Math.hypot(c.x - R.current.x, c.z - R.current.z) < 5);
+      const c = P.calls.find((q) => Math.hypot(q.x - R.current.x, q.z - R.current.z) < 5) || P.calls[0];
+      for (let i = 0; i < 12 && R.current; i++) { G.driving.ctrl.position.x = c.x; G.driving.ctrl.position.z = c.z; G.driving.ctrl.vx = G.driving.ctrl.vz = 0; P.update(0.5); }
+      const quelled = !R.current;
+      P.end('x', 0);
+      const watch = G.factions.get('watch');
+      G.progress.stats.patrols = 0; G.news.cooldown = 0; G.fires.list.length = 0; G.save.rep = {};
+      return { heard, fires, ended, mafiaUp, called, quelled, watch };
+    });
+    ok(riot.heard && riot.fires >= 3 && riot.ended && riot.mafiaUp && riot.called && riot.quelled && riot.watch > 0, 'a riot starts fires if ignored, becomes a patrol call, and is calmed by an officer', JSON.stringify(riot));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';

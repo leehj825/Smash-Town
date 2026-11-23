@@ -55,7 +55,7 @@ export class Fires {
 
   update(dt: number): void {
     const G = this.game;
-    if (G.state === 'play' && !G.inside) {
+    if (G.state === 'play' && !G.inside && G.clock.auto) {
       this.timer -= dt * G.clock.trouble();
       if (this.timer <= 0) {
         this.timer = 480 + Math.random() * 420;

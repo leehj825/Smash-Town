@@ -28,6 +28,8 @@ export const JOBS: Record<'paramedic' | 'firefighter' | 'patrol', JobConfig> = {
       { type: 'gunshot', why: ['Shots fired!', '총소리가 들렸어요!'] },
       { type: 'theft', why: ['A thief is running - stop them!', '도둑이에요 - 잡아주세요!'] },
       { type: 'civAssaulted', why: ['A fight has broken out', '싸움이 났어요'] },
+      { type: 'riot', why: ['RIOT - calm the crowd!', '폭동 - 군중을 진정시키세요!'] },
     ],
+    onDone: (c, G) => { G.riots.quell(c.x, c.z); },
   },
 };
