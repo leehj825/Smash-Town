@@ -27,6 +27,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'fish10', en: 'Angler: catch 10 fish', ko: '낚시꾼: 물고기 10마리', key: 'fish', target: 10 },
   { id: 'turf1', en: 'Turf Boss: take over a gang block', ko: '구역의 보스: 갱단 구역 점령', key: 'turfs', target: 1 },
   { id: 'turf3', en: 'Kingpin: hold every gang block', ko: '두목: 모든 갱단 구역 점령', key: 'turfs', target: 3 },
+  { id: 'turf4', en: 'Godfather: take the Mafia block too', ko: '대부: 마피아 구역까지 점령', key: 'turfs', target: 4 },
   { id: 'rescue10', en: 'Medic: treat 10 patients', ko: '구급대원: 환자 10명 치료', key: 'rescues', target: 10 },
   { id: 'fire5', en: 'Firefighter: put out 5 fires', ko: '소방대원: 불 5번 끄기', key: 'fires', target: 5 },
   { id: 'patrol5', en: 'Officer: handle 5 patrol calls', ko: '경찰관: 순찰 출동 5번 처리', key: 'patrols', target: 5 },

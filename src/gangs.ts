@@ -13,6 +13,9 @@ interface Zone {
   /** Where the members stand: along the pavement either side of the road. */
   spots: { x: number; z: number }[];
   owner: 'gang' | 'player';
+  /** Which kind of crew: the street gangs, or the tougher Mafia. */
+  faction: 'gang' | 'mafia';
+  reward: number; income: number; hp: number;
   members: Human[];
   ring: Beacon;
   away: number;
@@ -33,12 +36,13 @@ export class Gangs {
     { name: 'The Reds', ko: '더 레즈', color: 0xd62d3a, css: '#d62d3a' },
     { name: 'The Violets', ko: '더 바이올렛츠', color: 0x8e44ad, css: '#b072d6' },
     { name: 'The Greens', ko: '더 그린즈', color: 0x2fb87a, css: '#35d68a' },
-  ];
+    { name: 'The Mafia', ko: '더 마피아', color: 0x2a2a33, css: '#c9ced9', mafia: true },
+  ] as { name: string; ko: string; color: number; css: string; mafia?: boolean }[];
 
   constructor(private game: Game) {
     const segs = game.world.segments.filter((s) => s.len >= 44 && s.hw >= 6);
     const owned = new Set(game.save.turf ?? []);
-    [0.3, 0.62, 0.95].forEach((f, i) => {
+    [0.3, 0.62, 0.95, 0.84].forEach((f, i) => {
       const s = segs[Math.min(segs.length - 1, Math.floor(segs.length * f))];
       if (!s) return;
       const g = this.gangs[i];
@@ -51,7 +55,7 @@ export class Gangs {
       const ring = new Beacon(g.color, 5);
       ring.setPosition(s.x, s.z);
       game.scene.add(ring.group);
-      this.zones.push({ name: g.name, nameKo: g.ko, color: g.color, css: g.css, x: s.x, z: s.z, spots, owner: owned.has(i) ? 'player' : 'gang', members: [], ring, away: 0 });
+      this.zones.push({ name: g.name, nameKo: g.ko, color: g.color, css: g.css, x: s.x, z: s.z, spots, owner: owned.has(i) ? 'player' : 'gang', faction: g.mafia ? 'mafia' : 'gang', reward: g.mafia ? 1500 : 500, income: g.mafia ? 300 : 120, hp: g.mafia ? 130 : 70, members: [], ring, away: 0 });
     });
     game.bus.on('gangDown', () => this.check());
   }
@@ -94,10 +98,10 @@ export class Gangs {
     z.away = 0;
     (G.save.turf ??= []);
     if (!G.save.turf.includes(i)) G.save.turf.push(i);
-    G.addCash(500, 'other');
+    G.addCash(z.reward, 'other');
     G.progress.add('turfs');
-    G.popups.spawn(z.x, 3, z.z, bi(`${z.name} turf is yours! +$500`, `${z.nameKo} 구역을 차지했어요! +$500`), '#ffd23a');
-    G.hud.toast(bi(`You took over the block from ${z.name}. It pays $120 a minute.`, `${z.nameKo}에게서 구역을 빼앗았어요. 분당 $120이 들어와요.`), 3600);
+    G.popups.spawn(z.x, 3, z.z, bi(`${z.name} turf is yours! +$${z.reward}`, `${z.nameKo} 구역을 차지했어요! +$${z.reward}`), '#ffd23a');
+    G.hud.toast(bi(`You took over the block from ${z.name}. It pays $${z.income} a minute.`, `${z.nameKo}에게서 구역을 빼앗았어요. 분당 $${z.income}이 들어와요.`), 3600);
     G.audio.cash();
     G.flushSave();
     G.bus.emit({ type: 'turfCaptured', zone: i });
@@ -110,7 +114,7 @@ export class Gangs {
     z.members = [];
     z.spots.forEach((p, k) => {
       const m = G.humans.spawnGang(p.x, p.z, z.color, k % 2 === 0);
-      if (m) z.members.push(m);
+      if (m) { m.hp = m.maxHp = z.hp; z.members.push(m); }
     });
   }
 
@@ -144,8 +148,8 @@ export class Gangs {
     }
     if (this.incomeT <= 0) {
       this.incomeT = 60;
-      const n = this.ownedCount;
-      if (n > 0) { G.addCash(120 * n, 'other'); G.hud.toast(bi(`Turf income: $${120 * n}`, `구역 수입: $${120 * n}`), 2200); }
+      const inc = Math.round(this.zones.filter((z) => z.owner === 'player').reduce((a, z) => a + z.income, 0) * G.factions.incomeMult());
+      if (inc > 0) { G.addCash(inc, 'other'); G.hud.toast(bi(`Turf income: $${inc}`, `구역 수입: $${inc}`), 2200); }
     }
   }
 }

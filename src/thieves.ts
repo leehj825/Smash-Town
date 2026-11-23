@@ -61,7 +61,7 @@ export class Thieves {
     const near = G.onFoot && !G.inside && Math.hypot(t.x - p.x, t.z - p.z) < 1.8;
     const rammed = !!G.driving && !G.onFoot && Math.hypot(t.x - G.driving.x, t.z - G.driving.z) < 3 && G.driving.ctrl.speed > 4;
     if (downed || near || rammed) {
-      const reward = 180;
+      const reward = Math.round(180 * G.factions.payMult());
       G.addCash(reward, 'other');
       G.progress.add('thieves');
       G.bus.emit({ type: 'helped', x: t.x, z: t.z, amount: 2 });

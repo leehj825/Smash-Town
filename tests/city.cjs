@@ -317,7 +317,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     const turf = await S(() => {
       const G = g(); const GA = G.gangs; const H = G.humans; const z = GA.zones[0];
       G.stars = 0; G.heat = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
-      z.owner = 'gang'; G.save.turf = [];
+      z.owner = 'gang'; G.save.turf = []; G.save.rep = {};
       H.setPlayerActive(true, z.x + 60, z.z, 0);
       GA.update(0.1);
       const crew = z.members.length;
@@ -394,6 +394,26 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     });
     ok(crews.firefighter.onDuty && crews.firefighter.calls >= 1 && crews.firefighter.shifts === 1 && crews.firefighter.stat === 5 && crews.firefighter.out, 'firefighter shift: a fire truck waits, fires become calls and are put out', JSON.stringify(crews));
     ok(crews.patrol.onDuty && crews.patrol.heat === 0 && crews.patrol.calls >= 1 && crews.patrol.shifts === 1 && crews.patrol.stat === 5, 'police patrol: a cruiser waits (no heat) and shots become calls', JSON.stringify(crews));
+    const mafia = await S(() => {
+      const G = g(); const GA = G.gangs; const H = G.humans; const F = G.factions; const z = GA.zones[3];
+      G.stars = 0; G.heat = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
+      z.owner = 'gang'; G.save.turf = []; G.save.rep = {}; z.members = [];
+      for (const m of H.gangMembers()) H.removeGang(m);
+      H.setPlayerActive(true, z.x + 60, z.z, 0);
+      GA.update(0.1);
+      const crew = z.members.length, hp = z.members[0] ? z.members[0].maxHp : 0;
+      const watch0 = F.get('watch');
+      for (const m of [...z.members]) H.gunHit(H.player, m, 9999, 1, 0, true);
+      const captured = z.owner === 'player';
+      const res = { is: z.faction === 'mafia', crew, hp, captured, bonus: G.cash, mafia: F.get('mafia'), watchUp: F.get('watch') > watch0 };
+      // a hostile Watch gives no shifts; a friendly one pays more
+      G.save.rep.watch = -50; const refuse = F.refusesShifts(); G.save.rep.watch = 50; const mult = F.payMult();
+      G.save.rep = {};
+      for (const m of H.gangMembers()) H.removeGang(m);
+      for (const zz of GA.zones) zz.members = [];
+      return { ...res, refuse, mult };
+    });
+    ok(mafia.is && mafia.crew === 5 && mafia.hp >= 120 && mafia.captured && mafia.bonus >= 1500 && mafia.mafia < 0 && mafia.watchUp && mafia.refuse && mafia.mult > 1, 'the Mafia holds a tougher block that pays more, and the City Watch and the Mafia react to what you do', JSON.stringify(mafia));
     await S(() => { const G = g(); G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.humans.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0); });
     await p.waitForTimeout(1500);
     const thief = await S(() => {

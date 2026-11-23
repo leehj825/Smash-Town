@@ -29,6 +29,7 @@ import { Gangs } from './gangs';
 import { EmergencyJob } from './emergency';
 import { Fires } from './fires';
 import { Thieves } from './thieves';
+import { Factions } from './factions';
 import { JOBS } from './jobs';
 import { Reputation } from './reputation';
 import { Npcs } from './npcs';
@@ -129,6 +130,7 @@ export class Game {
   patrol!: EmergencyJob;
   fires!: Fires;
   thieves!: Thieves;
+  factions!: Factions;
   reputation!: Reputation;
   npcs!: Npcs;
   skills!: Skills;
@@ -253,6 +255,7 @@ export class Game {
     this.gangs = new Gangs(this);
     this.fires = new Fires(this);
     this.thieves = new Thieves(this);
+    this.factions = new Factions(this);
     this.paramedic = new EmergencyJob(this, JOBS.paramedic);
     this.firefighter = new EmergencyJob(this, JOBS.firefighter);
     this.patrol = new EmergencyJob(this, JOBS.patrol);

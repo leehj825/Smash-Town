@@ -137,7 +137,10 @@ export class EmergencyJob {
       this.pad.visible = this.cooldown <= 0;
       if (this.cooldown > 0 || G.stars > 0 || G.gigs.active || G.race.active || G.taxi.active || G.delivery.active || G.jobOnDuty(this)) return;
       const px = G.driving && !G.onFoot ? G.driving.x : G.humans.player.x, pz = G.driving && !G.onFoot ? G.driving.z : G.humans.player.z;
-      if (Math.hypot(this.spot.x - px, this.spot.z - pz) < 4) this.begin();
+      if (Math.hypot(this.spot.x - px, this.spot.z - pz) < 4) {
+        if (G.factions.refusesShifts()) { this.cooldown = 20; G.hud.toast(bi('The City Watch will not give you a shift - you have hurt too many people.', '시티 워치가 근무를 주지 않아요 - 너무 많은 사람을 다치게 했어요.'), 3200); return; }
+        this.begin();
+      }
       return;
     }
     if (G.stars > 0 && this.cfg.id !== 'patrol') { this.end(bi('Shift cancelled - the police are after you', '경찰에 쫓겨서 근무가 취소됐어요'), 0); return; }
@@ -157,7 +160,7 @@ export class EmergencyJob {
       if (there) c.held += dt; else c.held = Math.max(0, c.held - dt);
       if (there && c.held >= this.cfg.hold) {
         const bonus = Math.round(Math.max(0, c.t) * 2.5);
-        const pay = this.cfg.pay + bonus;
+        const pay = Math.round((this.cfg.pay + bonus) * G.factions.payMult());
         G.addCash(pay, 'gigs');
         this.done++;
         G.progress.add(this.cfg.stat);
