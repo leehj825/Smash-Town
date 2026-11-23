@@ -194,7 +194,7 @@ applyWeather(savedW === 'clear' || savedW === 'rain' || savedW === 'fog' || save
 function applyKids(on: boolean): void {
   game.humans.kids = on;
   storedSet(KIDS_KEY, on ? '1' : '0');
-  document.getElementById('dialog')!.addEventListener('click', () => game.story.advanceDialog());
+  document.getElementById('dialog')!.addEventListener('click', () => game.advanceDialog());
 document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.classList.toggle('sel', (b.dataset.k === '1') === on));
 }
 applyKids(storedGet(KIDS_KEY) !== '0');

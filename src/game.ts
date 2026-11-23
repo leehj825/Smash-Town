@@ -27,6 +27,8 @@ import { Hideouts } from './hideouts';
 import { Police } from './police';
 import { Gangs } from './gangs';
 import { Paramedic } from './paramedic';
+import { Reputation } from './reputation';
+import { Npcs } from './npcs';
 import { Medics } from './medics';
 import { Machines } from './machines';
 import { TrafficLights } from './lights';
@@ -61,7 +63,7 @@ export function currentSlot(): number {
 }
 export const slotSaveKey = (slot: number): string => (slot === 1 ? 'smashtown.save.v1' : `smashtown.save.v1.s${slot}`);
 export const SAVE_KEY = slotSaveKey(currentSlot());
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; login?: { day: string; streak: number }; progress?: ProgressSave }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; rep?: Record<string, number>; login?: { day: string; streak: number }; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -118,6 +120,8 @@ export class Game {
   festival!: Festival;
   gangs!: Gangs;
   paramedic!: Paramedic;
+  reputation!: Reputation;
+  npcs!: Npcs;
   transit!: Transit;
   fishing!: Fishing;
   /** A storm has cut the power: windows, signs and street lamps go dark for a while. */
@@ -237,6 +241,8 @@ export class Game {
     this.festival = new Festival(this);
     this.gangs = new Gangs(this);
     this.paramedic = new Paramedic(this);
+    this.reputation = new Reputation(this);
+    this.npcs = new Npcs(this);
     this.transit = new Transit(this);
     this.fishing = new Fishing(this);
     this.lights = new TrafficLights();
@@ -309,10 +315,12 @@ export class Game {
       const outfit = Number.isInteger(s.outfit) ? Number(s.outfit) : 0;
       const bank = typeof s.bank === 'number' && s.bank > 0 ? Math.floor(s.bank) : 0;
       const homes = Array.isArray(s.homes) ? s.homes.filter((n: unknown) => Number.isInteger(n)) as number[] : [];
+      const rep: Record<string, number> = {};
+      if (s.rep && typeof s.rep === 'object') for (const [k, v] of Object.entries(s.rep)) if (typeof v === 'number') rep[k] = Math.max(-100, Math.min(100, v));
       const turf = Array.isArray(s.turf) ? s.turf.filter((n: unknown) => Number.isInteger(n)) as number[] : [];
       const raceBest = Array.isArray(s.raceBest) ? s.raceBest.map((n: unknown) => (typeof n === 'number' && n > 0 ? n : 0)) : [];
       const login = s.login && typeof s.login.day === 'string' ? { day: s.login.day, streak: Number(s.login.streak) || 1 } : undefined;
-      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, login, progress: s.progress };
+      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, rep, login, progress: s.progress };
     } catch {
       return fallback;
     }
@@ -704,6 +712,9 @@ export class Game {
     return best;
   }
 
+  /** Move a conversation on (a named person's, or the story's). */
+  advanceDialog(): void { if (this.npcs.dialogOpen) this.npcs.advance(); else this.story.advanceDialog(); }
+
   /** Put the player behind the wheel of a car right away (no walking up to it). */
   boardVehicle(v: GameVehicle): void {
     v.ai = 'player';
@@ -963,7 +974,7 @@ export class Game {
     input.mode = this.onFoot ? 'foot' : 'car';
 
     if (input.wasPressed('Escape') && this.state === 'garage') this.closeGarage();
-    if (this.state === 'dialog' && (input.wasPressed('KeyF') || input.wasPressed('Enter') || input.wasPressed('Space'))) this.story.advanceDialog();
+    if (this.state === 'dialog' && (input.wasPressed('KeyF') || input.wasPressed('Enter') || input.wasPressed('Space'))) this.advanceDialog();
 
     if (this.inside) { this.updateInside(dt); return; }
 
@@ -973,8 +984,10 @@ export class Game {
         const door = this.onFoot && !this.climb ? this.interiors.roomAt(this.humans.player.x, this.humans.player.z, 2.6) : null;
         const mach = this.onFoot && !lo && !door ? this.machines.nearest(this.humans.player.x, this.humans.player.z) : null;
         const home = this.onFoot && !lo && !door && !mach && !this.humans.player.roof ? this.hideouts.homeNear() : -1;
-        const stop = this.onFoot && !lo && !door && !mach && home < 0 && !this.humans.player.roof ? this.transit.near() : -1;
+        const npc = this.onFoot && !lo && !door && !mach && home < 0 && !this.humans.player.roof ? this.npcs.nearest() : null;
+        const stop = this.onFoot && !lo && !door && !mach && home < 0 && !npc && !this.humans.player.roof ? this.transit.near() : -1;
         if (home >= 0) { if (this.hideouts.ownsHome(home)) this.enterBuilding(this.interiors.rooms.find((r) => r.id === 'home')!); else this.hideouts.buyHome(home); }
+        else if (npc) this.npcs.talk(npc);
         else if (stop >= 0) this.transit.ride(stop);
         else if (this.onFoot && !lo && !door && !mach && !this.humans.player.roof && (this.fishing.active || this.fishing.atWater()) && this.fishing.press()) { /* fishing */ }
         else if (lo) this.climber.start(lo);
@@ -1061,7 +1074,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); this.paramedic.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); this.paramedic.update(dt); this.reputation.update(dt); this.npcs.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);
@@ -1727,9 +1740,10 @@ export class Game {
       else {
         const mach = this.machines.nearest(this.humans.player.x, this.humans.player.z);
         const hm = mach ? -1 : this.hideouts.homeNear();
-        const bs = mach || hm >= 0 ? -1 : this.transit.near();
+        const nn = mach || hm >= 0 ? null : this.npcs.nearest();
+        const bs = mach || hm >= 0 || nn ? -1 : this.transit.near();
         const fp = mach || hm >= 0 || bs >= 0 ? null : this.fishing.prompt();
-        this.hud.setPrompt(mach ? this.machines.prompt(mach) : bs >= 0 ? this.transit.prompt(bs) : fp ? fp : hm >= 0 ? (this.hideouts.ownsHome(hm) ? bi('[F] Go home', '[F] 집에 들어가기') : `${bi('[F] Buy this house', '[F] 이 집 사기')} - $${Hideouts.HOME_PRICE.toLocaleString('en-US')}`) : this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
+        this.hud.setPrompt(mach ? this.machines.prompt(mach) : nn ? this.npcs.prompt(nn) : bs >= 0 ? this.transit.prompt(bs) : fp ? fp : hm >= 0 ? (this.hideouts.ownsHome(hm) ? bi('[F] Go home', '[F] 집에 들어가기') : `${bi('[F] Buy this house', '[F] 이 집 사기')} - $${Hideouts.HOME_PRICE.toLocaleString('en-US')}`) : this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
       }
     }
     else if (this.driving && this.driving.ctrl.speed < 2.5 && this.stars === 0) this.hud.setPrompt(t('ui.hint.exit_car'));

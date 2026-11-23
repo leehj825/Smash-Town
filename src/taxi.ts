@@ -108,6 +108,7 @@ export class TaxiJob {
       G.addCash(fare, 'gigs');
       G.progress.add('gigs');
       G.progress.add('fares');
+      G.bus.emit({ type: 'helped', x: d!.x, z: d!.z, amount: 1 });
       this.fares++;
       G.popups.spawn(d!.x, 3, d!.z, `+$${fare}`, '#ffd23a');
       G.hud.toast(`${bi('Fare paid', '요금')} $${fare}${bonus > 20 ? ` (${bi('tip!', '팁!')})` : ''}`, 2600);

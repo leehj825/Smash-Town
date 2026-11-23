@@ -11,11 +11,13 @@ import type { GameVehicle } from './vehicles';
 import type { CircleCollider, Lot, World } from './world';
 
 export const Role = { Civ: 0, Cop: 1, Player: 2 } as const;
-const N = 62;
+const N = 68;
 const COP_FIRST = 1, COP_LAST = 10;
 /** Gang members: their own pool of slots, so they never mix with the police. */
 const GANG_FIRST = 11, GANG_LAST = 16;
-const CIV_FIRST = 17;
+/** Named people (see npcs.ts): civilians who stand in one place. */
+const NAMED_FIRST = 17, NAMED_LAST = 22;
+const CIV_FIRST = 23;
 const GROUND = 0.1;
 const SHIRTS = [0xe85a4f, 0x3b82f6, 0x2fb87a, 0xf2a73b, 0x8a5cd6, 0xf4a7b9, 0x66d1c9, 0xeceff4];
 const PANTS = [0x2c3e50, 0x4a4e59, 0x6b4f3a, 0x1f2d3d, 0x7f8c8d, 0x3b5a8c];
@@ -60,6 +62,8 @@ export class Human {
   ko = false;
   /** A gang member: fights like a cop but is not police (no heat for hitting them), and only attacks once provoked. */
   gang = false;
+  /** A named person of the city: stands at home, goes back there when knocked about. */
+  named = false;
   hostile = false;
   homeX = 0; homeZ = 0;
   /** The roof this human stands on (null at street level) and the highest point of the current fall. */
@@ -659,6 +663,20 @@ export class Humans {
     this.renderer.setLook(h.slot, h.look);
   }
 
+  /** Put a named person at their spot. Returns null if all slots are taken. */
+  spawnNamed(x: number, z: number, heading: number, look: { shirt: number; pants: number; skin: number; hair: number; shoe: number; cap: boolean }): Human | null {
+    let h: Human | null = null;
+    for (let i = NAMED_FIRST; i <= NAMED_LAST; i++) if (!this.list[i].active) { h = this.list[i]; break; }
+    if (!h) return null;
+    h.active = true; h.role = Role.Civ; h.named = true; h.gang = false; h.ko = false; h.leaving = false;
+    h.x = x; h.z = z; h.homeX = x; h.homeZ = z; h.y = GROUND; h.vy = 0; h.vx = h.vz = h.mvx = h.mvz = 0; h.grounded = true;
+    h.state = St.Idle; h.hp = h.maxHp = 40; h.weapon = 0; h.scale = 1; h.attack = null; h.invuln = 0; h.fleeing = false; h.calling = 0;
+    h.heading = heading;
+    h.look = { ...look };
+    this.renderer.setLook(h.slot, h.look);
+    return h;
+  }
+
   /** Put a gang member on their turf. `color` is the gang's colour. Returns null if all gang slots are taken. */
   spawnGang(x: number, z: number, color: number, armed: boolean): Human | null {
     let h: Human | null = null;
@@ -853,7 +871,8 @@ export class Humans {
         if (h.stateT <= 0) {
           h.state = St.Idle;
           if (h.ko) { h.leaving = true; h.leaveT = 4; } // a knocked-out cop dusts themselves off and walks away
-          if (h.role === Role.Civ) {
+          if (h.role === Role.Civ && h.named) { h.hp = h.maxHp; h.x = h.homeX; h.z = h.homeZ; h.state = St.Idle; h.fleeing = false; }
+          else if (h.role === Role.Civ) {
             h.hp = h.maxHp;
             if (h.freeT > 0) { h.state = St.Walk; h.fleeing = true; } // an ejected driver runs off the road
             else this.snapToPath(h);
@@ -862,7 +881,7 @@ export class Humans {
         break;
       case St.Dead:
         if (h.grounded) h.stateT -= dt;
-        if (h.stateT <= 0) { h.active = false; this.hide(h); if (h.role === Role.Civ) h.respawnT = 20 + this.rng() * 15; }
+        if (h.stateT <= 0) { h.active = false; this.hide(h); if (h.role === Role.Civ) h.respawnT = h.named ? 90 : 20 + this.rng() * 15; }
         break;
     }
   }
@@ -961,7 +980,7 @@ export class Humans {
     const p = this.player;
     this.manageCops(dt);
     for (const h of this.list) {
-      if (!h.active && h.role === Role.Civ && h.respawnT > 0) { h.respawnT -= dt; if (h.respawnT <= 0) this.assign(h, p.x, p.z); continue; }
+      if (!h.active && h.role === Role.Civ && h.respawnT > 0) { h.respawnT -= dt; if (h.respawnT <= 0) { if (h.named) { h.active = true; h.state = St.Idle; h.hp = h.maxHp; h.x = h.homeX; h.z = h.homeZ; h.grounded = true; h.y = GROUND; } else this.assign(h, p.x, p.z); } continue; }
       if (!h.active) continue;
       // far-away civilians are frozen and not drawn
       if (h.role === Role.Civ && Math.abs(h.x - p.x) + Math.abs(h.z - p.z) > 190

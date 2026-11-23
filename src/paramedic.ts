@@ -33,6 +33,8 @@ export class Paramedic {
   }
 
   get onDuty(): boolean { return this.duty; }
+  /** The hospital marker (null until the roads exist). */
+  spotOf(): P2 | null { this.ensureSpot(); return this.spot; }
   get completed(): number { return this.shifts; }
   get open(): number { return this.calls.length; }
 
@@ -120,6 +122,7 @@ export class Paramedic {
         G.addCash(pay, 'gigs');
         this.treated++;
         G.progress.add('rescues');
+        G.bus.emit({ type: 'helped', x: vx, z: vz, amount: 3 });
         G.popups.spawn(vx, 3, vz, `+$${pay}`, '#ff6b6b');
         G.hud.toast(`${bi('Patient treated', '환자 치료')} $${pay}${bonus > 100 ? ` (${bi('fast!', '빨랐어요!')})` : ''}`, 2200);
         G.audio.cash();

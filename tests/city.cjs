@@ -366,6 +366,31 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { onDuty, calls, shifts: P.completed, cash: G.cash, rescues: G.progress.stats.rescues };
     });
     ok(medic.onDuty && medic.calls >= 1 && medic.shifts === 1 && medic.cash >= 1500 && medic.rescues === 5, 'paramedic shift: an ambulance waits, real incidents become calls, five patients finish the shift', JSON.stringify(medic));
+    const npc = await S(() => {
+      const G = g(); const N = G.npcs; const R = G.reputation;
+      G.stars = 0; G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null;
+      N.update(0.1);
+      const placed = N.list.filter((q) => q.human).length;
+      const minji = N.list.find((q) => q.def.id === 'minji');
+      // neutral: she talks but gives nothing; friendly: a free donut; hostile: refuses
+      const spot = minji.pos; const area = R.area(spot.x, spot.z);
+      G.save.rep = {};
+      G.humans.setPlayerActive(true, spot.x + 1.5, spot.z, 0);
+      const near = N.nearest(); const prompt = near ? N.prompt(near) : '';
+      G.humans.player.hp = 20; G.save.rep[area] = 50; minji.last = -999;
+      N.talk(near); const open = N.dialogOpen; N.advance(); N.advance();
+      const healed = G.humans.player.hp >= G.humans.player.maxHp;
+      G.humans.player.hp = 20; G.save.rep[area] = -60; N.clock = 1000;
+      N.talk(N.nearest()); const refused = N.dialog.lines.length === 1 && N.dialog.lines[0][0].startsWith('I have nothing'); N.advance();
+      const stayedHurt = G.humans.player.hp === 20;
+      // hurting people costs reputation where it happened; helping earns it back
+      G.save.rep = {};
+      G.bus.emit({ type: 'civAssaulted', x: spot.x, z: spot.z }); G.bus.emit({ type: 'civKilled', x: spot.x, z: spot.z, human: minji.human, byPlayer: true, kids: true });
+      const down = R.get(area);
+      G.bus.emit({ type: 'helped', x: spot.x, z: spot.z, amount: 10 });
+      return { placed, near: !!near, prompt: /Minji|민지/.test(prompt), open, healed, refused, stayedHurt, down, up: R.get(area) };
+    });
+    ok(npc.placed >= 5 && npc.near && npc.prompt && npc.open && npc.healed && npc.refused && npc.stayedHurt && npc.down === -8 && npc.up === 2, 'named people talk by your reputation (a favour, or a refusal) and reputation moves with what you do', JSON.stringify(npc));
     // savings, houses and race records survive a reload
     await S(() => { const G = g(); G.save.bank = 4321; G.save.homes = [1, 2]; G.save.raceBest = [0, 77.5]; G.flushSave(); });
     await p.reload();

@@ -27,6 +27,7 @@ const RADIUS = 30;
  */
 export class Gangs {
   readonly zones: Zone[] = [];
+  private revealUntil: Record<number, number> = {};
   private incomeT = 60;
   private gangs = [
     { name: 'The Reds', ko: '레드파', color: 0xd62d3a, css: '#d62d3a' },
@@ -55,10 +56,21 @@ export class Gangs {
     game.bus.on('gangDown', () => this.check());
   }
 
+  /** The gang whose block is easiest to take: the one with the fewest members (or the nearest, if none are out yet). */
+  weakest(): Zone | null {
+    const open = this.zones.filter((z) => z.owner === 'gang');
+    if (!open.length) return null;
+    const G = this.game;
+    return open.reduce((a, b) => (Math.hypot(a.x - G.focusX, a.z - G.focusZ) < Math.hypot(b.x - G.focusX, b.z - G.focusZ) ? a : b));
+  }
+  /** Make a zone flash on the map for a while. */
+  reveal(z: Zone, seconds: number): void { this.revealUntil[this.zones.indexOf(z)] = performance.now() / 1000 + seconds; }
+
   get ownedCount(): number { return this.zones.filter((z) => z.owner === 'player').length; }
 
   markers(): { x: number; z: number; color: string; flash: boolean }[] {
-    return this.zones.map((z) => ({ x: z.x, z: z.z, color: z.owner === 'player' ? '#ffd23a' : z.css, flash: z.owner === 'gang' && z.members.some((m) => m.hostile) }));
+    const now = performance.now() / 1000;
+    return this.zones.map((z, i) => ({ x: z.x, z: z.z, color: z.owner === 'player' ? '#ffd23a' : z.css, flash: (z.owner === 'gang' && z.members.some((m) => m.hostile)) || (this.revealUntil[i] ?? 0) > now }));
   }
 
   private alive(z: Zone): Human[] {

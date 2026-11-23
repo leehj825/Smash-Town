@@ -29,6 +29,8 @@ export type GameEvent =
   | { type: 'turfCaptured'; zone: number }
   /** A gang took its turf back. */
   | { type: 'turfLost'; zone: number }
+  /** The player did something good for the neighbourhood (a patient treated, a delivery, a fare). */
+  | { type: 'helped'; x: number; z: number; amount: number }
   | { type: 'hunterSpawned' }
   | { type: 'heist' }
   | { type: 'blackout' }
