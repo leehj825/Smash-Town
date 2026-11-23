@@ -4,7 +4,7 @@ import type { Game } from './game';
 import { bi, t } from './i18n';
 import type { GameVehicle } from './vehicles';
 
-// "Save Old Town": a five-chapter story told through short conversations and simple objectives. The story never forces anything:
+// "Save Old Town": an eight-chapter story told through short conversations and simple objectives. The story never forces anything:
 // the gold marker is a suggestion, and gigs, golden stars and free roaming stay available at all times.
 
 type Pair = [string, string]; // [English, Korean]
