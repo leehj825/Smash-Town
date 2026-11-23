@@ -151,8 +151,11 @@ const savedQ = storedGet(QUALITY_KEY);
 applyQuality(savedQ === 'high' || savedQ === 'medium' || savedQ === 'low' ? savedQ : isMobile ? 'medium' : 'high');
 
 // ---------------------------------------------------------------- time of day / audio
+const clockEl = document.getElementById('clock');
+let lastClockBand = '';
 function applyTime(t: TimeOfDay, instant = false): void {
   env.setTime(t, instant);
+  (game as { clock?: { setBand(t: TimeOfDay): void } } | undefined)?.clock?.setBand(t);
   storedSet(TIME_KEY, t);
   document.querySelectorAll<HTMLElement>('.tod').forEach((b) => b.classList.toggle('sel', b.dataset.t === t));
 }
@@ -449,6 +452,12 @@ function tick(): void {
     const steps = Math.ceil(dt / (1 / 60));
     for (let i = 0; i < steps; i++) game.update(dt / steps);
     vfx.update(dt);
+    if (clockEl) {
+      const t = game.clock.text();
+      if (t !== clockEl.textContent) clockEl.textContent = t;
+      const b = game.clock.band;
+      if (b !== lastClockBand) { lastClockBand = b; document.querySelectorAll<HTMLElement>('.tod').forEach((el) => el.classList.toggle('sel', el.dataset.t === b)); }
+    }
   }
 
   cameraRig.update(state === 'title' ? 0.016 : dt || 0.0001, game.followable);

@@ -149,6 +149,9 @@ export class Humans {
   copsDefeated = 0;
   /** How many of the walking civilians are out and about (fewer at night and in the rain); the rest are indoors. */
   civLimit = N - CIV_FIRST;
+  /** Set by the game clock: walking pace of strollers and the chance per second that one stops. */
+  pace = 1;
+  pauseRate = 0.04;
   combatTimer = 0;
 
   private rng = makeRng(4242);
@@ -1025,8 +1028,8 @@ export class Humans {
     // everyday routine: now and then a stroller stops for a moment (phone, window shopping), unless something scary is going on
     if (h.pauseT > 0 && !h.fleeing && !h.thief) { h.pauseT -= dt; h.speed = 0; h.mvx = h.mvz = 0; return; }
     h.pauseT = 0;
-    if (!h.fleeing && !h.thief && this.rng() < dt * 0.04) h.pauseT = 2 + this.rng() * 5;
-    const v = h.thief ? 6.6 : h.fleeing ? 5.2 : h.pathSpeed;
+    if (!h.fleeing && !h.thief && this.rng() < dt * this.pauseRate) h.pauseT = 2 + this.rng() * 5;
+    const v = h.thief ? 6.6 : h.fleeing ? 5.2 : h.pathSpeed * this.pace;
     const p = this.perim(h.lot);
     h.s += h.dir * v * dt;
     const [nx, nz] = this.pointOn(p, h.s);

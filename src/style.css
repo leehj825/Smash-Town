@@ -371,3 +371,5 @@ html.cb-safe #news b { color: #14378c; }
   #news { top: 112px; bottom: auto; width: min(64vw, 520px); font-size: 12px; transform: translate(-50%, -8px); }
   #news.show { transform: translate(-50%, 0); }
 }
+
+#clock { position: fixed; top: 6px; right: 70px; z-index: 30; padding: 2px 8px; border-radius: 6px; background: rgba(0,0,0,.45); color: #fff; font: 600 12px/1.4 ui-monospace, Menlo, monospace; pointer-events: none; }

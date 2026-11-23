@@ -49,7 +49,7 @@ export class Thieves {
     if (G.state !== 'play') return;
     if (!this.thief) {
       if (G.inside || G.stars > 0) return;
-      this.timer -= dt;
+      this.timer -= dt * G.clock.trouble();
       if (this.timer <= 0) { if (!this.start()) this.timer = 30; }
       return;
     }

@@ -270,6 +270,28 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
     const mArr = await S(() => { const G = g(); const s2 = G.transit.stations[2]; const p = G.humans.player; return { d: Math.round(Math.hypot(p.x - s2.sx, p.z - s2.sz)) }; });
     ok(metro.n === 6 && metro.at === 1000 && metro.prompt && metro.ok && metro.cash === 88 && mArr.d < 3, 'the metro express rides two stations ahead for $12', JSON.stringify({ metro, mArr }));
+    const clk = await S(() => {
+      const G = g(); const C = G.clock;
+      const key = Object.keys(localStorage).find((k) => k.startsWith('smashtown.save')) || 'smashtown.save.v1';
+      const keep = localStorage.getItem(key);
+      localStorage.setItem(key, JSON.stringify({ cash: 777, unlocked: ['sports', 'sedan'], selected: 'sports' }));
+      const old = G.loadSave();
+      if (keep === null) localStorage.removeItem(key); else localStorage.setItem(key, keep);
+      const wasAuto = C.auto; C.auto = true;
+      C.hour = 16.9; G.env.setTime('noon', true); C.lastBand = null;
+      G.humans.pace = 1;
+      for (let i = 0; i < 20; i++) C.update(1);      // a game hour is 60 real seconds
+      const rush = C.rush; const paced = G.humans.pace > 1;
+      C.hour = 23; C.lastBand = null; C.update(0.1);
+      const night = C.phase === 'night' && C.band === 'night' && G.env.timeOfDay === 'night' && G.humans.pace < 1;
+      C.hour = 12; C.lastBand = null; C.update(0.1);
+      const noon = G.env.timeOfDay === 'noon';
+      C.setBand('sunset');
+      const sunset = Math.abs(C.hour - 18.5) < 0.01;
+      C.auto = wasAuto; G.env.setTime('noon', true); C.hour = 12;
+      return { oldCash: old.cash, oldV: old.v, rush, paced, night, noon, sunset, text: C.text() };
+    });
+    ok(clk.oldCash === 777 && clk.oldV === 2 && clk.rush && clk.paced && clk.night && clk.noon && clk.sunset, 'an old save loads into the current version, and the game clock drives the sky and the crowd', JSON.stringify(clk));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
