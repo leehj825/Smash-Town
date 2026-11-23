@@ -394,6 +394,21 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     });
     ok(crews.firefighter.onDuty && crews.firefighter.calls >= 1 && crews.firefighter.shifts === 1 && crews.firefighter.stat === 5 && crews.firefighter.out, 'firefighter shift: a fire truck waits, fires become calls and are put out', JSON.stringify(crews));
     ok(crews.patrol.onDuty && crews.patrol.heat === 0 && crews.patrol.calls >= 1 && crews.patrol.shifts === 1 && crews.patrol.stat === 5, 'police patrol: a cruiser waits (no heat) and shots become calls', JSON.stringify(crews));
+    await S(() => { const G = g(); G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.humans.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0); });
+    await p.waitForTimeout(1500);
+    const thief = await S(() => {
+      const G = g(); const T = G.thieves;
+      G.stars = 0; G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.cash = 0; G.skills.off = true;
+      let started = false;
+      started = T.start();
+      if (!started) { G.skills.off = false; return { started }; }
+      const t = T.thief; const heard = G.bus.recent.some((e) => e.type === 'theft');
+      const marker = T.markers().length === 1;
+      for (let i = 0; i < 20; i++) { G.humans.setPlayerActive(true, t.x, t.z, 0); T.update(0.1); if (!T.active) break; }
+      G.skills.off = false;
+      return { started, heard, marker, caught: !T.active && G.progress.stats.thieves === 1, cash: G.cash };
+    });
+    ok(thief.started && thief.heard && thief.marker && thief.caught && thief.cash >= 180, 'a bag snatcher bolts, is marked on the map, and pays a reward when caught', JSON.stringify(thief));
     const npc = await S(() => {
       const G = g(); const N = G.npcs; const R = G.reputation;
       G.stars = 0; G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null;

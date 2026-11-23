@@ -1,7 +1,7 @@
 import type { Game } from './game';
 import { bi, getLang } from './i18n';
 
-type Kind = 'murder' | 'wanted3' | 'wanted5' | 'escaped' | 'heist' | 'police' | 'race' | 'bounty' | 'blackout' | 'festival' | 'explosion' | 'turf';
+type Kind = 'murder' | 'wanted3' | 'wanted5' | 'escaped' | 'heist' | 'police' | 'race' | 'bounty' | 'blackout' | 'festival' | 'explosion' | 'turf' | 'fire' | 'theft';
 const HEADLINES: Record<Kind, [string, string][]> = {
   murder: [
     ['A pedestrian was killed downtown. Police are looking for a suspect.', '시내에서 보행자가 숨졌습니다. 경찰이 용의자를 쫓고 있습니다.'],
@@ -32,6 +32,13 @@ const HEADLINES: Record<Kind, [string, string][]> = {
   explosion: [
     ['A huge explosion shook the city centre - the cause is not yet known.', '도심에서 큰 폭발이 있었습니다. 원인은 아직 알려지지 않았습니다.'],
     ['Residents report a blast and thick smoke downtown.', '시민들이 폭발음과 짙은 연기를 신고하고 있습니다.'],
+  ],
+  fire: [
+    ['Fire crews are battling a blaze in the street - keep clear.', '소방대가 길가의 화재를 진압하고 있습니다. 접근하지 마세요.'],
+    ['Smoke over the city: a fire has broken out.', '도시 위로 연기가 피어오릅니다. 화재가 발생했습니다.'],
+  ],
+  theft: [
+    ['A bag snatcher is on the run - police ask for help.', '가방 날치기범이 도주 중입니다. 경찰이 도움을 요청했습니다.'],
   ],
   turf: [
     ['A gang lost a block of the city to an outsider overnight.', '갱단이 하룻밤 사이에 한 구역을 외부인에게 빼앗겼습니다.'],
@@ -64,6 +71,8 @@ export class News {
     bus.on('hunterSpawned', () => this.report('bounty'));
     bus.on('heist', () => this.report('heist', true));
     bus.on('blackout', () => this.report('blackout'));
+    bus.on('fire', (e) => { if (Math.hypot(e.x - game.focusX, e.z - game.focusZ) < 200) this.report('fire'); });
+    bus.on('theft', () => this.report('theft'));
     bus.on('turfCaptured', () => this.report('turf', true));
     bus.on('explosion', (e) => { if (Math.hypot(e.x - game.focusX, e.z - game.focusZ) < 90) this.report('explosion'); });
   }

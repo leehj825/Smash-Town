@@ -52,6 +52,8 @@ export class Human {
   hitIds = new Int32Array(16); hitCount = 0;
   invuln = 0; dodgeCd = 0; flash = 0; flashed = false;
   phase = 0; speed = 0; fleeing = false;
+  /** A bag snatcher on the run (see thieves.ts): sprints away along the pavement. */
+  thief = false;
   scale = 1;
   look: Look = { shirt: 0xffffff, pants: 0x222222, skin: 0xf1c27d, shoe: 0x222222, hair: 0x222222, cap: false };
   anim = new AnimPlayer();
@@ -1017,8 +1019,8 @@ export class Humans {
     const dxp = h.x - this.player.x, dzp = h.z - this.player.z;
     const near = (this.ctx.playerActive && dxp * dxp + dzp * dzp < 90 && this.combatTimer > 0)
       || ((h.x - ctx.playerCarX) ** 2 + (h.z - ctx.playerCarZ) ** 2 < 100 && ctx.playerCarSpeed > 9);
-    if (near) h.fleeing = true; else if (h.fleeing && this.rng() < dt * 0.15) h.fleeing = false;
-    const v = h.fleeing ? 5.2 : h.pathSpeed;
+    if (near || h.thief) h.fleeing = true; else if (h.fleeing && this.rng() < dt * 0.15) h.fleeing = false;
+    const v = h.thief ? 6.6 : h.fleeing ? 5.2 : h.pathSpeed;
     const p = this.perim(h.lot);
     h.s += h.dir * v * dt;
     const [nx, nz] = this.pointOn(p, h.s);

@@ -28,6 +28,7 @@ import { Police } from './police';
 import { Gangs } from './gangs';
 import { EmergencyJob } from './emergency';
 import { Fires } from './fires';
+import { Thieves } from './thieves';
 import { JOBS } from './jobs';
 import { Reputation } from './reputation';
 import { Npcs } from './npcs';
@@ -127,6 +128,7 @@ export class Game {
   firefighter!: EmergencyJob;
   patrol!: EmergencyJob;
   fires!: Fires;
+  thieves!: Thieves;
   reputation!: Reputation;
   npcs!: Npcs;
   skills!: Skills;
@@ -250,6 +252,7 @@ export class Game {
     this.festival = new Festival(this);
     this.gangs = new Gangs(this);
     this.fires = new Fires(this);
+    this.thieves = new Thieves(this);
     this.paramedic = new EmergencyJob(this, JOBS.paramedic);
     this.firefighter = new EmergencyJob(this, JOBS.firefighter);
     this.patrol = new EmergencyJob(this, JOBS.patrol);
@@ -1113,7 +1116,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.fires.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);
@@ -1831,6 +1834,7 @@ export class Game {
     if (this.hunter) this.pushBlip(this.hunter.x, this.hunter.z, '#ff9a3d', true, 5);
     if (!this.driving || this.driving.kind !== 'boat') for (const b of this.boats) this.pushBlip(b.x, b.z, '#35e0ff', false, 3.5);
     for (const j of [this.paramedic, this.firefighter, this.patrol]) for (const m of j.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5);
+    for (const t of this.thieves.markers()) this.pushBlip(t.x, t.z, '#ffe14d', true, 4.5);
     for (const f of this.fires.markers()) this.pushBlip(f.x, f.z, '#ff8a2a', true, 4.5);
     for (const m of this.gangs.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5.5);
     for (const m of this.festival.markers()) this.pushBlip(m.x, m.z, '#ff5db1', true, 5.5);
