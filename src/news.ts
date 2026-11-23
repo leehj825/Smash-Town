@@ -48,6 +48,14 @@ export class News {
 
   constructor(private game: Game) {
     this.el = document.getElementById('news')!;
+    const bus = game.bus;
+    bus.on('civKilled', (e) => { if (!e.kids) this.report('murder'); });
+    bus.on('wantedRaised', (e) => { if (e.stars >= 5) this.report('wanted5', true); else if (e.stars >= 3) this.report('wanted3'); });
+    bus.on('wantedLost', () => this.report('escaped'));
+    bus.on('copDown', (e) => { if (e.total % 6 === 0) this.report('police'); });
+    bus.on('hunterSpawned', () => this.report('bounty'));
+    bus.on('heist', () => this.report('heist', true));
+    bus.on('blackout', () => this.report('blackout'));
   }
 
   update(dt: number): void { this.cooldown = Math.max(0, this.cooldown - dt); }

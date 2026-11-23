@@ -291,6 +291,18 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     await p.waitForTimeout(1500);
     const perf = await S(() => { const e = document.getElementById('perf'); const r = { shown: !e.hidden, text: e.textContent }; document.querySelector('.seg.a11y[data-a="perfHud"][data-v="0"]').click(); return { ...r, hidden: e.hidden }; });
     ok(perf.shown && /fps/.test(perf.text) && /tris/.test(perf.text) && perf.hidden, 'the performance display shows fps, triangles and draw calls and can be switched off', JSON.stringify(perf));
+    const evt = await S(() => {
+      const G = g(); const B = G.bus;
+      let heard = 0;
+      const off = B.on('gunshot', () => { heard++; });
+      B.emit({ type: 'gunshot', x: 1, z: 1 }); B.emit({ type: 'gunshot', x: 2, z: 2 });
+      off();
+      B.emit({ type: 'gunshot', x: 3, z: 3 });
+      const n0 = G.news.log.length;
+      B.emit({ type: 'wantedRaised', stars: 3 });
+      return { heard, newsAfter: G.news.log.length - n0, recent: B.recent.length };
+    });
+    ok(evt.heard === 2 && evt.newsAfter === 1 && evt.recent >= 4, 'the event bus delivers events, stops when you unsubscribe, and the news listens to it', JSON.stringify(evt));
     // savings, houses and race records survive a reload
     await S(() => { const G = g(); G.save.bank = 4321; G.save.homes = [1, 2]; G.save.raceBest = [0, 77.5]; G.flushSave(); });
     await p.reload();

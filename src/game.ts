@@ -21,6 +21,8 @@ import { Shops } from './shops';
 import { todayKey } from './progress';
 import { Climber } from './climb';
 import { StreetLife } from './street';
+import { EventBus } from './events';
+import { Crime } from './crime';
 import { Medics } from './medics';
 import { Machines } from './machines';
 import { TrafficLights } from './lights';
@@ -138,6 +140,9 @@ export class Game {
   /** Ladders and rooftops (see climb.ts). */
   private climber!: Climber;
   street!: StreetLife;
+  /** Everything that happens in the city is announced here (see events.ts). */
+  readonly bus = new EventBus();
+  crime!: Crime;
   private get climb(): Climber['state'] { return this.climber.state; }
   readonly heli = new Helicopter();
   private heliTimer = 0;
@@ -246,6 +251,7 @@ export class Game {
     this.shops = new Shops(this);
     this.climber = new Climber(this);
     this.street = new StreetLife(this);
+    this.crime = new Crime(this);
     this.medics = new Medics(this);
     this.sideQuests = new SideQuests(this);
     this.progress = new Progress(this.save.progress, (m) => this.hud.toast(m, 3600), (n) => { this.cash += n; this.hud.setCash(this.cash); this.saveDirty = true; this.audio.cash(); }, () => { this.saveDirty = true; });
@@ -462,7 +468,7 @@ export class Game {
       if (prev === 0) this.policeSpawnTimer = Math.max(this.policeSpawnTimer, 3); // first cruiser arrives after a short delay
       this.stars = s;
       this.hud.toast(tf('ui.toast.wanted', { n: s }), 1600);
-      if (s >= 5) this.news.report('wanted5', true); else if (s >= 3) this.news.report('wanted3');
+      this.bus.emit({ type: 'wantedRaised', stars: s });
     }
     this.hud.setWanted(this.stars);
   }
@@ -516,7 +522,7 @@ export class Game {
     v.ctrl.stats = { ...v.ctrl.stats, maxSpeed: v.ctrl.stats.maxSpeed * 0.97 };
     this.hunter = v;
     this.hud.toast(bi('A bounty hunter is after you!', '현상금 사냥꾼이 쫓아와요!'), 2600);
-    this.news.report('bounty');
+    this.bus.emit({ type: 'hunterSpawned' });
   }
 
   private managePolice(dt: number): void {
@@ -843,7 +849,7 @@ export class Game {
         this.humans.ejectDriver(v.x, v.z, v.ctrl.heading, v.isPolice);
         v.ctrl.vx *= 0.2; v.ctrl.vz *= 0.2; // the car rolls to a stop as the driver bails out
       }
-      if (!v.owned && v.ai === 'parked' && !v.isPolice && !hadDriver && Math.random() < 0.3) this.street.carAlarm(v);
+      if (!v.owned && v.ai === 'parked' && !v.isPolice && !hadDriver && Math.random() < 0.3) this.bus.emit({ type: 'carAlarm', vehicle: v });
       v.ai = 'player';
       v.ensureFull();
       this.driving = v;
@@ -1451,8 +1457,7 @@ export class Game {
         if (att.role === Role.Player && this.assaultCooldown <= 0) {
           this.addHeat(tgt.role === Role.Cop ? 20 : 8);
           this.assaultCooldown = 0.8;
-          if (tgt.role === Role.Civ) this.street.crowdReacts(tgt.x, tgt.z, 24);
-          if (tgt.role === Role.Civ && this.stars === 0 && Math.random() < 0.5) this.humans.startWitnesses(tgt.x, tgt.z, 22, 1);
+          if (tgt.role === Role.Civ) this.bus.emit({ type: 'civAssaulted', x: tgt.x, z: tgt.z });
         }
         void killed;
       },
@@ -1470,21 +1475,14 @@ export class Game {
       onCopDown: (h) => {
         this.addCash(150, 'police');
         this.progress.add('copsKO');
-        if (this.humans.copsDefeated % 6 === 0) this.news.report('police');
+        this.bus.emit({ type: 'copDown', total: this.humans.copsDefeated });
         if (Math.random() < 0.55) this.pickups.drop(h.x, h.z, (['cash', 'health', 'ammo'] as const)[Math.floor(Math.random() * 3)], 120);
         this.addHeat(15);
         if (this.humans.kids) this.popups.spawn(h.x, h.y + 2.2, h.z, t('pop.ko'), '#8a5cd6'); // knocked out, not killed
         else this.vfx.emitFire(h.x, 1, h.z, 4, 0.3);
       },
       onCivDown: (h, by) => {
-        this.street.crowdReacts(h.x, h.z);
-        if (!this.humans.kids) { this.medics.report(h); this.news.report('murder'); }
-        if (by && by.role === Role.Player) {
-          this.addHeat(20);
-          if (this.stars === 0 && this.humans.startWitnesses(h.x, h.z, 30, 3) === 0) this.popups.spawn(h.x, h.y + 3, h.z, bi('No witnesses', '목격자 없음'), '#9aa0ad');
-        }
-        if (this.humans.kids) this.popups.spawn(h.x, h.y + 2.2, h.z, t('pop.ko'), '#8a5cd6');
-        else this.popups.spawn(h.x, h.y + 2.2, h.z, bi('Murder!', '살인!'), '#ff3b3b');
+        this.bus.emit({ type: 'civKilled', x: h.x, z: h.z, human: h, byPlayer: !!by && by.role === Role.Player, kids: this.humans.kids });
       },
       onWitnessStart: (h) => this.popups.spawn(h.x, h.y + 2.6, h.z, bi('📞 Calling the cops!', '📞 경찰에 신고 중!'), '#ffd23a'),
       onWitnessCall: (h) => {
@@ -1567,7 +1565,7 @@ export class Game {
         const h = this.humans.hitByVehicle(v.x + fxv * off, v.z + fzv * off, c.collisionRadius, c.vx, c.vz);
         if (h && v === this.driving) {
           this.addHeat((h.role === Role.Cop ? 20 : 15) + (h.state === St.Dead && h.role === Role.Civ ? 5 : 0));
-          if (h.role === Role.Civ && this.stars === 0) this.humans.startWitnesses(h.x, h.z, 30, 3);
+          if (h.role === Role.Civ) this.bus.emit({ type: 'civRunOver', x: h.x, z: h.z, killed: h.state === St.Dead });
           this.audio.thump();
           this.vfx.emitDebris(h.x, 1, h.z, c.vx, c.vz, 0xe85a4f, 4);
           this.cameraRig.shake(0.25);
@@ -1667,7 +1665,7 @@ export class Game {
       if (s < this.stars) {
         this.stars = s;
         this.hud.setWanted(s);
-        if (s === 0) { this.hud.toast(t('ui.toast.lost')); this.clearWanted(); this.news.report('escaped'); }
+        if (s === 0) { this.hud.toast(t('ui.toast.lost')); this.clearWanted(); this.bus.emit({ type: 'wantedLost' }); }
       }
     }
     // survival bonus at high heat

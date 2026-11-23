@@ -400,7 +400,7 @@ export class Guns {
     G.input.rumble(0.4, 0.6, 70);
     this.flash.position.set(ox, 1.4, oz);
     this.flashT = 0.06;
-    G.street.gunshot(ox, oz);
+    G.bus.emit({ type: 'gunshot', x: ox, z: oz });
     this.flashMesh.position.set(ox, 1.4, oz);
     this.flashMesh.scale.setScalar((g.id === 'shotgun' ? 1.1 : g.id === 'smg' ? 0.55 : 0.75) * (0.8 + Math.random() * 0.4));
     G.vfx.emitSparks(ox, 1.3, oz, 3);

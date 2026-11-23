@@ -20,7 +20,9 @@ interface Job {
  */
 export class Medics {
   private jobs: Job[] = [];
-  constructor(private game: Game) {}
+  constructor(private game: Game) {
+    game.bus.on('civKilled', (e) => { if (!e.kids) this.report(e.human); });
+  }
 
   get active(): boolean { return this.jobs.some((j) => j.van && j.phase !== 'wait'); }
 

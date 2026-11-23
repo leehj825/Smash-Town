@@ -455,7 +455,7 @@ function tick(): void {
   // a storm can knock the power out for half a minute
   if (weather.kind === 'storm' && !game.blackout && state === 'playing' && Math.random() < dt / 100) {
     game.blackout = true; blackoutT = 25 + Math.random() * 20;
-    game.news.report('blackout');
+    game.bus.emit({ type: 'blackout' });
   }
   if (game.blackout) { blackoutT -= dt; if (blackoutT <= 0 || weather.kind !== 'storm') game.blackout = false; }
   weather.indoors = !!game.inside;
