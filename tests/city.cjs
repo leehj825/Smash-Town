@@ -556,6 +556,23 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(dr.director.busyQuiet && dr.director.threw && dr.unlocked && dr.start && dr.stars === 5 && dr.survival.ended && dr.survival.best >= 25 && dr.survival.cash >= 100 && dr.moon && dr.gravity[0] === 0.35 && dr.gravity[1] === 1 && dr.rockets && dr.rank, 'the director throws an event when it is quiet; survival, chaos switches and ranks work after the story', JSON.stringify(dr));
+    const fx = await S(() => {
+      const G = g(); const V = G.vfx;
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.stars = 0;
+      G.humans.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0);
+      const flash = document.getElementById('boomflash');
+      flash.classList.remove('go');
+      V.explosion(G.focusX + 10, G.focusZ);
+      G.bus.emit({ type: 'explosion', x: G.focusX + 10, z: G.focusZ, byPlayer: false });
+      const ring = V.rings.some((r) => r.t > 0 && r.mesh.visible);
+      for (let i = 0; i < 12; i++) V.update(0.05);
+      const ringGone = V.rings.every((r) => !r.mesh.visible);
+      G.hud.setWanted(4); const heat4 = document.body.classList.contains('heat-4');
+      G.hud.setWanted(0); const heat0 = !document.body.className.includes('heat-4');
+      G.hitStop = 0; G.news.cooldown = 0; G.fires.list.length = 0;
+      return { ring, ringGone, flash: flash.classList.contains('go'), heat4, heat0 };
+    });
+    ok(fx.ring && fx.ringGone && fx.flash && fx.heat4 && fx.heat0, 'a blast sends out a shockwave ring and a screen flash; the wanted level tints the screen edge', JSON.stringify(fx));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
