@@ -610,6 +610,25 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { areas, ctx: !!A.context };
     });
     ok(amb.areas.every(Boolean), 'the ambience (waves, birds, crickets, a ship horn) follows the district without errors', JSON.stringify(amb));
+    const petty = await S(() => {
+      const G = g(); const out = {};
+      G.inside = null; G.state = 'play'; G.stars = 0; G.heat = 0; G.skills.off = true;
+      // small stuff must not pile up into a star: it fades on its own
+      G.addHeat(20); out.pre = G.stars === 0 && G.heat > 0;
+      for (let i = 0; i < 40; i++) G.updateWanted(1);
+      out.faded = G.heat === 0 && G.stars === 0;
+      // clearing the junk for Donna is the quest, so it is no crime
+      const circ = () => G.world.circles.find((q) => q.smash && !q.dead);
+      G.story.ch = 0; G.story.step = 2; G.story.prog = 0; G.heat = 0; G.crimeT = 0;
+      G.smashProp(circ(), 0, 0, 8, true);
+      out.questFree = G.heat === 0 && G.story.prog === 1;
+      // the same smash outside the quest is a tiny crime
+      G.story.step = 0; G.smashProp(circ(), 0, 0, 8, true);
+      out.otherSmall = G.heat > 0 && G.heat < 10;
+      G.story.ch = 0; G.story.step = 0; G.story.prog = 0; G.heat = 0; G.stars = 0; G.skills.off = false;
+      return out;
+    });
+    ok(petty.pre && petty.faded && petty.questFree && petty.otherSmall, 'petty heat fades by itself, and smashing the quest junk is no crime', JSON.stringify(petty));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';

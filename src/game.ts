@@ -572,7 +572,7 @@ export class Game {
     this.smashTotal++;
     this.progress.add('smashes');
     this.input.rumble(0.3, 0.7, 90);
-    this.story.onSmash();
+    const quest = this.story.onSmash(); // clearing the junk for Donna is the quest: no heat for it
     this.damageTotal += value;
     this.comboCount++;
     this.comboTimer = 4;
@@ -580,7 +580,7 @@ export class Game {
     const pay = Math.round(value * 0.1 * mult);
     this.addCash(pay, 'props');
     this.popups.spawn(c.x, 1.8, c.z, `+$${pay}`, '#3dff8a');
-    this.addHeat(3);
+    if (!quest) this.addHeat(3);
     this.audio.smash();
     this.cameraRig.shake(Math.min(0.5, speed / 70));
   }
@@ -818,7 +818,7 @@ export class Game {
         this.humans.ejectDriver(v.x, v.z, v.ctrl.heading, v.isPolice);
         v.ctrl.vx *= 0.2; v.ctrl.vz *= 0.2; // the car rolls to a stop as the driver bails out
       }
-      if (!v.owned && !v.isGigTarget && v.ai === 'parked' && !v.isPolice && !hadDriver && Math.random() < 0.3) this.bus.emit({ type: 'carAlarm', vehicle: v });
+      if (!v.owned && !v.isGigTarget && v.ai === 'parked' && !v.isPolice && !hadDriver && !(this.mode === 'story' && this.story.ch === 0 && !this.story.done) && Math.random() < 0.3) this.bus.emit({ type: 'carAlarm', vehicle: v });
       v.ai = 'player';
       v.ensureFull();
       this.driving = v;
@@ -1528,7 +1528,7 @@ export class Game {
             if (s > 9) this.hitStop = Math.max(this.hitStop, 0.03);
             this.audio.crash(s);
             this.damageTotal += s * 120;
-            if (s > 4 && this.heatCooldown <= 0 && !other.isPolice) {
+            if (s > 6 && this.heatCooldown <= 0 && !other.isPolice && other.ai === 'traffic') {
               this.addHeat(10);
               this.heatCooldown = 1.2;
             }
@@ -1546,6 +1546,7 @@ export class Game {
       for (const off of c.collisionOffsets) {
         const h = this.humans.hitByVehicle(v.x + fxv * off, v.z + fzv * off, c.collisionRadius, c.vx, c.vz);
         if (h && v === this.driving) {
+          if (v.kind === 'bicycle' || (v.kind === 'scooter' && c.speed < 6)) { this.audio.thump(); continue; } // a bike brushing past is not a hit-and-run
           this.addHeat((h.role === Role.Cop ? 20 : 15) + (h.state === St.Dead && h.role === Role.Civ ? 5 : 0));
           if (h.role === Role.Civ) this.bus.emit({ type: 'civRunOver', x: h.x, z: h.z, killed: h.state === St.Dead });
           this.audio.thump();
@@ -1636,7 +1637,13 @@ export class Game {
   }
 
   private updateWanted(dt: number): void {
-    if (this.stars === 0) { this.police.manage(dt); return; }
+    if (this.stars === 0) {
+      this.police.manage(dt);
+      // petty heat (a bump, a smashed bench) fades by itself a few seconds after the last thing: it must never pile up into a star for no reason
+      this.crimeT += dt;
+      if (this.heat > 0 && this.crimeT > 6) this.heat = Math.max(0, this.heat - 5 * dt);
+      return;
+    }
     let nearest = Infinity;
     for (const v of this.policeVehicles()) nearest = Math.min(nearest, Math.hypot(v.x - this.focusX, v.z - this.focusZ));
     this.crimeT += dt;

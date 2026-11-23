@@ -253,9 +253,11 @@ export class StoryManager {
     this.beacon.visible = false;
   }
 
-  onSmash(): void {
+  /** A prop was smashed. Returns true when it counted for the goal (smashing the junk is the job, so it is no crime). */
+  onSmash(): boolean {
     const s = this.current;
-    if (s && s.k === 'smash' && !this.dialog) { this.prog++; this.idleT = 0; }
+    if (s && s.k === 'smash' && !this.dialog) { this.prog++; this.idleT = 0; return true; }
+    return false;
   }
 
   // ------------------------------------------------------------------ dialogue
