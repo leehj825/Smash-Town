@@ -828,13 +828,13 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       G.stars = 0; G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null;
       N.update(0.1);
       const placed = N.list.filter((q) => q.human).length;
-      const mia = N.list.find((q) => q.def.id === 'mia');
+      const donna = N.list.find((q) => q.def.id === 'donna');
       // neutral: she talks but gives nothing; friendly: a free donut; hostile: refuses
-      const spot = mia.pos; const area = R.area(spot.x, spot.z);
+      const spot = donna.pos; const area = R.area(spot.x, spot.z);
       G.save.rep = {};
       G.humans.setPlayerActive(true, spot.x + 1.5, spot.z, 0);
       const near = N.nearest(); const prompt = near ? N.prompt(near) : '';
-      G.humans.player.hp = 20; G.save.rep[area] = 50; mia.last = -999;
+      G.humans.player.hp = 20; G.save.rep[area] = 50; donna.last = -999;
       N.talk(near); const open = N.dialogOpen; for (let k = 0; k < 6 && N.dialogOpen; k++) N.advance(); N.errand = null;
       const healed = G.humans.player.hp >= G.humans.player.maxHp;
       G.humans.player.hp = 20; G.save.rep[area] = -60; N.clock = 1000;
@@ -842,10 +842,10 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       const stayedHurt = G.humans.player.hp === 20;
       // hurting people costs reputation where it happened; helping earns it back
       G.save.rep = {};
-      G.bus.emit({ type: 'civAssaulted', x: spot.x, z: spot.z }); G.bus.emit({ type: 'civKilled', x: spot.x, z: spot.z, human: mia.human, byPlayer: true, kids: true });
+      G.bus.emit({ type: 'civAssaulted', x: spot.x, z: spot.z }); G.bus.emit({ type: 'civKilled', x: spot.x, z: spot.z, human: donna.human, byPlayer: true, kids: true });
       const down = R.get(area);
       G.bus.emit({ type: 'helped', x: spot.x, z: spot.z, amount: 10 });
-      return { placed, near: !!near, prompt: /Mia|미아/.test(prompt), open, healed, refused, stayedHurt, down, up: R.get(area) };
+      return { placed, near: !!near, prompt: /Donna|도나/.test(prompt), open, healed, refused, stayedHurt, down, up: R.get(area) };
     });
     ok(npc.placed >= 5 && npc.near && npc.prompt && npc.open && npc.healed && npc.refused && npc.stayedHurt && npc.down === -8 && npc.up === 2, 'named people talk by your reputation (a favour, or a refusal) and reputation moves with what you do', JSON.stringify(npc));
     const errand = await S(() => {

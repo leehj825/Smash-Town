@@ -7,6 +7,9 @@ import type { GameVehicle } from './vehicles';
 // "Save Old Town": an eight-chapter story told through short conversations and simple objectives. The story never forces anything:
 // the gold marker is a suggestion, and gigs, golden stars and free roaming stay available at all times.
 
+import { ARRIVAL, PARK as PARK_SCRIPT, DONNA as DONNA_SCRIPT, AMBUSH, BONNIE } from './introscript';
+import type { DScript } from './dialogue';
+
 type Pair = [string, string]; // [English, Korean]
 type SpotKey = 'donna' | 'motel' | 'hall' | 'gate' | 'crate0' | 'crate1' | 'crate2' | 'door:arcade' | 'door:gun' | 'door:clothes';
 interface Line { who: Pair; text: Pair }
@@ -16,10 +19,12 @@ type Step =
   | { k: 'smash'; count: number; text: Pair }
   | { k: 'steal'; text: Pair }
   | { k: 'drive'; spot: SpotKey; text: Pair }
-  /** Story mode's opening: deliver Donna's orders on foot (counted by the delivery job). */
+  /** Story mode's opening: a spoken scene that starts by itself (the arrival). */
+  | { k: 'monologue'; script: DScript; start: string; text: Pair }
+  /** Walk up to a person (marked with a yellow diamond) and talk face to face. */
+  | { k: 'talk'; npc: string; script: DScript; start: string; text: Pair }
+  /** Donna's first job: two orders on foot (the delivery job counts them); the Bigsby thugs and Bonnie turn up on the second leg. */
   | { k: 'deliver'; count: number; text: Pair }
-  /** Knock out the two thugs down the street; the bat is the prize. */
-  | { k: 'fight'; text: Pair }
   /** Get any kind of ride. */
   | { k: 'ride'; text: Pair };
 interface Chapter { title: Pair; reward: number; finale?: boolean; intro?: boolean; steps: Step[] }
@@ -32,20 +37,14 @@ const MAYOR: Pair = ['Mayor Bigsby', '빅스비 시장'];
 const KIKI: Pair = ['Kiki', '키키'];
 const GUNNY: Pair = ['Gunny', '거니'];
 
-/** The opening of the story mode (a new game starts on foot with $50): a first job, a first fight, a first ride. It is put in front of the chapters below. */
+/** The opening of the story mode (a new game starts on foot with $20): face to face with Mr. Park and Donna, a first job with a fight on the way, a first ride. It is put in front of the chapters below. */
 const INTRO: Chapter = {
-  title: ['Broke in Sunset Bay', '선셋 베이에서 빈털터리'], reward: 150, intro: true,
+  title: ['Broke in Sunset Bay', '선셋 베이에서 빈털터리'], reward: 100, intro: true,
   steps: [
-    { k: 'goto', spot: 'donna', text: ["Head to Donna's Donut Shop - you need cash", '돈이 필요해요 - 도나네 도넛 가게로 가세요'] },
-    { k: 'dialog', lines: [
-      { who: DONNA, text: ['You look like you just got off the bus with nothing. Want some work?', '방금 버스에서 맨몸으로 내린 얼굴이네. 일거리 필요해?'] },
-      { who: DONNA, text: ['Step into the pink marker by my door and take the orders. Two deliveries on foot and I will pay you $150 and a donut.', '우리 가게 문 옆 분홍 마커에 들어가서 주문을 받아. 걸어서 두 군데 배달해 주면 $150하고 도넛을 줄게.'] },
-    ] },
-    { k: 'deliver', count: 2, text: ["Deliver Donna's orders on foot (pink marker)", '도나의 주문을 걸어서 배달하세요 (분홍 마커)'] },
-    { k: 'dialog', lines: [
-      { who: DONNA, text: ['Good legs! But the Bigsby crew is leaning on the shopkeepers down the street. Fists only - dodge with Space - and they might drop something useful.', '다리 튼튼하네! 그런데 저 아래 길에서 빅스비 패거리가 가게 주인들을 괴롭히고 있어. 맨주먹으로, 스페이스로 피하면서 혼내 줘. 쓸 만한 걸 떨어뜨릴지도 몰라.'] },
-    ] },
-    { k: 'fight', text: ['Knock out the two thugs down the street (they are marked)', '길 아래 불량배 둘을 쓰러뜨리세요 (표시돼 있어요)'] },
+    { k: 'monologue', script: ARRIVAL, start: 'a1', text: ['Look around', '주변을 둘러보세요'] },
+    { k: 'talk', npc: 'park', script: PARK_SCRIPT, start: 'p1', text: ['Meet Mr. Park at the 24h Motel (yellow diamond)', '24시 모텔 앞에서 미스터 박을 만나세요 (노란 마름모)'] },
+    { k: 'talk', npc: 'donna', script: DONNA_SCRIPT, start: 'd1', text: ["Talk to Donna at her donut shop (yellow diamond)", '도넛 가게의 도나와 대화하세요 (노란 마름모)'] },
+    { k: 'deliver', count: 1, text: ["Deliver Donna's two orders on foot (pink marker by her door)", '도나의 주문 두 건을 걸어서 배달하세요 (가게 문 옆 분홍 마커)'] },
     { k: 'ride', text: ['Get some wheels: a bike at the garage ($150), a scooter ($600), or borrow a parked car (F)', '탈것을 구하세요: 정비소의 자전거($150), 스쿠터($600), 아니면 세워진 차를 타세요 (F)'] },
   ],
 };
@@ -194,6 +193,12 @@ export class StoryManager {
   private announced = '';
   private base: number | null = null;
   private thugs: import('./humans').Human[] = [];
+  /** The fight on the second leg of Donna's job: nothing yet, thugs standing in the street, their taunt, the fight, Bonnie's visit, done. */
+  private ambush: 'idle' | 'staged' | 'talk' | 'fight' | 'bonnie' | 'done' = 'idle';
+  private bonnieMode: 'wait' | 'walk' | 'talk' = 'wait';
+  private bonnieT = 0;
+  private batAt: { x: number; z: number } | null = null;
+  private monoStarted = false;
 
   constructor(game: Game, scene: THREE.Scene, saved?: StorySave) {
     this.game = game;
@@ -203,6 +208,8 @@ export class StoryManager {
     this.ch = (saved?.ch ?? 0) + shift;
     this.step = saved?.step ?? 0;
     this.prog = saved?.prog ?? 0;
+    // (an opening saved by an earlier version had more steps)
+    if (game.mode === 'story' && this.ch === 0 && this.step >= INTRO.steps.length) this.step = INTRO.steps.length - 1;
     this.done = this.ch >= CHAPTERS.length;
     scene.add(this.beacon.group);
     this.beacon.visible = false;
@@ -231,6 +238,8 @@ export class StoryManager {
     this.prog = 0;
     this.idleT = 0;
     this.base = null;
+    this.monoStarted = false;
+    this.game.delivery.stopsLimit = 3; this.game.delivery.payScale = 1; // Donna's small first job is over
     if (this.step >= c.steps.length) this.completeChapter(c);
     this.persist();
   }
@@ -239,7 +248,6 @@ export class StoryManager {
     const g = this.game;
     g.addCash(c.reward, 'story');
     g.hud.toast(`${bi('Chapter complete!', '챕터 완료!')} +$${c.reward.toLocaleString('en-US')}`, 3600);
-    if (c.intro) g.gear.give('donut', 1);
     if (c.finale) {
       const last = this.ch === CHAPTERS.length - 1;
       g.unlockVehicle(last ? 'monster' : 'supercar');
@@ -340,20 +348,23 @@ export class StoryManager {
         if (g.driving === limo && !g.onFoot) this.next();
         break;
       }
+      case 'monologue':
+        this.beacon.visible = false;
+        if (g.state === 'play' && !g.dialogue.active && !this.monoStarted && g.stars === 0) {
+          this.monoStarted = true;
+          g.dialogue.start(s.script, s.start, null, () => this.next());
+        }
+        break;
+      case 'talk':
+        this.beacon.visible = false; // the person carries a yellow diamond instead (see npcs.ts)
+        break;
       case 'deliver': {
         this.beacon.visible = false;
+        g.delivery.stopsLimit = 2; g.delivery.payScale = 0.4;
         if (this.base === null) this.base = g.delivery.completed;
+        this.ambushUpdate(dt);
+        if (this.batAt && !g.humans.batOwned) { this.beacon.setPosition(this.batAt.x, this.batAt.z); this.beacon.visible = true; }
         if (g.delivery.completed - this.base >= s.count) this.next();
-        break;
-      }
-      case 'fight': {
-        if (this.thugs.length === 0) this.spawnThugs();
-        if (this.thugs.length === 0) { this.next(); break; } // no free slot: skip the fight
-        const alive = this.thugs.filter((h) => h.active && !h.ko && h.hp > 0 && !GANG_DOWN(h.state));
-        if (alive.length === 0) { this.finishFight(); break; }
-        this.beacon.setPosition(alive[0].x, alive[0].z); this.beacon.visible = true;
-        // they start trouble when you get close
-        if (Math.hypot(alive[0].x - g.focusX, alive[0].z - g.focusZ) < 16) for (const h of alive) h.hostile = true;
         break;
       }
       case 'ride': {
@@ -384,34 +395,137 @@ export class StoryManager {
     }
   }
 
-  /** Two thugs on the pavement of a street about fifty metres from Donna's. */
-  private spawnThugs(): void {
+  // ------------------------------------------------------------------ the opening's fight and Bonnie
+  /** Is the story holding the delivery back (thugs in the street, Bonnie talking) so it cannot finish yet? */
+  blocksDelivery(): boolean {
+    const s = this.current;
+    return !!s && s.k === 'deliver' && this.ambush !== 'done' && (this.ambush !== 'idle' || this.game.delivery.leg === 1);
+  }
+
+  /** The person the story wants you to talk to now (they get a yellow diamond). */
+  questNpc(): string | null {
+    const s = this.current;
+    return s && s.k === 'talk' && !this.dialog ? s.npc : null;
+  }
+
+  /** If the current step is a talk with this person: the conversation to start, and what to do when it ends. */
+  talkFor(id: string): { script: DScript; start: string; done: () => void } | null {
+    const s = this.current;
+    if (!s || s.k !== 'talk' || s.npc !== id || this.dialog || this.game.stars > 0) return null;
+    return { script: s.script, start: s.start, done: () => this.next() };
+  }
+
+  private freeSpot(x: number, z: number, from: number): { x: number; z: number } {
     const g = this.game;
-    const d = this.spot('donna');
-    let best: (typeof g.world.segments)[number] | null = null, bd = Infinity;
-    for (const s of g.world.segments) {
-      if (s.len < 30 || s.hw < 5.5) continue;
-      const dist = Math.hypot(s.x - d.x, s.z - d.z);
-      if (Math.abs(dist - 55) < bd) { bd = Math.abs(dist - 55); best = s; }
+    for (let k = 0; k < 16; k++) {
+      const a = from + (k / 16) * Math.PI * 2;
+      for (const r of [11, 8, 6]) {
+        const px = x + Math.sin(a) * r, pz = z + Math.cos(a) * r;
+        if (!g.world.boxes.some((b) => px > b.minX - 1 && px < b.maxX + 1 && pz > b.minZ - 1 && pz < b.maxZ + 1)) return { x: px, z: pz };
+      }
     }
-    if (!best) return;
+    return { x, z };
+  }
+
+  /** Two thugs between you and the second drop, a few metres from it. */
+  private spawnThugs(drop: { x: number; z: number }): void {
+    const g = this.game;
+    // the street gangs share the same few slots: stand a nearby crew down for the scene (they return when you come back)
+    for (const m of g.humans.gangMembers()) if (!m.hostile) g.humans.removeGang(m);
+    const dx = g.focusX - drop.x, dz = g.focusZ - drop.z, d = Math.hypot(dx, dz) || 1;
+    const ux = dx / d, uz = dz / d;
     for (let k = 0; k < 2; k++) {
-      const along = (k - 0.5) * 3;
-      const x = best.x + best.dx * along - best.dz * (best.hw + 1.9), z = best.z + best.dz * along + best.dx * (best.hw + 1.9);
+      const side = (k - 0.5) * 3.2;
+      const x = drop.x + ux * 7 - uz * side, z = drop.z + uz * 7 + ux * side;
       const h = g.humans.spawnGang(x, z, 0x7a3a3a, false);
       if (h) { h.hp = h.maxHp = 40; this.thugs.push(h); }
     }
   }
 
-  private finishFight(): void {
+  private clearThugs(): void {
+    for (const h of this.thugs) this.game.humans.removeGang(h);
+    this.thugs = [];
+  }
+
+  private aliveThugs(): import('./humans').Human[] {
+    return this.thugs.filter((h) => h.active && !h.ko && h.hp > 0 && !GANG_DOWN(h.state));
+  }
+
+  private ambushUpdate(dt: number): void {
     const g = this.game;
+    if (this.ambush === 'done') return;
+    const drop = g.delivery.dropPos();
+    if (this.ambush === 'idle') {
+      if (drop && g.delivery.leg === 1 && Math.hypot(drop.x - g.focusX, drop.z - g.focusZ) < 55) {
+        this.spawnThugs(drop);
+        this.ambush = this.thugs.length ? 'staged' : 'done';
+      }
+      return;
+    }
+    if (this.ambush === 'bonnie') { this.bonnieUpdate(dt); return; }
+    if (this.ambush === 'talk') return; // the taunt is on screen
+    // the run was dropped (police, out of time): stand the scene down, it starts again on the next run
+    if (!g.delivery.active) { this.clearThugs(); this.ambush = 'idle'; return; }
+    const alive = this.aliveThugs();
+    if (this.ambush === 'staged') {
+      if (alive.length === 0) { this.afterFight(); return; }
+      if (alive.some((h) => h.hostile)) { this.ambush = 'fight'; return; } // somebody hit one of them
+      const t0 = alive[0];
+      if (g.state === 'play' && !g.dialogue.active && Math.hypot(t0.x - g.focusX, t0.z - g.focusZ) < 9) {
+        this.ambush = 'talk';
+        g.dialogue.start(AMBUSH, 't1', t0, () => { for (const h of this.aliveThugs()) h.hostile = true; this.ambush = 'fight'; });
+      }
+      return;
+    }
+    if (this.ambush === 'fight' && alive.length === 0) this.afterFight();
+  }
+
+  /** The thugs are down: the bat lies in the street, and a moment later Bonnie walks up. */
+  private afterFight(): void {
+    const g = this.game;
+    const last = this.thugs[this.thugs.length - 1];
+    const x = last ? last.x : g.focusX, z = last ? last.z : g.focusZ;
+    g.humans.dropBat(x, z);
+    this.batAt = { x, z };
     for (const h of this.thugs) g.humans.removeGangLater(h);
     this.thugs = [];
-    g.humans.batOwned = true;
-    g.humans.player.weapon = 1;
-    g.hud.toast(bi('You picked up a baseball bat! (V or the number keys switch weapons)', '야구방망이를 주웠어요! (V나 숫자 키로 무기 바꾸기)'), 4200);
-    g.audio.cash();
-    this.next();
+    this.ambush = 'bonnie'; this.bonnieMode = 'wait'; this.bonnieT = 1.2;
+    g.hud.toast(bi('They dropped a baseball bat - pick it up!', '방망이를 떨어뜨렸어요 - 주우세요!'), 3200);
+  }
+
+  private bonnieUpdate(dt: number): void {
+    const g = this.game, pl = g.humans.player;
+    const b = g.npcs.humanOf('bonnie');
+    if (!b || !b.active) { this.ambush = 'done'; return; }
+    if (this.bonnieMode === 'wait') {
+      if (g.state !== 'play') return;
+      this.bonnieT -= dt;
+      if (this.bonnieT <= 0) {
+        const p = this.freeSpot(pl.x, pl.z, pl.heading + Math.PI);
+        b.x = p.x; b.z = p.z;
+        this.bonnieMode = 'walk';
+      }
+      return;
+    }
+    if (this.bonnieMode === 'walk') {
+      if (g.state !== 'play' && !g.dialogue.active) return;
+      const dx = pl.x - b.x, dz = pl.z - b.z, d = Math.hypot(dx, dz);
+      if (d > 2.4) {
+        b.heading = Math.atan2(dx, dz);
+        b.mvx = Math.sin(b.heading) * 3.4; b.mvz = Math.cos(b.heading) * 3.4; b.speed = 3.4;
+      } else {
+        b.mvx = b.mvz = 0; b.speed = 0;
+        this.bonnieMode = 'talk';
+        g.dialogue.start(BONNIE, 'b1', b, () => {
+          g.fadeThen(() => { // she goes back to the gun shop
+            const home = g.npcs.homeOf('bonnie');
+            if (home) { b.x = home.x; b.z = home.z; }
+            b.mvx = b.mvz = 0; b.speed = 0;
+            this.ambush = 'done';
+          });
+        });
+      }
+    }
   }
 
   private fireworks(dt: number): void {
@@ -440,7 +554,7 @@ export class StoryManager {
     if (key !== this.announced) {
       const first = this.announced === '' ;
       this.announced = key;
-      if (!first && s.k !== 'dialog') g.hud.toast(`${bi('New goal', '새 목표')}: ${this.stepText(s)}`, 3800);
+      if (!first && s.k !== 'dialog' && s.k !== 'monologue') g.hud.toast(`${bi('New goal', '새 목표')}: ${this.stepText(s)}`, 3800);
       return;
     }
     if (g.gigs.active) { this.idleT = 0; return; }
@@ -460,8 +574,14 @@ export class StoryManager {
     const label = this.stepText(s);
     switch (s.k) {
       case 'goto': { const p = this.spot(s.spot); return { x: p.x, z: p.z, label }; }
-      case 'deliver': { const m = g.delivery.markers()[0]; return m ? { x: m.x, z: m.z, label } : null; }
-      case 'fight': { const t0 = this.thugs.find((h) => h.active && !h.ko && h.hp > 0); return t0 ? { x: t0.x, z: t0.z, label } : null; }
+      case 'monologue': return null;
+      case 'talk': { const h = g.npcs.humanOf(s.npc); const p = h ?? g.npcs.homeOf(s.npc); return p ? { x: p.x, z: p.z, label } : null; }
+      case 'deliver': {
+        if (this.batAt && !g.humans.batOwned) return { x: this.batAt.x, z: this.batAt.z, label: bi('Pick up the baseball bat', '야구방망이를 줍으세요') };
+        const t0 = this.aliveThugs()[0];
+        if (t0) return { x: t0.x, z: t0.z, label: bi('Deal with the Bigsby thugs', '빅스비 패거리를 상대하세요') };
+        const m = g.delivery.markers()[0]; return m ? { x: m.x, z: m.z, label } : null;
+      }
       case 'ride': { const gd = g.world.garages[0]; return gd?.door ? { x: gd.door.x, z: gd.door.z, label } : null; }
       case 'steal': return this.limo ? { x: this.limo.x, z: this.limo.z, label } : (() => { const p = g.world.landmarks.story.limo; return { x: p.x, z: p.z, label }; })();
       case 'drive': {
@@ -507,8 +627,9 @@ export class StoryManager {
       case 'goto': return { title, text: bi(s.text[0], s.text[1]) };
       case 'smash': return { title, text: `${bi(s.text[0], s.text[1])} (${Math.min(this.prog, s.count)}/${s.count})` };
       case 'steal': return { title, text: bi(s.text[0], s.text[1]) };
-      case 'deliver': return { title, text: `${bi(s.text[0], s.text[1])} (${Math.min(Math.max(0, this.game.delivery.completed - (this.base ?? this.game.delivery.completed)), s.count)}/${s.count})` };
-      case 'fight': return { title, text: bi(s.text[0], s.text[1]) };
+      case 'monologue': return { title, text: bi(s.text[0], s.text[1]) };
+      case 'talk': return { title, text: bi(s.text[0], s.text[1]) };
+      case 'deliver': return { title, text: this.batAt && !this.game.humans.batOwned ? bi('Pick up the baseball bat', '야구방망이를 줍으세요') : this.aliveThugs().length ? bi('Fight off the Bigsby thugs', '빅스비 패거리와 싸우세요') : bi(s.text[0], s.text[1]) };
       case 'ride': return { title, text: bi(s.text[0], s.text[1]) };
       case 'drive': return { title, text: this.game.driving === this.limo && this.limo ? bi(s.text[0], s.text[1]) : bi('Get back into the limo!', '리무진에 다시 타세요!') };
       case 'dialog': return { title, text: bi('Talk to them', '대화하기') };
@@ -530,7 +651,11 @@ export class StoryManager {
     const s = this.current;
     if (!s || this.dialog) return;
     if (s.k === 'goto') { const p = this.spot(s.spot); push(p.x, p.z, '#ffd23a', false, 6.5); }
-    else if (s.k === 'fight') { for (const h of this.thugs) if (h.active && !h.ko && h.hp > 0) push(h.x, h.z, '#ffd23a', true, 6); }
+    else if (s.k === 'talk') { const p = this.game.npcs.humanOf(s.npc) ?? this.game.npcs.homeOf(s.npc); if (p) push(p.x, p.z, '#ffd23a', false, 6.5); }
+    else if (s.k === 'deliver') {
+      for (const h of this.aliveThugs()) push(h.x, h.z, '#ffd23a', true, 6);
+      if (this.batAt && !this.game.humans.batOwned) push(this.batAt.x, this.batAt.z, '#ffd23a', true, 6);
+    }
     else if (s.k === 'ride') { const gd = this.game.world.garages[0]; if (gd?.door && !this.game.driving) push(gd.door.x, gd.door.z, '#ffd23a', false, 6.5); }
     else if (s.k === 'steal' && this.limo) push(this.limo.x, this.limo.z, '#ffd23a', false, 6.5);
     else if (s.k === 'drive') {

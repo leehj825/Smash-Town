@@ -1,4 +1,5 @@
 import type { Game } from './game';
+import * as THREE from 'three';
 import type { Human } from './humans';
 import { bi } from './i18n';
 
@@ -45,7 +46,7 @@ export class Npcs {
     };
     const defs: NpcDef[] = [
       {
-        id: 'mia', name: ['Mia', '미아'], job: ['Baker', '제빵사'], look: { shirt: 0xf7c6d9, pants: 0x6b4f3a, skin: 0xf1c27d, hair: 0x2a1a10 },
+        id: 'donna', name: ['Donna', '도나'], job: ['Donut shop owner', '도넛 가게 주인'], look: { shirt: 0xf7c6d9, pants: 0xf3efe6, skin: 0xf1c27d, hair: 0x8a5a2b },
         where: () => { const r = G.interiors.rooms.find((q) => q.id === 'donut'); return r ? { x: r.door.x + Math.cos(r.door.h) * 2.6, z: r.door.z - Math.sin(r.door.h) * 2.6 } : null; },
         lines: {
           friendly: [['Oh, it is you! Everybody around here speaks well of you.', '어머, 당신이군요! 이 근방에선 다들 당신 칭찬이에요.'], ['Here, a donut on the house. Go on.', '자, 서비스 도넛이에요. 드세요.']],
@@ -53,6 +54,15 @@ export class Npcs {
           hostile: [['I have nothing to say to you. Leave my shop alone.', '당신한테 할 말 없어요. 우리 가게에서 떨어져 주세요.']],
         },
         act: (g, t) => { if (t !== 'friendly') return null; g.humans.player.hp = g.humans.player.maxHp; return bi('You feel full again.', '체력이 가득 찼어요.'); },
+      },
+      {
+        id: 'park', name: ['Mr. Park', '미스터 박'], job: ['Motel owner', '모텔 주인'], look: { shirt: 0x8d939c, pants: 0x15151a, skin: 0xe0ac69, hair: 0x2a2a2a },
+        where: () => { const r = G.interiors.rooms.find((q) => q.id === 'motel'); return r ? { x: r.door.x + Math.cos(r.door.h) * 2.6, z: r.door.z - Math.sin(r.door.h) * 2.6 } : null; },
+        lines: {
+          friendly: [['A good tenant is worth gold. A bed is still $40, but for you I will keep the quiet room.', '좋은 손님은 금이지. 방값은 그대로 40달러지만, 당신한테는 조용한 방을 내주지.']],
+          neutral: [['A bed is $40 a night - a rest and a saved game, no questions. Old Town talks, kid. Keep your ears open.', '방은 하룻밤 40달러. 쉬고 저장하고, 묻는 건 없어. 올드타운은 말이 많아, 귀를 열어 둬.']],
+          hostile: [['Trouble-makers sleep outside.', '말썽꾸러기는 밖에서 자.']],
+        },
       },
       {
         id: 'dave', name: ['Dave', '데이브'], job: ['Mechanic', '정비사'], look: { shirt: 0x2a4a8a, pants: 0x23262f, skin: 0xc68642, hair: 0x1a1a1a },
@@ -209,15 +219,15 @@ export class Npcs {
   get dialogOpen(): boolean { return !!this.dialog; }
 
   /** How many times you have chatted with somebody (grows slowly), and the friendship level it gives: 0, 1 (3 chats) or 2 (8 chats). */
-  friendship(id: string): number { return this.game.save.friends?.[id] ?? 0; }
+  friendship(id: string): number { const f = this.game.save.friends; return f?.[id] ?? (id === 'donna' ? f?.mia ?? 0 : 0); } // (a save from the days of Mia carries over to Donna)
   level(id: string): number { const n = this.friendship(id); return n >= 8 ? 2 : n >= 3 ? 1 : 0; }
   friendList(): { name: string; level: number; count: number }[] {
     return this.list.filter((n) => this.friendship(n.def.id) > 0).map((n) => ({ name: bi(n.def.name[0], n.def.name[1]), level: this.level(n.def.id), count: this.friendship(n.def.id) }));
   }
-  private befriend(id: string, n: number): void {
+  befriend(id: string, n: number): void {
     const f = (this.game.save.friends ??= {});
     const before = this.level(id);
-    f[id] = (f[id] ?? 0) + n;
+    f[id] = this.friendship(id) + n;
     if (this.level(id) > before) {
       const d = this.list.find((q) => q.def.id === id)!.def;
       this.game.hud.toast(bi(`You and ${d.name[0]} are now ${this.level(id) === 2 ? 'best friends' : 'friends'}!`, `${d.name[1]}와(과) ${this.level(id) === 2 ? '단짝' : '친구'}가 됐어요!`), 3200);
@@ -258,8 +268,15 @@ export class Npcs {
     return `${bi('[F] Talk to', '[F] 대화:')} ${bi(n.def.name[0], n.def.name[1])} (${bi(n.def.job[0], n.def.job[1])})${lvl > 0 ? ' ' + '★'.repeat(lvl) : ''}`;
   }
 
+  /** The person with this id (or null if they are not on the street yet), and the place they normally stand. */
+  humanOf(id: string): Human | null { return this.list.find((q) => q.def.id === id)?.human ?? null; }
+  homeOf(id: string): P2 | null { return this.list.find((q) => q.def.id === id)?.pos ?? null; }
+
   talk(n: { def: NpcDef; human: Human }): void {
     const G = this.game;
+    // the story's opening: a face-to-face conversation with choices
+    const st = G.story.talkFor(n.def.id);
+    if (st) { G.dialogue.start(st.script, st.start, n.human, st.done); return; }
     const rec = this.list.find((q) => q.def === n.def)!;
     const tier = G.reputation.tier(n.human.x, n.human.z);
     const id = n.def.id;
@@ -320,8 +337,24 @@ export class Npcs {
     } else this.show();
   }
 
+  /** A yellow diamond over the person the story wants you to talk to. */
+  private mark: THREE.Mesh | null = null;
+
   update(dt: number): void {
     this.clock += dt;
     this.place();
+    const G = this.game;
+    const q = G.story.questNpc();
+    const h = q ? this.humanOf(q) : null;
+    if (!this.mark) {
+      this.mark = new THREE.Mesh(new THREE.OctahedronGeometry(0.2).scale(1, 1.7, 1), new THREE.MeshBasicMaterial({ color: 0xffd23a, fog: false }));
+      this.mark.visible = false;
+      G.scene.add(this.mark);
+    }
+    if (h && h.active && !G.dialogue.active) {
+      this.mark.visible = true;
+      this.mark.position.set(h.x, h.y + 2.55 + Math.sin(this.clock * 3) * 0.1, h.z);
+      this.mark.rotation.y = this.clock * 2;
+    } else this.mark.visible = false;
   }
 }

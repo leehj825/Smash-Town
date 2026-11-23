@@ -162,12 +162,30 @@ export class Hud {
     this.starCount.textContent = `\u2605 ${n}/${total}`;
   }
 
-  showDialog(who: string, text: string, hint: string): void {
+  /** Called with 0 or 1 when the player picks one of the choices under a line. */
+  onDialogChoice: ((i: number) => void) | null = null;
+  private dlgChoices: HTMLElement | null = null;
+
+  showDialog(who: string, text: string, hint: string, choices?: string[]): void {
     this.dialogEl.hidden = false;
     document.body.classList.add('dialog-open');
     this.dlgWho.textContent = who;
     this.dlgText.textContent = text;
     this.dlgHint.textContent = hint;
+    if (!this.dlgChoices) {
+      this.dlgChoices = document.createElement('div');
+      this.dlgChoices.id = 'dlg-choices';
+      this.dialogEl.insertBefore(this.dlgChoices, this.dlgHint);
+    }
+    const box = this.dlgChoices;
+    box.innerHTML = '';
+    (choices ?? []).forEach((label, i) => {
+      const b = document.createElement('button');
+      b.className = 'dlg-choice';
+      b.textContent = `${i + 1}  ${label}`;
+      b.addEventListener('click', (e) => { e.stopPropagation(); this.onDialogChoice?.(i); });
+      box.appendChild(b);
+    });
   }
 
   hideDialog(): void {

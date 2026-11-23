@@ -38,6 +38,9 @@ export class CameraRig {
   aimMode: 0 | 1 | 2 = 0;
   private aimBlend = 0;
   private wasFoot = false;
+  /** While two people talk: the point to look toward (the other person). The camera slides to an over-the-shoulder shot and back. */
+  dialogFocus: { x: number; z: number } | null = null;
+  private dlgBlend = 0;
   private right = new THREE.Vector3();
 
   /** Mouse / touch deltas in pixels. */
@@ -83,9 +86,24 @@ export class CameraRig {
     desired.x = tx + fullX * frac;
     desired.z = tz + fullZ * frac;
     desired.y += (1 - frac) * 1.6;
+    // a conversation: slide to an over-the-shoulder two-shot (in 0.25 s, back out in 0.35 s)
+    const df = this.dialogFocus;
+    this.dlgBlend += ((df ? 1 : 0) - this.dlgBlend) * (1 - Math.exp(-dt * (df ? 14 : 9)));
+    const db = this.dlgBlend > 0.02 ? this.dlgBlend : 0;
+    let dlgX = 0, dlgZ = 0;
+    if (df && db > 0) {
+      const ux = df.x - f.position.x, uz = df.z - f.position.z, ul = Math.hypot(ux, uz) || 1;
+      const nx = ux / ul, nz = uz / ul;
+      dlgX = f.position.x - nx * 3.0 + nz * 1.1; dlgZ = f.position.z - nz * 3.0 - nx * 1.1;
+      let fr = 1;
+      while (fr > 0.4 && this.blocked(f.position.x + (dlgX - f.position.x) * fr, f.position.z + (dlgZ - f.position.z) * fr)) fr -= 0.1;
+      dlgX = f.position.x + (dlgX - f.position.x) * fr; dlgZ = f.position.z + (dlgZ - f.position.z) * fr;
+      desired.x += (dlgX - desired.x) * db; desired.z += (dlgZ - desired.z) * db; desired.y += (f.position.y + 1.7 - desired.y) * db;
+    }
     if (!this.initialised) { this.pos.copy(desired); this.initialised = true; }
     else this.pos.lerp(desired, 1 - Math.exp(-dt * 12));
     this.look.set(f.position.x + this.right.x * side, f.position.y + 1.45 + ab * 0.05, f.position.z + this.right.z * side);
+    if (df && db > 0) this.look.set(this.look.x + ((f.position.x + df.x) / 2 - this.look.x) * db, f.position.y + 1.45, this.look.z + ((f.position.z + df.z) / 2 - this.look.z) * db);
     this.shakeTime += dt;
     this.shakeAmp *= Math.exp(-dt * 6);
     const sh = this.shakeAmp * Math.sin(this.shakeTime * 60);

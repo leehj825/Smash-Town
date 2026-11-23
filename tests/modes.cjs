@@ -39,7 +39,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       out.pistolFinite = !window.__smash.game.guns.has('pistol') && G.guns.owned.length === 0;
       return out;
     });
-    ok(r.mode === 'story' && r.sel === 0 && r.cash === 50 && r.foot && r.cars === 0 && r.guns === 0 && !r.bat && r.stage === 1 && r.rank === 'Newcomer', 'a new story starts at stage 1 with $50, on foot, with no car, gun or bat', JSON.stringify(r));
+    ok(r.mode === 'story' && r.sel === 0 && r.cash === 20 && r.foot && r.cars === 0 && r.guns === 0 && !r.bat && r.stage === 1 && r.rank === 'Newcomer', 'a new story starts at stage 1 with $20, on foot, with no car, gun or bat', JSON.stringify(r));
     await p.evaluate(() => window.__smash.startGame());
     await p.waitForTimeout(800);
     r = await p.evaluate(() => {
@@ -73,33 +73,104 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     ok(r.stage1 === 1 && r.refused && r.stage2 === 2 && r.pistolOk && r.stage3 === 3 && r.stage4 === 4 && r.back && r.price && r.cars && r.vestLocked && r.vestOpen && r.smokeLocked && r.noTruck && r.bank, 'the gun shop and the big jobs open by stage: story chapters and gang blocks raise it', JSON.stringify(r));
     await ctx.close();
 
-    // the opening: Donna's job, two deliveries, a fight for the bat, a first ride
+    // the opening, face to face: arrival, Mr. Park (a choice), Donna (a donut), a job with a fight and Bonnie on the way, a first ride
     ({ p, ctx } = await open('?mode=story'));
     await p.evaluate(() => window.__smash.startGame());
     await p.waitForTimeout(800);
     r = await p.evaluate(() => {
-      const G = g(); const S = G.story; const out = {}; const H = G.humans;
-      G.inside = null; G.state = 'play'; G.skills.off = true;
-      const talk = () => { for (let i = 0; i < 8 && S.dialogOpen; i++) S.advanceDialog(); };
-      const donna = G.world.landmarks.story.donna;
-      out.start = S.ch === 0 && S.step === 0 && S.stepKind() === 'goto';
-      H.setPlayerActive(true, donna.x, donna.z, 0); S.update(0.1); S.update(0.1);
-      out.dialog = S.stepKind() === 'dialog'; S.update(0.1); out.open = S.dialogOpen; talk(); S.update(0.1);
-      out.deliver = S.stepKind() === 'deliver';
-      G.delivery.count += 2; S.update(0.1); S.update(0.1);
-      out.talk2 = S.stepKind() === 'dialog'; S.update(0.1); talk(); S.update(0.1);
-      out.fight = S.stepKind() === 'fight'; S.update(0.1);
-      out.thugs = S.thugs.length === 2;
+      const G = g(); const S = G.story; const D = G.dialogue; const H = G.humans; const out = {};
+      G.inside = null; G.skills.off = true;
+      const adv = () => { for (let i = 0; i < 8 && D.active && !(D.node && D.node.choices); i++) D.advance(); };
+      // scene 1: the arrival speaks by itself
+      S.update(0.1);
+      out.arrival = D.active && D.node.id === 'a1' && G.state === 'dialog';
+      adv(); G.state = 'play';
+      out.toPark = !D.active && S.stepKind() === 'talk' && S.questNpc() === 'park';
+      // scene 2: Mr. Park, face to face, with a choice
+      const park = G.npcs.humanOf('park');
+      out.parkThere = !!park;
+      H.setPlayerActive(true, park.x + 2.2, park.z, 0);
+      G.npcs.talk(G.npcs.nearest());
+      for (let i = 0; i < 30; i++) D.update(0.05);
+      const a2 = Math.atan2(park.x - H.player.x, park.z - H.player.z);
+      const dh = (x) => Math.abs(Math.atan2(Math.sin(x), Math.cos(x)));
+      out.facing = dh(H.player.heading - a2) < 0.2 && dh(park.heading - (a2 + Math.PI)) < 0.2 && !!G.cameraRig.dialogFocus;
+      const heat0 = G.heat; G.addHeat(80); out.calm = G.heat === heat0 && H.player.invuln > 0;
+      adv();                                   // p1 -> p2, which has two choices
+      out.choices = !!D.node.choices && D.node.choices.length === 2 && document.querySelectorAll('#dlg-choices .dlg-choice').length === 2;
+      const area = G.reputation.area(H.player.x, H.player.z); const rep0 = G.reputation.get(area);
+      D.choose(0); out.rep = G.reputation.get(area) - rep0 === 3;
+      adv(); G.state = 'play';
+      out.toDonna = !D.active && S.stepKind() === 'talk' && S.questNpc() === 'donna' && !G.cameraRig.dialogFocus;
+      // scene 3: Donna gives a donut
+      const donna = G.npcs.humanOf('donna');
+      H.setPlayerActive(true, donna.x + 2.2, donna.z, 0);
+      G.npcs.talk(G.npcs.nearest());
+      adv(); G.state = 'play';
+      out.donut = G.gear.count('donut') === 1 && S.stepKind() === 'deliver';
+      return out;
+    });
+    ok(r.arrival && r.toPark && r.parkThere && r.facing && r.calm && r.choices && r.rep && r.toDonna && r.donut, 'the opening: a spoken arrival, then face to face with Mr. Park (a choice, standing +3) and Donna (a donut)', JSON.stringify(r));
+    r = await p.evaluate(() => {
+      const G = g(); const S = G.story; const D = G.dialogue; const H = G.humans; const out = {};
+      G.state = 'play'; G.stars = 0; G.heat = 0;
+      const adv = () => { for (let i = 0; i < 8 && D.active && !(D.node && D.node.choices); i++) D.advance(); };
+      // scene 4: the job has two orders, and the second leg is blocked by the Bigsby thugs
+      S.update(0.1);
+      out.limits = G.delivery.stopsLimit === 2 && G.delivery.payScale < 1;
+      G.delivery.cooldown = 0; G.delivery.update(0.05); const sp = G.delivery.spot; H.setPlayerActive(true, sp.x, sp.z, 0);
+      G.delivery.update(0.1);
+      out.two = G.delivery.active && G.delivery.stops.length === 2;
+      const s0 = G.delivery.stops[0]; H.setPlayerActive(true, s0.x, s0.z, 0); G.delivery.update(0.1);
+      out.leg2 = G.delivery.leg === 1;
+      const s1 = G.delivery.stops[1]; H.setPlayerActive(true, s1.x + 30, s1.z, 0); S.update(0.1);
+      out.thugs = S.thugs.length === 2 && S.ambush === 'staged' && S.blocksDelivery();
+      G.cash = 0;
+      H.setPlayerActive(true, S.thugs[0].x + 5, S.thugs[0].z, 0); S.update(0.1);
+      out.taunt = D.active && D.node.id === 't1' && S.ambush === 'talk';
+      adv(); G.state = 'play';
+      out.fight = S.ambush === 'fight' && S.thugs.every((h) => h.hostile);
+      // the drop cannot be reached while they stand there
+      H.setPlayerActive(true, s1.x, s1.z, 0); G.delivery.update(0.1);
+      out.held = G.delivery.leg === 1 && G.cash === 0;
+      // win the fight: the bat lies in the street
       for (const h of S.thugs) h.ko = true; S.update(0.1);
+      out.bat = S.ambush === 'bonnie' && H.pickups.some((k) => k.kind === 'bat' && k.active) && !H.batOwned;
+      return out;
+    });
+    ok(r.limits && r.two && r.leg2 && r.thugs && r.taunt && r.fight && r.held && r.bat, 'the job: two orders, thugs block the second drop, they taunt you, you fight, and a bat is left in the street', JSON.stringify(r));
+    // Bonnie walks up
+    await p.evaluate(() => { const G = g(); G.state = 'play'; for (let i = 0; i < 400 && !G.dialogue.active; i++) G.update(0.05); });
+    r = await p.evaluate(() => {
+      const G = g(); const S = G.story; const D = G.dialogue; const H = G.humans; const out = {};
+      const b = G.npcs.humanOf('bonnie');
+      out.bonnie = D.active && D.node.id === 'b1' && Math.hypot(b.x - H.player.x, b.z - H.player.z) < 3.2;
+      const adv = () => { for (let i = 0; i < 8 && D.active && !(D.node && D.node.choices); i++) D.advance(); };
+      adv(); out.choices = !!D.node.choices;
+      D.choose(1); out.friend = G.save.friends.bonnie === 1;
+      adv();
+      return out;
+    });
+    await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
+    r.back = await p.evaluate(() => { const G = g(); const b = G.npcs.humanOf('bonnie'); const h = G.npcs.homeOf('bonnie'); return Math.hypot(b.x - h.x, b.z - h.z) < 1.5 && !G.dialogue.active && G.story.ambush === 'done'; });
+    ok(r.bonnie && r.choices && r.friend && r.back, 'Bonnie walks up after the fight, offers a choice, and goes back to the gun shop', JSON.stringify(r));
+    r = await p.evaluate(() => {
+      const G = g(); const S = G.story; const H = G.humans; const out = {};
+      G.state = 'play';
+      // pick up the bat, finish the delivery, then get a ride
+      const bat = S.batAt; H.setPlayerActive(true, bat.x, bat.z, 0); G.update(0.1);
       out.bat = H.batOwned && H.player.weapon === 1;
-      out.ride = S.stepKind() === 'ride';
+      const s1 = G.delivery.stops[1]; H.setPlayerActive(true, s1.x, s1.z, 0); G.stars = 0; G.heat = 0;
+      for (let i = 0; i < 5; i++) { G.delivery.update(0.1); S.update(0.1); }
+      out.delivered = G.delivery.completed >= 1 && S.stepKind() === 'ride' && G.delivery.stopsLimit === 3 && G.delivery.payScale === 1;
+      out.paid = G.cash > 0 && G.cash < 600;
       const cash0 = G.cash; const v = G.spawnVehicle('scooter', 0x2fb87a, H.player.x + 2, H.player.z, 0, 'parked'); G.boardVehicle(v); S.update(0.1);
-      out.done = S.ch === 1 && S.step === 0 && G.cash - cash0 === 150 && G.gear.count('donut') === 1;
+      out.done = S.ch === 1 && S.step === 0 && G.cash - cash0 === 100;
       out.next = S.stepKind() === 'goto';
       G.removeVehicle(v); G.driving = null; G.onFoot = true; G.skills.off = false;
       return out;
     });
-    ok(r.start && r.dialog && r.open && r.deliver && r.talk2 && r.fight && r.thugs && r.bat && r.ride && r.done && r.next, 'the opening: Donna job, two deliveries, a fight that wins the bat, a first ride, then the story proper', JSON.stringify(r));
+    ok(r.bat && r.delivered && r.paid && r.done && r.next, 'pick up the bat, finish the delivery for modest pay, get a ride, and the story proper begins', JSON.stringify(r));
     await ctx.close();
 
     // a story saved before the intro existed skips it (chapters move up one place)

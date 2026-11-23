@@ -20,6 +20,9 @@ export class DeliveryJob {
   private spot: P2 | null = null;
   private earned = 0;
   private count = 0;
+  /** The story's first job has two orders and pays less: it sets these while it is the goal. */
+  stopsLimit = 3;
+  payScale = 1;
 
   constructor(private game: Game) {
     game.scene.add(this.pickup.group, this.drop.group);
@@ -28,6 +31,9 @@ export class DeliveryJob {
 
   get active(): boolean { return this.phase === 'run'; }
   get completed(): number { return this.count; }
+  /** Which order you are on (0 = the first) and where it goes, while a run is on. */
+  get leg(): number { return this.phase === 'run' ? this.i : -1; }
+  dropPos(): P2 | null { return this.phase === 'run' ? this.stops[this.i] ?? null : null; }
 
   markers(): { x: number; z: number; flash: boolean }[] {
     if (this.phase === 'run') return this.stops[this.i] ? [{ ...this.stops[this.i], flash: true }] : [];
@@ -71,7 +77,7 @@ export class DeliveryJob {
         this.stops = [];
         let cur: P2 = this.spot;
         let total = 0;
-        for (let n = 0; n < 3; n++) {
+        for (let n = 0; n < this.stopsLimit; n++) {
           const p = this.roadPoint(cur, 90, 300 + n * 40);
           if (!p) break;
           total += Math.hypot(p.x - cur.x, p.z - cur.z);
@@ -93,9 +99,9 @@ export class DeliveryJob {
     const s = this.stops[this.i];
     const left = Math.hypot(s.x - px, s.z - pz);
     G.hud.showGig(true, bi('DELIVERY', '배달'), `${bi('Order', '주문')} ${this.i + 1}/${this.stops.length} · ${Math.round(left)} m`, `${Math.max(0, Math.ceil(this.time))}s`);
-    if (left < 7.5) {
+    if (left < 7.5 && !G.story.blocksDelivery()) {
       const dist = Math.hypot(s.x - this.legStart.x, s.z - this.legStart.z);
-      const pay = Math.round(120 + dist * 0.35);
+      const pay = Math.round((120 + dist * 0.35) * this.payScale);
       this.earned += pay;
       G.addCash(pay, 'gigs');
       G.popups.spawn(px, 3, pz, `+$${pay}`, '#ff8fb8');
@@ -103,7 +109,7 @@ export class DeliveryJob {
       this.legStart = { ...s };
       this.i++;
       if (this.i >= this.stops.length) {
-        const bonus = 150 + Math.round(Math.max(0, this.time) * 4);
+        const bonus = Math.round((150 + Math.max(0, this.time) * 4) * this.payScale);
         G.addCash(bonus, 'gigs');
         G.progress.add('gigs');
         G.progress.add('deliveries');

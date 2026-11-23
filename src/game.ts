@@ -47,6 +47,7 @@ import { Barricades } from './barricades';
 import { currentMode, type GameMode } from './mode';
 import { Sandbox } from './sandbox';
 import { Kids } from './kids';
+import { Dialogue } from './dialogue';
 import { Progression, GUN_STAGE } from './progression';
 import { SAVE_VERSION, migrateSave } from './saveMigrate';
 import { JOBS } from './jobs';
@@ -168,6 +169,7 @@ export class Game {
   readonly mode: GameMode = currentMode();
   sandbox!: Sandbox;
   kidsMode!: Kids;
+  dialogue!: Dialogue;
   progression!: Progression;
   /** A story game with no save yet: it starts on foot with almost nothing. */
   private freshStory = false;
@@ -318,6 +320,7 @@ export class Game {
     this.barricades = new Barricades(this);
     this.sandbox = new Sandbox(this);
     this.kidsMode = new Kids(this);
+    this.dialogue = new Dialogue(this);
     this.progression = new Progression(this);
     if (this.mode === 'sandbox' || this.mode === 'kids') { this.noSave = true; this.story.done = true; }
     if (this.mode === 'kids') this.humans.gentle = true;
@@ -372,7 +375,7 @@ export class Game {
     if (this.freshStory) {
       // a new story: on foot outside the 24h Motel, no car
       const m = this.interiors.rooms.find((r) => r.id === 'motel');
-      const x = m ? m.door.x + Math.cos(m.door.h) * 2.6 : this.world.spawn.x, z = m ? m.door.z - Math.sin(m.door.h) * 2.6 : this.world.spawn.z;
+      const x = m ? m.door.x + Math.cos(m.door.h) * 6 : this.world.spawn.x, z = m ? m.door.z - Math.sin(m.door.h) * 6 : this.world.spawn.z; // (a few metres from Mr. Park, who stands at the door)
       this.driving = null; this.onFoot = true;
       this.humans.setPlayerActive(true, x, z, m ? m.door.h : this.world.spawn.heading);
     } else this.spawnPlayer(this.save.selected, this.world.spawn.x, this.world.spawn.z, this.world.spawn.heading);
@@ -382,7 +385,7 @@ export class Game {
   private loadSave(): SaveData {
     // a new story starts with $50, bare hands and no car; classic keeps the old starting state
     const fallback: SaveData = this.mode === 'story'
-      ? { cash: 50, unlocked: [], selected: 'sedan', guns: [], bat: false }
+      ? { cash: 20, unlocked: [], selected: 'sedan', guns: [], bat: false }
       : { cash: 2000, unlocked: ['sports', 'sedan'], selected: 'sports' };
     // Kids Play: every car, no weapons, nothing saved
     if (this.mode === 'kids') return { cash: 0, unlocked: [...PLAYER_ROSTER], selected: 'sports', guns: [], bat: false };
@@ -586,6 +589,7 @@ export class Game {
 
   // ------------------------------------------------------------------ wanted
   addHeat(n: number): void {
+    if (n > 0 && this.state === 'dialog') return; // nobody is a criminal in the middle of a conversation
     if (n > 0) { this.crimeT = 0; n = Math.max(1, Math.round(n * this.skills.heatMul)); } // stealth takes the edge off
     this.heat = Math.min(400, Math.max(this.heat + n, this.minHeat));
     const prev = this.stars;
@@ -759,7 +763,7 @@ export class Game {
   }
 
   /** Move a conversation on (a named person's, or the story's). */
-  advanceDialog(): void { if (this.npcs.dialogOpen) this.npcs.advance(); else this.story.advanceDialog(); }
+  advanceDialog(): void { if (this.dialogue.active) this.dialogue.advance(); else if (this.npcs.dialogOpen) this.npcs.advance(); else this.story.advanceDialog(); }
 
   /** Speedboats moored on the water: one on each stretch big enough (up to five). Climb in with F like any vehicle. */
   boats: GameVehicle[] = [];
@@ -1154,6 +1158,7 @@ export class Game {
     this.gigs.update(dt);
     if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.clock.update(dt); this.completion.update(dt); this.riots.update(dt); this.crossfire.update(dt); this.truckHeist.update(dt); this.gear.update(dt); this.escapes.update(dt); this.phone.update(dt); this.director.update(dt); this.challenge.update(dt); this.juice.update(); this.barricades.update(dt); this.sandbox.update(); this.kidsMode.update(); this.progression.update(dt); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
+    this.dialogue.update(dt);
     this.story.update(dt);
     this.collectibles.update(dt);
     this.collectStars();
@@ -1475,7 +1480,7 @@ export class Game {
         this.audio.whoosh(atk.kind !== 'punch');
         if (atk.kind === 'swing' && att.role === Role.Player) this.slash.fire(att.x, att.y + 1.1, att.z, att.heading);
       },
-      onPickup: () => { this.hud.toast(t('ui.toast.baton')); this.audio.cash(); },
+      onPickup: (kind) => { this.hud.toast(kind === 'bat' ? bi('You picked up a baseball bat! (V or the number keys switch weapons)', '야구방망이를 주웠어요! (V나 숫자 키로 무기 바꾸기)') : t('ui.toast.baton')); this.audio.cash(); },
       onStep: () => this.audio.step(),
       onWhiff: () => { /* dodged */ },
     };

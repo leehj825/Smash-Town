@@ -12,16 +12,16 @@ import type { CircleCollider, Lot, World } from './world';
 
 export const Role = { Civ: 0, Cop: 1, Player: 2 } as const;
 import { Challenge } from './challenge';
-const N = 77;
+const N = 78;
 const LOW_PROPS = new Set(['bench', 'trash', 'hydrant', 'newsstand']);
 const COP_FIRST = 1, COP_LAST = 10;
 /** Gang members: their own pool of slots, so they never mix with the police. */
 const GANG_FIRST = 11, GANG_LAST = 16;
 /** Named people (see npcs.ts): civilians who stand in one place. */
-const NAMED_FIRST = 17, NAMED_LAST = 29;
+const NAMED_FIRST = 17, NAMED_LAST = 30;
 /** The one bodyguard friend (see buddy.ts). */
-const ALLY_SLOT = 30;
-const CIV_FIRST = 31;
+const ALLY_SLOT = 31;
+const CIV_FIRST = 32;
 const GROUND = 0.1;
 const SHIRTS = [0xe85a4f, 0x3b82f6, 0x2fb87a, 0xf2a73b, 0x8a5cd6, 0xf4a7b9, 0x66d1c9, 0xeceff4];
 const PANTS = [0x2c3e50, 0x4a4e59, 0x6b4f3a, 0x1f2d3d, 0x7f8c8d, 0x3b5a8c];
@@ -117,7 +117,7 @@ export interface HumanHooks {
   onWitnessCall?: (h: Human) => void;
   onWitnessStart?: (h: Human) => void;
   onSwing: (att: Human, atk: Attack) => void;
-  onPickup: () => void;
+  onPickup: (kind: 'baton' | 'bat') => void;
   onStep: () => void;
   onWhiff: (att: Human) => void;
 }
@@ -137,7 +137,7 @@ export interface HumanCtx {
   time: number;
 }
 
-interface Pickup { active: boolean; x: number; z: number; t: number; mesh: THREE.Mesh }
+interface Pickup { active: boolean; x: number; z: number; t: number; mesh: THREE.Mesh; kind: 'baton' | 'bat' }
 
 /** All humans: the player, foot cops and civilians, as pooled slots drawn through instanced rig parts. */
 export class Humans {
@@ -191,7 +191,7 @@ export class Humans {
       const mesh = new THREE.Mesh(baton, new THREE.MeshLambertMaterial({ color: 0x16161c, emissive: 0x3344ff, emissiveIntensity: 0.6, flatShading: true }));
       mesh.visible = false;
       this.group.add(mesh);
-      this.pickups.push({ active: false, x: 0, z: 0, t: 0, mesh });
+      this.pickups.push({ active: false, x: 0, z: 0, t: 0, mesh, kind: 'baton' });
     }
   }
 
@@ -635,7 +635,14 @@ export class Humans {
     if (this.unlockedBaton) return;
     const p = this.pickups.find((q) => !q.active);
     if (!p) return;
-    p.active = true; p.x = x; p.z = z; p.t = 0; p.mesh.visible = true;
+    p.active = true; p.kind = 'baton'; p.x = x; p.z = z; p.t = 0; p.mesh.visible = true;
+  }
+
+  /** A baseball bat on the ground (the prize of the story's first fight). Walk over it to take it and wield it. */
+  dropBat(x: number, z: number): void {
+    const p = this.pickups.find((q) => !q.active);
+    if (!p) return;
+    p.active = true; p.kind = 'bat'; p.x = x; p.z = z; p.t = 0; p.mesh.visible = true;
   }
 
   // ------------------------------------------------------------------ cops
@@ -1130,8 +1137,8 @@ export class Humans {
       k.mesh.rotation.y = k.t * 2.2;
       if (this.ctx.playerActive && Math.hypot(this.player.x - k.x, this.player.z - k.z) < 1.5) {
         k.active = false; k.mesh.visible = false;
-        this.unlockedBaton = true;
-        this.hooks.onPickup();
+        if (k.kind === 'bat') { this.batOwned = true; this.player.weapon = 1; } else this.unlockedBaton = true;
+        this.hooks.onPickup(k.kind);
       }
     }
   }
