@@ -30,7 +30,7 @@ export const CHAPTERS: Chapter[] = [
   {
     title: ['Welcome to Sunset Bay', '선셋 베이에 온 걸 환영해'], reward: 1000,
     steps: [
-      { k: 'goto', spot: 'donna', text: ["Drive to Donna's Donut Shop in Old Town", '올드타운의 도나네 도넛 가게로 가세요'] },
+      { k: 'goto', spot: 'donna', text: ["Head to Donna's Donut Shop in Old Town", '올드타운의 도나네 도넛 가게로 가세요'] },
       { k: 'dialog', lines: [
         { who: DONNA, text: ["Hi there, newcomer! I'm Donna. Welcome to Sunset Bay!", '안녕, 새내기! 난 도나야. 선셋 베이에 온 걸 환영해!'] },
         { who: DONNA, text: ['But Old Town is in trouble. Mayor Bigsby wants to knock it all down and build a giant Mega Mall!', '그런데 올드타운이 위기야. 빅스비 시장이 전부 부수고 거대한 메가몰을 지으려 해!'] },

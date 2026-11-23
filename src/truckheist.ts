@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Beacon } from './beacon';
 import type { Game } from './game';
 import { bi } from './i18n';
+import { TRUCK_STAGE } from './progression';
 import { MeshBuilder, paletteMaterial } from './geo';
 import type { GameVehicle } from './vehicles';
 
@@ -141,6 +142,7 @@ export class TruckHeist {
       if (this.cooldown > 0 || G.inside || G.stars > 0 || !G.onFoot || G.jobOnDuty(null) || G.gigs.active || G.race.active || G.taxi.active || G.delivery.active) return;
       const p = G.humans.player;
       if (Math.hypot(this.spot.x - p.x, this.spot.z - p.z) < 3.5) {
+        if (!G.progression.allows(TRUCK_STAGE)) { this.cooldown = 20; G.hud.toast(bi('The crew does not know you yet. Make a name for yourself first.', '팀이 아직 당신을 몰라요. 먼저 이름을 알리세요.'), 3200); return; }
         if (G.cash < PLAN_COST) { this.cooldown = 8; G.hud.toast(bi(`The crew wants $${PLAN_COST} up front for the gear.`, `팀이 장비값으로 선금 $${PLAN_COST}을 원해요.`), 2600); return; }
         this.start();
       }

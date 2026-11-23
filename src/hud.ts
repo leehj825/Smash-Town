@@ -17,8 +17,8 @@ export interface GarageModel {
   selected: VehicleKind;
   car: CarProgress;
   body: BodyProgress;
-  arms: { owned: GunId[]; reserve: Record<GunId, number>; up: Record<GunId, [number, number]> };
-  gear: { id: string; en: string; ko: string; icon: string; price: number; have: number; max: number }[];
+  arms: { owned: GunId[]; reserve: Record<GunId, number>; up: Record<GunId, [number, number]>; stage: number; gate: Record<GunId, number> };
+  gear: { id: string; en: string; ko: string; icon: string; price: number; have: number; max: number; need: number; open: boolean }[];
 }
 export interface GarageHandlers {
   onRepair: () => void;
@@ -436,7 +436,7 @@ export class Hud {
         const g = GUNS[id];
         const has = m.arms.owned.includes(id);
         const res = g.infinite ? '\u221E' : String(m.arms.reserve[id]);
-        const buyBtn = has ? `<button class="seg" disabled>${bi('Owned', '보유')}</button>` : `<button class="seg gbuy" data-g="${id}">${money(g.price)}</button>`;
+        const buyBtn = has ? `<button class="seg" disabled>${bi('Owned', '보유')}</button>` : `<button class="seg gbuy" data-g="${id}">${m.arms.gate[id] > m.arms.stage ? `\u{1F512} ${bi('Stage', '단계')} ${m.arms.gate[id]}` : money(g.price)}</button>`;
         const tier = GUN_UP_TIER[id];
         const upBtn = (which: 0 | 1, label: string) => {
           const lv = m.arms.up[id][which];
@@ -447,7 +447,7 @@ export class Hud {
         const ups = upBtn(0, bi('Damage', '피해')) + upBtn(1, bi('Magazine', '탄창'));
         const ammoBtn = has && !g.infinite ? `<button class="seg gammo" data-g="${id}">+${g.pack} ${bi('ammo', '탄약')} ${money(g.packPrice)}</button>` : '';
         return `<div class="urow"><div><b>${g.icon} ${bi(g.en, g.ko)}</b> <span class="lv">${has ? `${bi('ammo', '탄약')} ${res}` : ''}</span><small>${bi('Magazine', '탄창')} ${g.mag} \u00B7 ${g.dmg ? bi('damage', '피해') + ' ' + g.dmg + (g.pellets > 1 ? 'x' + g.pellets : '') : bi('harmless fun', '무해한 장난감')}</small></div><div class="gbtns">${buyBtn}${ammoBtn}${ups}</div></div>`;
-      }).join('') + `<h3>${bi('Gear (Z use tool, G wheel, U donut, I armour)', '장비 (Z 도구 사용, G 휠, U 도넛, I 방탄복)')}</h3>` + m.gear.map((d) => `<div class="urow"><div><b>${d.icon} ${bi(d.en, d.ko)}</b> <span class="lv">${d.have}/${d.max}</span></div><button class="seg ggear" data-id="${d.id}" ${d.have >= d.max ? 'disabled' : ''}>${d.have >= d.max ? bi('Full', '가득') : money(d.price)}</button></div>`).join('') + '</div>';
+      }).join('') + `<h3>${bi('Gear (Z use tool, G wheel, U donut, I armour)', '장비 (Z 도구 사용, G 휠, U 도넛, I 방탄복)')}</h3>` + m.gear.map((d) => `<div class="urow"><div><b>${d.icon} ${bi(d.en, d.ko)}</b> <span class="lv">${d.have}/${d.max}</span></div><button class="seg ggear" data-id="${d.id}" ${d.have >= d.max ? 'disabled' : ''}>${d.have >= d.max ? bi('Full', '가득') : !d.open ? `\u{1F512} ${bi('Stage', '단계')} ${d.need}` : money(d.price)}</button></div>`).join('') + '</div>';
     } else {
       body = '<div class="ulist">' + BODY_KEYS.map((k, i) => {
         const lv = m.body[k];

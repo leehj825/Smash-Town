@@ -146,6 +146,8 @@ export class Humans {
   readonly list: Human[] = [];
   readonly player: Human;
   unlockedBaton = false;
+  /** The baseball bat: a new story starts without it and finds it in the first fight. */
+  batOwned = true;
   /** Which guns the player owns (pistol, SMG, shotgun, rocket, paintball). */
   guns: boolean[] = [true, false, false, false, false, false];
   /** Kids Play: nobody dies. Defeated cops and the player are only knocked out. */
@@ -283,6 +285,7 @@ export class Humans {
   ownedFlags(): boolean[] { return [0, 1, 2, 3, 4, 5, 6, 7, 8].map((s) => this.weaponOwned(s)); }
 
   weaponOwned(slot: number): boolean {
+    if (slot === 1) return this.batOwned;
     if (slot === 2) return this.unlockedBaton;
     if (slot >= 3) return !!this.guns[slot - 3];
     return true;

@@ -1,5 +1,6 @@
 import type { Game } from './game';
 import { bi } from './i18n';
+import { TRUCK_STAGE } from './progression';
 
 interface Service { id: string; en: string; ko: string; cost: number; need?: string; run: () => boolean | void }
 
@@ -36,7 +37,7 @@ export class Phone {
         G.gangs.reveal(z, 90);
         G.hud.toast(bi(`${z.name} are weakest right now - marked on your map.`, `지금은 ${z.nameKo}가 제일 약해요 - 지도에 표시했어요.`), 3000);
       } },
-      { id: 'kane-truck', en: 'Informant Kane: cash truck tip', ko: '정보원 케인: 현금 수송차 제보', cost: 150, need: 'kane', run: () => { if (G.truckHeist.active) { G.hud.toast(bi('You are already on a job.', '이미 작전 중이에요.'), 1800); return false; } return G.truckHeist.start(true); } },
+      { id: 'kane-truck', en: 'Informant Kane: cash truck tip', ko: '정보원 케인: 현금 수송차 제보', cost: 150, need: 'kane', run: () => { if (!G.progression.allows(TRUCK_STAGE)) { G.progression.refuse(TRUCK_STAGE); return false; } if (G.truckHeist.active) { G.hud.toast(bi('You are already on a job.', '이미 작전 중이에요.'), 1800); return false; } return G.truckHeist.start(true); } },
       { id: 'rosa', en: 'Nurse Rosa: house call', ko: '간호사 로사: 왕진', cost: 120, need: 'rosa', run: () => {
         const pl = G.humans.player;
         pl.hp = pl.maxHp; G.humans.armor = Math.max(G.humans.armor, 25);

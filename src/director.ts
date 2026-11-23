@@ -1,4 +1,5 @@
 import type { Game } from './game';
+import { TRUCK_STAGE } from './progression';
 
 /**
  * The director. Nobody sees it. If the player has been driving or walking about for a minute and a half with nothing going on (no wanted level, no
@@ -25,8 +26,12 @@ export class Director {
   /** Throw one event now (used by the timer, and by tests with a chosen kind). */
   throwOne(kind?: 'thief' | 'fire' | 'riot' | 'truck'): boolean {
     const G = this.game;
+    const stage = G.progression.stage();
     const pick = kind ?? ((): 'thief' | 'fire' | 'riot' | 'truck' => {
+      // a newcomer only meets small trouble; the cash truck waits for a name
       const r = Math.random();
+      if (stage < 2) return r < 0.6 ? 'thief' : 'fire';
+      if (stage < TRUCK_STAGE) return r < 0.5 ? 'thief' : r < 0.8 ? 'fire' : 'riot';
       return r < 0.4 ? 'thief' : r < 0.65 ? 'fire' : r < 0.82 ? 'riot' : 'truck';
     })();
     let ok = false;

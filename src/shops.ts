@@ -1,6 +1,7 @@
 import type { Game } from './game';
 import { Game as GameClass } from './game';
 import { bi } from './i18n';
+import { BANK_STAGE } from './progression';
 import { OWNABLE, type OwnableShop } from './progress';
 import type { Room } from './interiors';
 
@@ -78,6 +79,7 @@ export class Shops {
   startHeist(): void {
     const G = this.G;
     if (this.heist) return;
+    if (!G.progression.allows(BANK_STAGE)) { G.hud.toast(bi('The vault is out of your league. Come back as a Kingpin.', '이 금고는 아직 당신에게 무리예요. 제왕이 되어서 오세요.'), 3000); return; }
     if (this.heistCooldown > 0) { G.hud.toast(bi('The vault was just emptied - come back later', '금고가 방금 털렸어요 - 나중에 다시 오세요'), 2400); return; }
     // a C4 charge blows the vault door in half the time
     const c4 = G.gear.count('c4') > 0;

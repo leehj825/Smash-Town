@@ -41,6 +41,7 @@ export class Completion {
 
   /** The player's standing, by city completion. */
   rank(): [string, string] {
+    if (this.game.mode === 'story') return this.game.progression.name();
     const p = this.percent();
     return p >= 100 ? ['Kingpin', '도시의 제왕'] : p >= 75 ? ['Underboss', '언더보스'] : p >= 50 ? ['District boss', '구역 보스'] : p >= 25 ? ['Block boss', '동네 보스'] : ['Street thug', '거리의 불량배'];
   }

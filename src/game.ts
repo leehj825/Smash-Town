@@ -46,6 +46,7 @@ import { Juice } from './juice';
 import { Barricades } from './barricades';
 import { currentMode, type GameMode } from './mode';
 import { Sandbox } from './sandbox';
+import { Progression, GUN_STAGE } from './progression';
 import { SAVE_VERSION, migrateSave } from './saveMigrate';
 import { JOBS } from './jobs';
 import { Reputation } from './reputation';
@@ -86,7 +87,7 @@ export function currentSlot(): number {
 }
 export const slotSaveKey = (slot: number): string => (slot === 1 ? 'smashtown.save.v1' : `smashtown.save.v1.s${slot}`);
 export const SAVE_KEY = slotSaveKey(currentSlot());
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; friends?: Record<string, number>; gear?: Record<string, number>; survivalBest?: number; v?: number; hour?: number; milestone?: number; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; friends?: Record<string, number>; bat?: boolean; gear?: Record<string, number>; survivalBest?: number; v?: number; hour?: number; milestone?: number; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -165,6 +166,9 @@ export class Game {
   /** story, sandbox or classic (see mode.ts). */
   readonly mode: GameMode = currentMode();
   sandbox!: Sandbox;
+  progression!: Progression;
+  /** A story game with no save yet: it starts on foot with almost nothing. */
+  private freshStory = false;
   /** The page gives the sandbox's phone entries a way to change the weather and the time of day. */
   sandboxHooks: { weather: () => string; time: () => string } | null = null;
   /** Slow motion while the quick wheel is open (1 = normal). */
@@ -279,7 +283,13 @@ export class Game {
     this.story = new StoryManager(this, this.scene, this.save.story);
     this.pickups = new Pickups(d.world, makeRng(2024));
     this.scene.add(this.pickups.group);
+    if (this.mode === 'story') {
+      // in the story the pistol is bought and its ammunition runs out, and the first cars cost money
+      GUNS.pistol.infinite = false; GUNS.pistol.price = 400; GUNS.pistol.packPrice = 40;
+      STATS.sedan.price = 1500; STATS.sports.price = 6000;
+    }
     this.guns = new Guns(this, this.save.guns ?? [], this.save.ammo ?? {}, this.save.gunUp ?? {});
+    this.humans.batOwned = this.save.bat !== false;
     this.scene.add(this.guns.group);
     this.heli.attach(this.scene);
     this.interiors = new Interiors(d.world, this.scene);
@@ -305,6 +315,7 @@ export class Game {
     this.juice = new Juice(this);
     this.barricades = new Barricades(this);
     this.sandbox = new Sandbox(this);
+    this.progression = new Progression(this);
     if (this.mode === 'sandbox') { this.noSave = true; this.story.done = true; }
     this.fires = new Fires(this);
     this.thieves = new Thieves(this);
@@ -354,12 +365,21 @@ export class Game {
 
     // civilians and patrols
     for (let i = 0; i < this.trafficTarget; i++) this.spawnTraffic(true);
-    this.spawnPlayer(this.save.selected, this.world.spawn.x, this.world.spawn.z, this.world.spawn.heading);
+    if (this.freshStory) {
+      // a new story: on foot outside the 24h Motel, no car
+      const m = this.interiors.rooms.find((r) => r.id === 'motel');
+      const x = m ? m.door.x + Math.cos(m.door.h) * 2.6 : this.world.spawn.x, z = m ? m.door.z - Math.sin(m.door.h) * 2.6 : this.world.spawn.z;
+      this.driving = null; this.onFoot = true;
+      this.humans.setPlayerActive(true, x, z, m ? m.door.h : this.world.spawn.heading);
+    } else this.spawnPlayer(this.save.selected, this.world.spawn.x, this.world.spawn.z, this.world.spawn.heading);
   }
 
   // ------------------------------------------------------------------ persistence
   private loadSave(): SaveData {
-    const fallback: SaveData = { cash: 2000, unlocked: ['sports', 'sedan'], selected: 'sports' };
+    // a new story starts with $50, bare hands and no car; classic keeps the old starting state
+    const fallback: SaveData = this.mode === 'story'
+      ? { cash: 50, unlocked: [], selected: 'sedan', guns: [], bat: false }
+      : { cash: 2000, unlocked: ['sports', 'sedan'], selected: 'sports' };
     // the sandbox starts rich and fully unlocked, and never reads (or writes) a story slot
     if (this.mode === 'sandbox') {
       const ammo: Partial<Record<GunId, number>> = {};
@@ -368,7 +388,7 @@ export class Game {
     }
     try {
       const raw = localStorage.getItem(SAVE_KEY);
-      if (!raw) return fallback;
+      if (!raw) { this.freshStory = this.mode === 'story'; return fallback; }
       const s = migrateSave(JSON.parse(raw)) as Partial<SaveData>;
       const unlocked = (s.unlocked ?? []).filter((k): k is VehicleKind => PLAYER_ROSTER.includes(k as VehicleKind));
       for (const k of fallback.unlocked) if (!unlocked.includes(k)) unlocked.push(k);
@@ -405,8 +425,10 @@ export class Game {
       const turf = Array.isArray(s.turf) ? s.turf.filter((n: unknown) => Number.isInteger(n)) as number[] : [];
       const raceBest = Array.isArray(s.raceBest) ? s.raceBest.map((n: unknown) => (typeof n === 'number' && n > 0 ? n : 0)) : [];
       const login = s.login && typeof s.login.day === 'string' ? { day: s.login.day, streak: Number(s.login.streak) || 1 } : undefined;
-      return { cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, friends, gear, survivalBest: Number(s.survivalBest) > 0 ? Math.floor(Number(s.survivalBest)) : undefined, rep, skills, login, progress: s.progress, v: s.v ?? SAVE_VERSION, milestone: [25, 50, 75, 100].includes(Number(s.milestone)) ? Number(s.milestone) : undefined, hour: typeof s.hour === 'number' && s.hour >= 0 && s.hour < 24 ? s.hour : undefined };
+      const bat = typeof s.bat === 'boolean' ? s.bat : undefined;
+      return { bat, cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, friends, gear, survivalBest: Number(s.survivalBest) > 0 ? Math.floor(Number(s.survivalBest)) : undefined, rep, skills, login, progress: s.progress, v: s.v ?? SAVE_VERSION, milestone: [25, 50, 75, 100].includes(Number(s.milestone)) ? Number(s.milestone) : undefined, hour: typeof s.hour === 'number' && s.hour >= 0 && s.hour < 24 ? s.hour : undefined };
     } catch {
+      this.freshStory = this.mode === 'story';
       return fallback;
     }
   }
@@ -417,6 +439,7 @@ export class Game {
     this.save.cash = Math.round(this.cash);
     this.save.collected = this.collectibles.indices();
     this.save.progress = this.progress.toSave();
+    this.save.bat = this.humans.batOwned;
     this.save.v = Math.max(this.save.v ?? SAVE_VERSION, SAVE_VERSION);
     this.save.hour = Math.round(this.clock.hour * 100) / 100;
     this.save.outfit = this.save.outfit ?? 0;
@@ -870,7 +893,7 @@ export class Game {
       selected: k,
       car: cp,
       body: this.save.body ?? emptyBody(),
-      arms: { owned: [...this.guns.owned], reserve: { ...this.guns.reserve }, up: { ...this.guns.up } },
+      arms: { owned: [...this.guns.owned], reserve: { ...this.guns.reserve }, up: { ...this.guns.up }, stage: this.progression.stage(), gate: GUN_STAGE },
       gear: this.gear.shopList(),
     };
   }
@@ -954,7 +977,9 @@ export class Game {
         refresh();
       },
       onBuyGun: (id) => {
-        if (this.guns.has(id) || !this.pay(GUNS[id].price)) return;
+        if (this.guns.has(id)) return;
+        if (!this.progression.allows(GUN_STAGE[id])) { this.progression.refuse(GUN_STAGE[id]); return; }
+        if (!this.pay(GUNS[id].price)) return;
         this.guns.buyGun(id);
         this.humans.guns = this.guns.flags();
         this.hud.toast(bi('New weapon! Press its number key on foot.', '새 무기! 도보에서 숫자 키로 선택하세요.'));
@@ -1117,7 +1142,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.clock.update(dt); this.completion.update(dt); this.riots.update(dt); this.crossfire.update(dt); this.truckHeist.update(dt); this.gear.update(dt); this.escapes.update(dt); this.phone.update(dt); this.director.update(dt); this.challenge.update(dt); this.juice.update(); this.barricades.update(dt); this.sandbox.update(); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.clock.update(dt); this.completion.update(dt); this.riots.update(dt); this.crossfire.update(dt); this.truckHeist.update(dt); this.gear.update(dt); this.escapes.update(dt); this.phone.update(dt); this.director.update(dt); this.challenge.update(dt); this.juice.update(); this.barricades.update(dt); this.sandbox.update(); this.progression.update(dt); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);

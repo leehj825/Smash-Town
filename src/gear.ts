@@ -3,6 +3,7 @@ import type { Game } from './game';
 import { bi } from './i18n';
 import { MeshBuilder, paletteMaterial } from './geo';
 import { GUNS, GUN_ORDER } from './guns';
+import { GEAR_STAGE } from './progression';
 
 export type GearId = 'smoke' | 'c4' | 'spikes' | 'donut' | 'vest';
 interface GearDef { id: GearId; en: string; ko: string; icon: string; price: number; max: number; tool: boolean }
@@ -61,11 +62,12 @@ export class Gear {
     this.game.saveDirty = true;
   }
   /** The rows of the shop. */
-  shopList(): { id: GearId; en: string; ko: string; icon: string; price: number; have: number; max: number }[] {
-    return GEAR.map((d) => ({ id: d.id, en: d.en, ko: d.ko, icon: d.icon, price: d.price, have: this.count(d.id), max: d.max }));
+  shopList(): { id: GearId; en: string; ko: string; icon: string; price: number; have: number; max: number; need: number; open: boolean }[] {
+    return GEAR.map((d) => ({ id: d.id, en: d.en, ko: d.ko, icon: d.icon, price: d.price, have: this.count(d.id), max: d.max, need: GEAR_STAGE[d.id], open: this.game.progression.allows(GEAR_STAGE[d.id]) }));
   }
   buy(id: GearId): boolean {
     const d = BY_ID[id];
+    if (!this.game.progression.allows(GEAR_STAGE[id])) { this.game.progression.refuse(GEAR_STAGE[id]); return false; }
     if (this.count(id) >= d.max) { this.game.hud.toast(bi('You cannot carry more of those', '더는 들고 다닐 수 없어요')); return false; }
     if (!this.game.pay(d.price)) return false;
     this.add(id, 1);

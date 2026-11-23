@@ -30,10 +30,47 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     ok(r.modes.length === 2, 'the title screen offers the story and the free sandbox', JSON.stringify(r));
     await ctx.close();
 
-    // story mode, chosen by hand (its starting state arrives in the next step; for now it matches classic)
+    // a new story: $50, on foot, bare hands, nothing to drive
     ({ p, ctx } = await open('?mode=story'));
-    r = await p.evaluate(() => ({ mode: g().mode, sel: [...document.querySelectorAll('#modes button')].findIndex((x) => x.classList.contains('sel')) }));
-    ok(r.mode === 'story' && r.sel === 0, '?mode=story selects the story button', JSON.stringify(r));
+    r = await p.evaluate(() => {
+      const G = g(); const out = { mode: G.mode, cash: G.cash, foot: G.onFoot && !G.driving, cars: G.save.unlocked.length, guns: G.guns.owned.length, bat: G.humans.batOwned };
+      out.sel = [...document.querySelectorAll('#modes button')].findIndex((x) => x.classList.contains('sel'));
+      out.stage = G.progression.stage(); out.rank = G.completion.rank()[0];
+      out.pistolFinite = !window.__smash.game.guns.has('pistol') && G.guns.owned.length === 0;
+      return out;
+    });
+    ok(r.mode === 'story' && r.sel === 0 && r.cash === 50 && r.foot && r.cars === 0 && r.guns === 0 && !r.bat && r.stage === 1 && r.rank === 'Newcomer', 'a new story starts at stage 1 with $50, on foot, with no car, gun or bat', JSON.stringify(r));
+    await p.evaluate(() => window.__smash.startGame());
+    await p.waitForTimeout(800);
+    r = await p.evaluate(() => {
+      const G = g(); const out = {}; const H = G.humans;
+      G.inside = null; G.state = 'play'; G.skills.off = true; G.cash = 10000;
+      // the gun shop sells by stage, and says no politely
+      out.stage1 = G.progression.stage();
+      // buying a pistol at stage 1 is refused (onBuyGun is wired through the garage panel; call the same gate)
+      const need = (id) => ({ pistol: 2, smg: 3, rocket: 4 })[id];
+      out.refused = !G.progression.allows(need('pistol')) && !G.progression.allows(need('smg')) && !G.progression.allows(need('rocket'));
+      G.story.ch = 1; out.stage2 = G.progression.stage(); out.pistolOk = G.progression.allows(2) && !G.progression.allows(3);
+      G.story.ch = 3; out.stage3 = G.progression.stage();
+      G.story.ch = 5; out.stage4 = G.progression.stage();
+      G.story.ch = 0; out.back = G.progression.stage() === 1;
+      // the pistol costs money and its ammunition runs out; the first cars cost too
+      out.price = G.garageModel().arms.gate.pistol === 2;
+      out.cars = G.garageModel().unlocked.size === 0;
+      // gear is gated too
+      G.save.gear = {}; out.vestLocked = !G.gear.buy('vest') && G.gear.count('vest') === 0;
+      G.story.ch = 1; out.vestOpen = G.gear.buy('vest') && G.gear.count('vest') === 1;
+      out.smokeLocked = !G.gear.buy('smoke');
+      // big jobs wait for their stage
+      G.story.ch = 0;
+      let kinds = new Set(); for (let i = 0; i < 40; i++) { G.director.last = ''; G.fires.list.length = 0; G.riots.current = null; if (G.thieves.active) G.thieves.release(null); const picked = (() => { const before = G.director.throws; G.director.throwOne(); return G.director.last; })(); kinds.add(picked); if (G.truckHeist.active) G.truckHeist.end('x', false); }
+      out.noTruck = !kinds.has('truck');
+      G.fires.list.length = 0; G.riots.current = null; if (G.thieves.active) G.thieves.release(null);
+      out.bank = (() => { const r = G.interiors.rooms.find((q) => q.id === 'bank'); G.inside = r; G.shops.startHeist(); const started = !!G.shops.heist; G.inside = null; G.shops.heist = null; return !started; })();
+      G.story.ch = 0; G.skills.off = false; G.stars = 0; G.heat = 0; G.save.gear = {};
+      return out;
+    });
+    ok(r.stage1 === 1 && r.refused && r.stage2 === 2 && r.pistolOk && r.stage3 === 3 && r.stage4 === 4 && r.back && r.price && r.cars && r.vestLocked && r.vestOpen && r.smokeLocked && r.noTruck && r.bank, 'the gun shop and the big jobs open by stage: story chapters and gang blocks raise it', JSON.stringify(r));
     await ctx.close();
 
     // the sandbox
