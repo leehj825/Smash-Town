@@ -31,6 +31,7 @@ import { Fires } from './fires';
 import { Thieves } from './thieves';
 import { Factions } from './factions';
 import { Helipad } from './helipad';
+import { Insides } from './insides';
 import { JOBS } from './jobs';
 import { Reputation } from './reputation';
 import { Npcs } from './npcs';
@@ -134,6 +135,7 @@ export class Game {
   thieves!: Thieves;
   factions!: Factions;
   helipad!: Helipad;
+  readonly insides = new Insides(this);
   reputation!: Reputation;
   npcs!: Npcs;
   skills!: Skills;
@@ -185,8 +187,8 @@ export class Game {
 
   rng = makeRng(99);
   save: SaveData;
-  private saveDirty = false;
-  private saveTimer = 0;
+  saveDirty = false;
+  saveTimer = 0;
   cash = 0;
 
   // wanted
@@ -215,7 +217,7 @@ export class Game {
   private dustAcc = 0;
   garageLock = false;
   private garageBeacons: Beacon[] = [];
-  private time = 0;
+  time = 0;
   private blipPool: (Blip & { x: number; z: number })[] = [];
   private blipCount = 0;
   private blips: Blip[] = [];
@@ -546,93 +548,21 @@ export class Game {
     this.humans.renderer.setLook(pl.slot, pl.look);
   }
 
-  private fadeThen(cb: () => void): void {
+  fadeThen(cb: () => void): void {
     if (this.fading) return;
     this.fading = true;
     this.hud.fade(() => { cb(); this.fading = false; });
   }
 
-  enterBuilding(room: Room): void {
-    if (this.fading || this.state !== 'play') return;
-    if (this.shopClosed(room)) { this.hud.toast(bi('Closed for the night - open again in the daytime.', '밤에는 문을 닫았어요 - 낮에 다시 오세요.'), 2400); return; }
-    if (this.stars > 0 && !((room.id === 'garage' || room.id === 'home') && this.hideouts.canHide())) { this.hud.toast(room.id === 'garage' || room.id === 'home' ? bi('The police are too close to hide!', '경찰이 너무 가까워서 숨을 수 없어요!') : bi('The door is locked - the police are watching!', '문이 잠겨 있어요 - 경찰이 지켜보고 있어요!'), 2400); return; }
-    const pl = this.humans.player;
-    this.ret = { x: pl.x, z: pl.z, h: pl.heading };
-    this.progress.add('shops');
-    this.fadeThen(() => {
-      this.inside = room;
-      if (room.id === 'garage') this.hideouts.parkCarInBay(room);
-      this.humans.setPlayerActive(true, room.exit.x, room.exit.z - 2.2, Math.PI);
-      this.cameraRig.ignore = null;
-      this.syncFoot();
-      this.cameraRig.snap();
-      this.hud.toast(`${bi(room.en, room.ko)}`, 1800);
-    });
-  }
-
-  private leaveBuilding(): void {
-    this.fadeThen(() => {
-      const r = this.ret;
-      if (this.inside?.id === 'garage') this.hideouts.returnCarToStreet();
-      this.inside = null;
-      document.body.classList.remove('can-rob');
-      this.humans.setPlayerActive(true, r.x, r.z, r.h);
-      this.syncFoot();
-      this.cameraRig.snap();
-    });
-  }
+  enterBuilding(room: Room): void { this.insides.enter(room); }
+  shopClosed(room: Room): boolean { return this.insides.closed(room); }
 
   /** Inside a shop only you move: the street is frozen far away. */
   /** The camera follows this proxy: keep it on the player (inside a shop the street update that normally does it does not run). */
-  private syncFoot(): void {
+  syncFoot(): void {
     const pl = this.humans.player, f = this.foot;
     f.position.set(pl.x, pl.y - 0.1, pl.z);
     f.heading = pl.heading; f.forwardSpeed = pl.speed; f.speed = pl.speed; f.sprinting = pl.speed > 6.2;
-  }
-
-  private updateInside(dt: number): void {
-    const room = this.inside!;
-    const input = this.input;
-    const pl = this.humans.player;
-    const look = input.takeLook();
-    this.cameraRig.applyLook(look.x, look.y);
-    const playing = this.state === 'play' && !this.fading;
-    this.humans.update(dt, {
-      input: playing ? input : this.idleInput, camYaw: this.cameraRig.moveYaw, vehicles: [], wantCops: 0, wantRiot: 0, playerActive: true,
-      playerCarX: pl.x, playerCarZ: pl.z, playerCarSpeed: 0, policeCars: [], time: this.time,
-    });
-    this.syncFoot();
-    this.hideouts.spin(dt);
-    this.popups.update(dt);
-    this.slash.update(dt);
-    this.guns.tick(dt);
-    this.interiors.update(dt);
-    if ((room.id === 'garage' || room.id === 'home') && this.stars > 0) this.hideouts.hideDecay(dt);
-    if (room.id === 'bank') this.shops.updateHeist(dt, room);
-    if (playing && (input.wasPressed('KeyF') || input.wasPressed('KeyE'))) {
-      if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) this.leaveBuilding();
-      else if (room.id === 'bank' && this.shops.vaultNear(room)) this.shops.startHeist();
-      else if (room.id === 'home' && this.shops.wardrobeNear(room)) this.hideouts.wardrobe();
-      else if (this.shops.deskNear(room)) this.shops.deskAction(room);
-      else if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shops.action(room);
-    }
-    if (playing && input.wasPressed('KeyG') && Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shops.rob(room);
-    if (playing && room.id === 'arcade' && input.wasPressed('KeyH')) this.shops.startBowling();
-    this.shops.updateBowling(dt, room);
-    this.input.gunOut = false; this.cameraRig.aimMode = 0; this.guns.aimPoint = null; this.hud.setCrosshair(false); this.hud.setLockOn(false); this.hud.setGunOut(false);
-    this.hud.setPrompt(this.state === 'play' ? this.shops.prompt(room) : null);
-    document.body.classList.toggle('can-rob', this.shops.canRob(room) && Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4);
-    this.progress.tick(dt);
-    this.updateLights();
-    this.hud.update(this.followable, 1, 1, false, [], dt);
-    this.hud.setNav(null, ''); this.hud.setRoute(null);
-    this.hud.setFootMode(true, pl.weapon, this.humans.ownedFlags());
-    this.hud.setAmmo(this.guns.hudText());
-    this.hud.setReloadButton(false);
-    this.hud.setPlayerHp(Math.max(0, pl.hp / pl.maxHp));
-    this.hud.setPlayerArmor(this.humans.armor / 50);
-    this.hud.setWantedBanner(false);
-    if (this.saveDirty) { this.saveTimer -= dt; if (this.saveTimer <= 0) { this.flushSave(); this.saveTimer = 3; } }
   }
 
   /** The police helicopter was hit by a rocket. */
@@ -1027,7 +957,7 @@ export class Game {
     if (input.wasPressed('Escape') && this.state === 'garage') this.closeGarage();
     if (this.state === 'dialog' && (input.wasPressed('KeyF') || input.wasPressed('Enter') || input.wasPressed('Space'))) this.advanceDialog();
 
-    if (this.inside) { this.updateInside(dt); return; }
+    if (this.inside) { this.insides.update(dt); return; }
 
     if (this.state === 'play') {
       if (input.wasPressed('KeyF') || input.wasPressed('KeyE')) {
@@ -1395,7 +1325,7 @@ export class Game {
     return sp;
   }
 
-  private idleInput = { throttle: 0, steer: 0, handbrake: false, nitro: false, wasPressed: () => false } as unknown as Input;
+  idleInput = { throttle: 0, steer: 0, handbrake: false, nitro: false, wasPressed: () => false } as unknown as Input;
 
   private humanHooks(): HumanHooks {
     return {
@@ -1689,12 +1619,6 @@ export class Game {
     return bonus;
   }
 
-  /** Some shops shut at night (not for their owner). */
-  shopClosed(room: Room): boolean {
-    if (this.env.night < 0.7 || (room.id !== 'clothes' && room.id !== 'donut')) return false;
-    return !this.progress.owned.includes(room.id as never);
-  }
-
   /** Fade out and arrive somewhere else on foot (the bus line uses this). */
   travelTo(x: number, z: number, heading: number, label: string): void {
     if (this.fading || this.state !== 'play') return;
@@ -1758,7 +1682,7 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ presentation helpers
-  private updateLights(): void {
+  updateLights(): void {
     const n = this.env.night * (this.blackout ? 0.06 : 1);
     this.world.windowMaterial.emissiveIntensity = n * 1.1;
     this.world.signMaterial.emissiveIntensity = 0.15 + n * 1.0;
