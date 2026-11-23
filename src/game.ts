@@ -26,7 +26,9 @@ import { Crime } from './crime';
 import { Hideouts } from './hideouts';
 import { Police } from './police';
 import { Gangs } from './gangs';
-import { Paramedic } from './paramedic';
+import { EmergencyJob } from './emergency';
+import { Fires } from './fires';
+import { JOBS } from './jobs';
 import { Reputation } from './reputation';
 import { Npcs } from './npcs';
 import { Skills } from './skills';
@@ -121,7 +123,10 @@ export class Game {
   animals!: Animals;
   festival!: Festival;
   gangs!: Gangs;
-  paramedic!: Paramedic;
+  paramedic!: EmergencyJob;
+  firefighter!: EmergencyJob;
+  patrol!: EmergencyJob;
+  fires!: Fires;
   reputation!: Reputation;
   npcs!: Npcs;
   skills!: Skills;
@@ -244,7 +249,10 @@ export class Game {
     this.animals = new Animals(this);
     this.festival = new Festival(this);
     this.gangs = new Gangs(this);
-    this.paramedic = new Paramedic(this);
+    this.fires = new Fires(this);
+    this.paramedic = new EmergencyJob(this, JOBS.paramedic);
+    this.firefighter = new EmergencyJob(this, JOBS.firefighter);
+    this.patrol = new EmergencyJob(this, JOBS.patrol);
     this.reputation = new Reputation(this);
     this.npcs = new Npcs(this);
     this.skills = new Skills(this);
@@ -748,6 +756,11 @@ export class Game {
     this.cameraRig.snap();
   }
 
+  /** Is a job other than `except` running its shift right now? (one shift at a time) */
+  jobOnDuty(except: EmergencyJob): boolean {
+    return [this.paramedic, this.firefighter, this.patrol].some((j) => j !== except && j.onDuty);
+  }
+
   private enterExit(): void {
     if (this.state !== 'play') return;
     if (this.driving && !this.onFoot) {
@@ -766,7 +779,7 @@ export class Game {
       // whoever was driving gets out: civilians run away, cops climb out too (also the empty roadblock cruisers)
       const hadDriver = v.ai === 'traffic' || v.ai === 'police' || (v.isPolice && v.ai === 'parked' && !v.owned);
       if (v.police || v.traffic || v.ai === 'police' || v.ai === 'traffic') {
-        this.addHeat(v.isPolice ? 45 : 20);
+        if (!v.isGigTarget) this.addHeat(v.isPolice ? 45 : 20);
         v.traffic = null;
         v.police = null;
       }
@@ -1100,7 +1113,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.fires.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);
@@ -1740,7 +1753,7 @@ export class Game {
     this.props.setNight(n);
     VehicleFactory.sharedHead.emissiveIntensity = 0.6 + n * 2.6;
     const flash = Math.floor(this.time * 7) % 2 === 0;
-    const sirens = this.stars > 0 || this.roadblocks.length > 0 || this.medics.active || this.paramedic.onDuty;
+    const sirens = this.stars > 0 || this.roadblocks.length > 0 || this.medics.active || this.paramedic.onDuty || this.firefighter.onDuty || this.patrol.onDuty;
     VehicleFactory.sirenRed.emissiveIntensity = sirens ? (flash ? 3.4 : 0.15) : 0.2;
     VehicleFactory.sirenBlue.emissiveIntensity = sirens ? (flash ? 0.15 : 3.4) : 0.2;
     const d = this.driving;
@@ -1817,7 +1830,8 @@ export class Game {
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
     if (this.hunter) this.pushBlip(this.hunter.x, this.hunter.z, '#ff9a3d', true, 5);
     if (!this.driving || this.driving.kind !== 'boat') for (const b of this.boats) this.pushBlip(b.x, b.z, '#35e0ff', false, 3.5);
-    for (const m of this.paramedic.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5);
+    for (const j of [this.paramedic, this.firefighter, this.patrol]) for (const m of j.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5);
+    for (const f of this.fires.markers()) this.pushBlip(f.x, f.z, '#ff8a2a', true, 4.5);
     for (const m of this.gangs.markers()) this.pushBlip(m.x, m.z, m.color, m.flash, 5.5);
     for (const m of this.festival.markers()) this.pushBlip(m.x, m.z, '#ff5db1', true, 5.5);
     for (const m of this.delivery.markers()) this.pushBlip(m.x, m.z, '#ff8fb8', m.flash, 5);

@@ -4,7 +4,7 @@ import type { I18nKey } from './i18n';
 
 export type VehicleKind =
   | 'sports' | 'supercar' | 'muscle' | 'sedan' | 'taxi' | 'pickup' | 'limo' | 'monster'
-  | 'police' | 'interceptor' | 'swat' | 'armored' | 'ambulance' | 'motorbike' | 'scooter' | 'bicycle' | 'bus' | 'boat';
+  | 'police' | 'interceptor' | 'swat' | 'armored' | 'ambulance' | 'firetruck' | 'motorbike' | 'scooter' | 'bicycle' | 'bus' | 'boat';
 
 export interface VehicleStats {
   maxSpeed: number; // m/s
@@ -35,6 +35,7 @@ export const STATS: Record<VehicleKind, VehicleStats> = {
   bicycle:     { maxSpeed: 11, accel: 9, grip: 8, dmg: 0.2, mass: 0.25, name: 'veh.bicycle', price: 150, color: 0xff7a1a },
   motorbike:   { maxSpeed: 46, accel: 40, grip: 7, dmg: 0.4, mass: 0.45, name: 'veh.motorbike', price: 2500, color: 0xe0243c },
   ambulance:   { maxSpeed: 30, accel: 22, grip: 8, dmg: 0.6, mass: 1.8, name: null, price: 0, color: 0xf4f4f4 },
+  firetruck:   { maxSpeed: 27, accel: 18, grip: 7, dmg: 0.4, mass: 3.0, name: null, price: 0, color: 0xd62d2d },
   swat:        { maxSpeed: 33, accel: 24, grip: 7.5, dmg: 0.6, mass: 2.2, name: null, price: 0, color: 0x23262f },
   armored:     { maxSpeed: 30, accel: 20, grip: 7,   dmg: 0.35, mass: 3.2, name: null, price: 0, color: 0x3a4658 },
 };
@@ -70,6 +71,7 @@ const SPECS: Record<VehicleKind, Spec> = {
   bicycle: { w: 0.5, len: 1.8, bodyH: 0.3, clr: 0.3, hoodLen: 0.4, wedge: false, trunkLen: 0.3, cabinLen: 0.5, cabinH: 0.2, cabinZ: 0, taper: 0.8, cabinColor: null, wheelR: 0.36, wheelX: 0.04, wheelZ: 0.7 },
   motorbike: { w: 0.7, len: 2.1, bodyH: 0.4, clr: 0.4, hoodLen: 0.5, wedge: false, trunkLen: 0.4, cabinLen: 0.6, cabinH: 0.3, cabinZ: 0, taper: 0.8, cabinColor: null, wheelR: 0.34, wheelX: 0.07, wheelZ: 0.8 },
   ambulance: { w: 2.1, len: 5.4, bodyH: 0.95, clr: 0.42, hoodLen: 1.2, wedge: false, trunkLen: 0.2, cabinLen: 4.0, cabinH: 0.8, cabinZ: -0.55, taper: 0.97, cabinColor: null, wheelR: 0.46, wheelX: 1.02, wheelZ: 1.7, bar: true },
+  firetruck: { w: 2.4, len: 7.2, bodyH: 1.1, clr: 0.5, hoodLen: 1.4, wedge: false, trunkLen: 0.3, cabinLen: 3.0, cabinH: 0.8, cabinZ: 1.4, taper: 0.95, cabinColor: null, wheelR: 0.55, wheelX: 1.1, wheelZ: 2.4, bar: true },
   swat:    { w: 2.15, len: 5.4, bodyH: 0.95, clr: 0.45, hoodLen: 1.2, wedge: false, trunkLen: 0.2, cabinLen: 4.0, cabinH: 0.95, cabinZ: -0.55, taper: 0.97, cabinColor: null, wheelR: 0.5, wheelX: 1.05, wheelZ: 1.7, bar: true, plating: true },
   armored: { w: 2.4, len: 5.8, bodyH: 1.25, clr: 0.5, hoodLen: 1.5, wedge: false, trunkLen: 0.3, cabinLen: 3.6, cabinH: 0.6, cabinZ: -0.6, taper: 0.9, cabinColor: null, wheelR: 0.55, wheelX: 1.15, wheelZ: 1.9, bar: true, plating: true },
 };
@@ -263,7 +265,7 @@ function buildGeometry(kind: VehicleKind, color: number, bakeWheels: boolean): B
   if (kind === 'bicycle' || kind === 'scooter') return buildLight(kind, color, bakeWheels);
   const s = SPECS[kind];
   const b = new MeshBuilder();
-  const body = s.police ? DARK : kind === 'ambulance' ? 0xf4f4f4 : kind === 'swat' ? 0x23262f : kind === 'armored' ? 0x3a4658 : color;
+  const body = s.police ? DARK : kind === 'ambulance' ? 0xf4f4f4 : kind === 'firetruck' ? 0xd62d2d : kind === 'swat' ? 0x23262f : kind === 'armored' ? 0x3a4658 : color;
   const top = s.clr + s.bodyH;
   b.box(s.w, s.bodyH, s.len, 0, s.clr + s.bodyH / 2, 0, body);
   // hood
@@ -301,6 +303,15 @@ function buildGeometry(kind: VehicleKind, color: number, bakeWheels: boolean): B
     b.box(0.5, 0.04, 0.14, 0, top + s.cabinH + 0.04, s.cabinZ, RED); b.box(0.14, 0.04, 0.5, 0, top + s.cabinH + 0.04, s.cabinZ, RED); // roof cross
     b.box(s.w * 0.8, 0.5, 0.04, 0, s.clr + s.bodyH * 0.65, -s.len / 2 - 0.02, 0xdde2ea);                   // rear doors
     b.box(0.04, 0.46, 0.04, 0, s.clr + s.bodyH * 0.65, -s.len / 2 - 0.04, 0x8a8f99);
+  }
+  if (kind === 'firetruck') {
+    for (const sx of [-1, 1]) {
+      b.box(0.03, 0.12, s.len * 0.85, sx * (s.w / 2 + 0.015), s.clr + s.bodyH * 0.55, 0, 0xffe14d);
+      b.box(0.5, 0.7, 1.6, sx * (s.w / 2 - 0.1), s.clr + s.bodyH * 0.25, -1.6, 0x9aa3b0);   // equipment lockers
+    }
+    for (const sx of [-0.5, 0.5]) b.box(0.08, 0.1, s.len * 0.7, sx, top + 0.2, -0.9, 0xcfd6df); // ladder rails
+    for (let k = 0; k < 8; k++) b.box(1.0, 0.05, 0.06, 0, top + 0.2, -3.0 + k * 0.7, 0xcfd6df);  // ladder rungs
+    b.box(0.5, 0.3, 0.5, 0, top + 0.35, -2.2, 0x4a505c);                                         // hose reel
   }
   if (kind === 'bus') {
     for (const sx of [-1, 1]) {

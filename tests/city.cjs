@@ -366,6 +366,34 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { onDuty, calls, shifts: P.completed, cash: G.cash, rescues: G.progress.stats.rescues };
     });
     ok(medic.onDuty && medic.calls >= 1 && medic.shifts === 1 && medic.cash >= 1500 && medic.rescues === 5, 'paramedic shift: an ambulance waits, real incidents become calls, five patients finish the shift', JSON.stringify(medic));
+    const crews = await S(() => {
+      const G = g(); const out = {};
+      for (const [name, kind, stat] of [['firefighter', 'firetruck', 'fires'], ['patrol', 'police', 'patrols']]) {
+        const P = G[name];
+        G.stars = 0; G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.cash = 0;
+        for (const j of [G.paramedic, G.firefighter, G.patrol]) if (j.onDuty) j.end('x', 0);
+        P.update(0.05); P.cooldown = 0;
+        const sp = P.spot;
+        G.humans.setPlayerActive(true, sp.x, sp.z, 0);
+        P.update(0.05);
+        const onDuty = P.onDuty && !!G.driving && G.driving.kind === kind;
+        const heat = G.stars;
+        if (name === 'firefighter') G.fires.ignite(G.driving.x + 60, G.driving.z);
+        else G.bus.emit({ type: 'gunshot', x: G.driving.x + 60, z: G.driving.z });
+        const calls = P.open;
+        const fire = name === 'firefighter' ? G.fires.list[0] : null;
+        let guard = 0;
+        while (P.onDuty && guard++ < 400) {
+          if (!P.calls.length) P.addCall(G.driving.x + 40, G.driving.z, 'test');
+          const c = P.calls[0]; G.driving.ctrl.position.x = c.x; G.driving.ctrl.position.z = c.z; G.driving.ctrl.vx = G.driving.ctrl.vz = 0;
+          P.update(0.5);
+        }
+        out[name] = { onDuty, heat, calls, shifts: P.completed, stat: G.progress.stats[stat], out: fire ? fire.out : true, cash: G.cash };
+      }
+      return out;
+    });
+    ok(crews.firefighter.onDuty && crews.firefighter.calls >= 1 && crews.firefighter.shifts === 1 && crews.firefighter.stat === 5 && crews.firefighter.out, 'firefighter shift: a fire truck waits, fires become calls and are put out', JSON.stringify(crews));
+    ok(crews.patrol.onDuty && crews.patrol.heat === 0 && crews.patrol.calls >= 1 && crews.patrol.shifts === 1 && crews.patrol.stat === 5, 'police patrol: a cruiser waits (no heat) and shots become calls', JSON.stringify(crews));
     const npc = await S(() => {
       const G = g(); const N = G.npcs; const R = G.reputation;
       G.stars = 0; G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null;

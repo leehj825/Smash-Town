@@ -31,6 +31,10 @@ export type GameEvent =
   | { type: 'turfLost'; zone: number }
   /** The player did something good for the neighbourhood (a patient treated, a delivery, a fare). */
   | { type: 'helped'; x: number; z: number; amount: number }
+  /** Something caught fire in the street. */
+  | { type: 'fire'; x: number; z: number }
+  /** A thief grabbed somebody's bag and is running. */
+  | { type: 'theft'; x: number; z: number }
   | { type: 'hunterSpawned' }
   | { type: 'heist' }
   | { type: 'blackout' }

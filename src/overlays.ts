@@ -98,7 +98,7 @@ const STAT_LABELS: [StatKey, string, string][] = [
   ['gigs', 'Side jobs done', '완료한 부업'], ['quests', 'Street quests done', '완료한 거리 퀘스트'], ['earned', 'Money earned', '번 돈'],
   ['driveM', 'Distance driven', '주행 거리'], ['roofs', 'Ladders climbed', '오른 사다리'], ['shops', 'Shop visits', '상점 방문'], ['playSec', 'Time played', '플레이 시간'],
   ['fares', 'Taxi fares', '택시 손님'], ['races', 'Races won', '레이스 우승'], ['deliveries', 'Deliveries', '배달'], ['heists', 'Bank heists', '은행 강도'],
-  ['robberies', 'Tills robbed', '털은 금고'], ['fish', 'Fish caught', '낚은 물고기'], ['turfs', 'Gang blocks taken', '점령한 구역'], ['rescues', 'Patients treated', '치료한 환자'], ['bounties', 'Bounty hunters wrecked', '격파한 사냥꾼'], ['hides', 'Times hidden from police', '경찰 피해 숨은 횟수'],
+  ['robberies', 'Tills robbed', '털은 금고'], ['fish', 'Fish caught', '낚은 물고기'], ['turfs', 'Gang blocks taken', '점령한 구역'], ['rescues', 'Patients treated', '치료한 환자'], ['fires', 'Fires put out', '끈 불'], ['patrols', 'Patrol calls handled', '처리한 순찰 출동'], ['thieves', 'Thieves caught', '잡은 도둑'], ['bounties', 'Bounty hunters wrecked', '격파한 사냥꾼'], ['hides', 'Times hidden from police', '경찰 피해 숨은 횟수'],
 ];
 
 /** Lifetime stats, achievements, daily challenges and owned shops. */
