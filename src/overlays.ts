@@ -96,7 +96,7 @@ const STAT_LABELS: [StatKey, string, string][] = [
   ['gigs', 'Side jobs done', '완료한 부업'], ['quests', 'Street quests done', '완료한 거리 퀘스트'], ['earned', 'Money earned', '번 돈'],
   ['driveM', 'Distance driven', '주행 거리'], ['roofs', 'Ladders climbed', '오른 사다리'], ['shops', 'Shop visits', '상점 방문'], ['playSec', 'Time played', '플레이 시간'],
   ['fares', 'Taxi fares', '택시 손님'], ['races', 'Races won', '레이스 우승'], ['deliveries', 'Deliveries', '배달'], ['heists', 'Bank heists', '은행 강도'],
-  ['robberies', 'Tills robbed', '털은 금고'], ['bounties', 'Bounty hunters wrecked', '격파한 사냥꾼'], ['hides', 'Times hidden from police', '경찰 피해 숨은 횟수'],
+  ['robberies', 'Tills robbed', '털은 금고'], ['fish', 'Fish caught', '낚은 물고기'], ['bounties', 'Bounty hunters wrecked', '격파한 사냥꾼'], ['hides', 'Times hidden from police', '경찰 피해 숨은 횟수'],
 ];
 
 /** Lifetime stats, achievements, daily challenges and owned shops. */

@@ -233,6 +233,38 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(dis.near && dis.outfit && dis.heat < 170, 'the home wardrobe changes clothes and cools the heat (disguise)', JSON.stringify(dis));
+    const slots = await S(() => {
+      const b = document.querySelectorAll('#slots button');
+      return { n: b.length, sel: [...b].findIndex((x) => x.classList.contains('sel')) };
+    });
+    ok(slots.n === 3 && slots.sel === 0, 'the title screen shows three save slots with slot 1 selected', JSON.stringify(slots));
+    const bus = await S(() => {
+      const G = g(); const T = G.transit;
+      G.stars = 0; G.cash = 100; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
+      const s0 = T.stops[0];
+      G.humans.setPlayerActive(true, s0.sx, s0.sz, 0);
+      const at = T.near();
+      const ok = T.ride(at);
+      return { stops: T.stops.length, at, ok, cash: G.cash };
+    });
+    ok(bus.stops >= 4 && bus.at === 0 && bus.ok && bus.cash === 95, 'bus shelters form a line you can ride for $5', JSON.stringify(bus));
+    await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
+    const arrived = await S(() => { const G = g(); const s1 = G.transit.stops[1]; const p = G.humans.player; return { d: Math.round(Math.hypot(p.x - s1.sx, p.z - s1.sz)) }; });
+    ok(arrived.d < 3, 'the bus drops you at the next stop', JSON.stringify(arrived));
+    const fish = await S(() => {
+      const G = g(); const F = G.fishing;
+      G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
+      const l = G.world.lots.find((q) => q.district === 'water' && !q.river) || G.world.lots.find((q) => q.district === 'water');
+      const r = l.rim ?? 0;
+      G.humans.setPlayerActive(true, l.x0 + r * 0.5 - 1.5, (l.z0 + l.z1) / 2, 0);
+      const near = F.atWater();
+      const cast = F.press();
+      F.t = 0; F.update(0.05);
+      const bite = F.phase === 'bite';
+      const reeled = F.press();
+      return { near, cast, bite, reeled, cash: G.cash, caught: F.caught };
+    });
+    ok(fish.near && fish.cast && fish.bite && fish.reeled && fish.cash > 0 && fish.caught === 1, 'fishing: cast, wait for the bite, reel in a fish for cash', JSON.stringify(fish));
     // savings, houses and race records survive a reload
     await S(() => { const G = g(); G.save.bank = 4321; G.save.homes = [1, 2]; G.save.raceBest = [0, 77.5]; G.flushSave(); });
     await p.reload();

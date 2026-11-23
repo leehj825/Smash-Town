@@ -266,6 +266,8 @@ export interface Props {
   setNight(n: number): void;
   /** 0 = none, 1 = street furniture, 2 = also flowers and grass tufts. */
   setDecor(level: number): void;
+  /** Where the bus shelters stand (they are the stops of the bus line). */
+  busStops(): { x: number; z: number }[];
 }
 
 export function buildProps(world: World, vfx: Vfx): Props {
@@ -579,5 +581,5 @@ export function buildProps(world: World, vfx: Vfx): Props {
     }
   }
 
-  return { group, lampHeadMaterial, smash, update, setVegetation, setSeason, setNight: (n: number) => { pools.visible = n > 0.05; poolMat.opacity = Math.min(0.75, n * 0.8); }, setDecor: (level: number) => { decorMeshes.forEach((m, i) => { m.visible = decorKinds[i] === 'flower' || decorKinds[i] === 'grass' ? level >= 2 : level >= 1; }); } };
+  return { group, lampHeadMaterial, smash, update, setVegetation, setSeason, setNight: (n: number) => { pools.visible = n > 0.05; poolMat.opacity = Math.min(0.75, n * 0.8); }, busStops: () => decor.busstop.map((p) => ({ x: p.x, z: p.z })), setDecor: (level: number) => { decorMeshes.forEach((m, i) => { m.visible = decorKinds[i] === 'flower' || decorKinds[i] === 'grass' ? level >= 2 : level >= 1; }); } };
 }

@@ -18,7 +18,7 @@ import { Radio, STATIONS } from './radio';
 import { Weather, type WeatherKind } from './weather';
 import { ControlsPanel, HowToPlay, StatsPanel, type Modal } from './overlays';
 import { settings, saveSettings } from './settings';
-import { SAVE_KEY } from './game';
+import { SAVE_KEY, SLOT_KEY, currentSlot, slotSaveKey } from './game';
 import { setupTouch } from './touch';
 
 type Quality = 'high' | 'medium' | 'low';
@@ -204,6 +204,32 @@ const titleEl = document.getElementById('title')!;
 const pauseEl = document.getElementById('pause')!;
 const hudEl = document.getElementById('hud')!;
 let state: 'title' | 'playing' | 'paused' = 'title';
+
+/** The three save slots on the title screen: pick one (the page reloads on it) and see how far each one has got. */
+function buildSlots(): void {
+  const box = document.getElementById('slots');
+  if (!box) return;
+  const cur = currentSlot();
+  box.innerHTML = '';
+  for (let n = 1; n <= 3; n++) {
+    let info = bi('New game', '새 게임');
+    try {
+      const raw = localStorage.getItem(slotSaveKey(n));
+      if (raw) { const s = JSON.parse(raw); info = `$${Math.floor(Number(s.cash) || 0).toLocaleString('en-US')}`; }
+    } catch { /* unreadable slot */ }
+    const b = document.createElement('button');
+    b.className = n === cur ? 'sel' : '';
+    b.innerHTML = `${bi('Slot', '슬롯')} ${n}<small>${info}</small>`;
+    b.addEventListener('click', () => {
+      if (n === cur) return;
+      try { localStorage.setItem(SLOT_KEY, String(n)); } catch { /* ignore */ }
+      location.reload();
+    });
+    box.appendChild(b);
+  }
+}
+buildSlots();
+onLangChange(buildSlots);
 
 function startGame(): void {
   if (state !== 'title') return;

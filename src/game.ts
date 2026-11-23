@@ -30,6 +30,8 @@ import { StreetRace } from './race';
 import { DeliveryJob } from './delivery';
 import { Animals } from './animals';
 import { Festival } from './festival';
+import { Transit } from './transit';
+import { Fishing } from './fishing';
 import { settings } from './settings';
 import { Mood } from './mood';
 import { GUN_ORDER, GUNS, GUN_UP_PRICE, GUN_UP_TIER, Guns, type GunDef, type GunId } from './guns';
@@ -46,7 +48,13 @@ import { GameVehicle, type AIMode, type VehicleEvents } from './vehicles';
 import type { Vfx } from './vfx';
 import type { CircleCollider, World } from './world';
 
-export const SAVE_KEY = 'smashtown.save.v1';
+/** Three save slots. Slot 1 uses the original key, so saves from before slots existed are slot 1. */
+export const SLOT_KEY = 'smashtown.slot';
+export function currentSlot(): number {
+  try { const n = Number(localStorage.getItem(SLOT_KEY)); return n === 2 || n === 3 ? n : 1; } catch { return 1; }
+}
+export const slotSaveKey = (slot: number): string => (slot === 1 ? 'smashtown.save.v1' : `smashtown.save.v1.s${slot}`);
+export const SAVE_KEY = slotSaveKey(currentSlot());
 interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; login?: { day: string; streak: number }; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
@@ -116,6 +124,8 @@ export class Game {
   delivery!: DeliveryJob;
   animals!: Animals;
   festival!: Festival;
+  transit!: Transit;
+  fishing!: Fishing;
   /** A storm has cut the power: windows, signs and street lamps go dark for a while. */
   blackout = false;
   readonly sideQuests: SideQuests;
@@ -221,6 +231,8 @@ export class Game {
     this.delivery = new DeliveryJob(this);
     this.animals = new Animals(this);
     this.festival = new Festival(this);
+    this.transit = new Transit(this);
+    this.fishing = new Fishing(this);
     this.lights = new TrafficLights();
     this.scene.add(this.lights.group);
     {
@@ -1064,7 +1076,10 @@ export class Game {
         const door = this.onFoot && !this.climb ? this.interiors.roomAt(this.humans.player.x, this.humans.player.z, 2.6) : null;
         const mach = this.onFoot && !lo && !door ? this.machines.nearest(this.humans.player.x, this.humans.player.z) : null;
         const home = this.onFoot && !lo && !door && !mach && !this.humans.player.roof ? this.homeNear() : -1;
+        const stop = this.onFoot && !lo && !door && !mach && home < 0 && !this.humans.player.roof ? this.transit.near() : -1;
         if (home >= 0) { if (this.ownsHome(home)) this.enterBuilding(this.interiors.rooms.find((r) => r.id === 'home')!); else this.buyHome(home); }
+        else if (stop >= 0) this.transit.ride(stop);
+        else if (this.onFoot && !lo && !door && !mach && !this.humans.player.roof && (this.fishing.active || this.fishing.atWater()) && this.fishing.press()) { /* fishing */ }
         else if (lo) this.climber.start(lo);
         else if (door && !this.humans.player.roof) this.enterBuilding(door);
         else if (mach) this.machines.use(mach);
@@ -1147,7 +1162,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);
@@ -1752,6 +1767,17 @@ export class Game {
     this.hud.toast(bi('You bought a house! A bed to rest and a place to hide.', '집을 샀어요! 쉴 수 있고 숨을 수도 있어요.'), 3200);
   }
 
+  /** Fade out and arrive somewhere else on foot (the bus line uses this). */
+  travelTo(x: number, z: number, heading: number, label: string): void {
+    if (this.fading || this.state !== 'play') return;
+    this.fadeThen(() => {
+      this.humans.setPlayerActive(true, x, z, heading);
+      this.syncFoot();
+      this.cameraRig.snap();
+      this.hud.toast(label, 1600);
+    });
+  }
+
   /** True when no police car or cop is close enough to see you slip into a garage. */
   canHide(): boolean {
     for (const v of this.policeVehicles()) if (Math.hypot(v.x - this.focusX, v.z - this.focusZ) < 28) return false;
@@ -1898,7 +1924,9 @@ export class Game {
       else {
         const mach = this.machines.nearest(this.humans.player.x, this.humans.player.z);
         const hm = mach ? -1 : this.homeNear();
-        this.hud.setPrompt(mach ? this.machines.prompt(mach) : hm >= 0 ? (this.ownsHome(hm) ? bi('[F] Go home', '[F] 집에 들어가기') : `${bi('[F] Buy this house', '[F] 이 집 사기')} - $${Game.HOME_PRICE.toLocaleString('en-US')}`) : this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
+        const bs = mach || hm >= 0 ? -1 : this.transit.near();
+        const fp = mach || hm >= 0 || bs >= 0 ? null : this.fishing.prompt();
+        this.hud.setPrompt(mach ? this.machines.prompt(mach) : bs >= 0 ? this.transit.prompt(bs) : fp ? fp : hm >= 0 ? (this.ownsHome(hm) ? bi('[F] Go home', '[F] 집에 들어가기') : `${bi('[F] Buy this house', '[F] 이 집 사기')} - $${Game.HOME_PRICE.toLocaleString('en-US')}`) : this.nearestVehicle(3.2) ? t('ui.hint.enter_car') : null);
       }
     }
     else if (this.driving && this.driving.ctrl.speed < 2.5 && this.stars === 0) this.hud.setPrompt(t('ui.hint.exit_car'));
@@ -1939,6 +1967,7 @@ export class Game {
   private buildBlips(): void {
     this.blipCount = 0;
     for (const g of this.world.garages) this.pushBlip(g.x, g.z, '#3dff8a', false, 5);
+    for (const st of this.transit.stops) this.pushBlip(st.x, st.z, '#6bd1ff', false, 3.5);
     this.world.homes.forEach((h, i) => this.pushBlip(h.x, h.z, this.ownsHome(i) ? '#ffd23a' : '#6bd1ff', false, 4.5));
     this.gigs.blips(this.pushBlip);
     for (const r of this.interiors.rooms) if (Math.hypot(r.door.x - this.focusX, r.door.z - this.focusZ) < 160) this.pushBlip(r.door.x, r.door.z, r.css, false, 4);
