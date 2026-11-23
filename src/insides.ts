@@ -28,7 +28,7 @@ export class Insides {
     });
   }
 
-  private leave(): void {
+  leave(): void {
     const G = this.game;
     G.fadeThen(() => {
       const r = G.ret;

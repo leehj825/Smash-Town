@@ -555,6 +555,7 @@ export class Game {
   }
 
   enterBuilding(room: Room): void { this.insides.enter(room); }
+  leaveBuilding(): void { this.insides.leave(); }
   shopClosed(room: Room): boolean { return this.insides.closed(room); }
 
   /** Inside a shop only you move: the street is frozen far away. */
