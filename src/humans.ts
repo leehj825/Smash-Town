@@ -12,6 +12,7 @@ import type { CircleCollider, Lot, World } from './world';
 
 export const Role = { Civ: 0, Cop: 1, Player: 2 } as const;
 const N = 77;
+const LOW_PROPS = new Set(['bench', 'trash', 'hydrant', 'newsstand']);
 const COP_FIRST = 1, COP_LAST = 10;
 /** Gang members: their own pool of slots, so they never mix with the police. */
 const GANG_FIRST = 11, GANG_LAST = 16;
@@ -54,6 +55,8 @@ export class Human {
   phase = 0; speed = 0; fleeing = false;
   /** A bag snatcher on the run (see thieves.ts): sprints away along the pavement. */
   thief = false;
+  /** Props vaulted (a counter for tests and stats). */
+  vaults = 0;
   /** Seconds left of a pause in a stroll (looking at the phone, window shopping). */
   pauseT = 0;
   scale = 1;
@@ -857,7 +860,14 @@ export class Humans {
       const rr = r + c.r;
       if (Math.abs(dx) > rr || Math.abs(dz) > rr) continue;
       const d = Math.hypot(dx, dz);
-      if (d < rr && d > 1e-4) { h.x += (dx / d) * (rr - d); h.z += (dz / d) * (rr - d); }
+      if (d < rr && d > 1e-4) {
+        // low things (benches, bins, hydrants, stands) can be vaulted: sprint into one, or jump over it
+        if (h.role === Role.Player && c.smash && LOW_PROPS.has(c.smash.type)) {
+          if (h.y > 0.5) continue;
+          if (h.grounded && h.speed > 5.2 && h.state !== St.Dodge) { h.vy = 5.6; h.grounded = false; h.vaults++; continue; }
+        }
+        h.x += (dx / d) * (rr - d); h.z += (dz / d) * (rr - d);
+      }
     }
   }
 

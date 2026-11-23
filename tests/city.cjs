@@ -436,6 +436,58 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { bought, smoke, spikes, c4, donut, vest, slow, items, back };
     });
     ok(gear.bought.smoke === 2 && gear.bought.cash === 5000 - 150 * 2 - 300 - 250 - 40 - 200 && gear.smoke.left === 1 && gear.smoke.cooled && gear.spikes.flat && gear.spikes.gone && gear.c4.planted && gear.c4.boom >= 1 && gear.c4.cleared && gear.donut && gear.vest && gear.slow && gear.items >= 4 && gear.back, 'gear: buy, smoke hides you, spikes flatten a police tyre, C4 blows on demand, donut and armour work, the wheel slows time', JSON.stringify(gear));
+    const esc = await S(() => {
+      const G = g(); const E = G.escapes; const H = G.humans; const out = {};
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true; G.stars = 0; G.heat = 0;
+      E.update(0.3);
+      // ramps stand on the wide roads and launch a car
+      out.ramps = E.ramps.length;
+      const r = E.ramps[0].ramp;
+      const car = G.spawnVehicle('sports', 0xff0000, r.x - r.dx * 14, r.z - r.dz * 14, Math.atan2(r.dx, r.dz), 'parked');
+      G.boardVehicle(car); car.ctrl.useRamps = true;
+      const c = car.ctrl; const seq0 = c.jumpSeq; let air = false;
+      for (let i = 0; i < 140; i++) { car.control.throttle = 1; car.control.handbrake = false; car.control.nitro = false; car.control.steer = 0; c.update(0.05, car.control, null); if (c.airborne) air = true; }
+      out.jump = air;
+      G.onFoot = true; G.driving = null; G.removeVehicle(car);
+      // vaulting a bench
+      const circ = G.world.circles.find((q) => q.smash && ['bench', 'trash', 'hydrant', 'newsstand'].includes(q.smash.type) && !q.dead);
+      const pl = H.player; H.setPlayerActive(true, circ.x - 0.7, circ.z, 0);
+      pl.speed = 6.5; pl.grounded = true; pl.y = 0; const v0 = pl.vaults;
+      H.resolveStatics(pl, 0.4);
+      out.vault = { n: pl.vaults - v0, up: pl.vy > 3 };
+      pl.vy = 0; pl.grounded = true; pl.y = 0;
+      // a park and a bike: the cruisers turn back
+      const park = G.world.lots.find((q) => q.district === 'park' || q.district === 'plaza' || q.district === 'beach');
+      out.alleys = !!park;
+      if (park) {
+        const px = (park.x0 + park.x1) / 2, pz = (park.z0 + park.z1) / 2;
+        const bike = G.spawnVehicle('scooter', 0x2fb87a, px, pz, 0, 'parked');
+        G.boardVehicle(bike);
+        const cop = G.spawnVehicle('police', 0x1a1a24, px + 25, pz, 0, 'parked'); cop.ai = 'police';
+        G.stars = 3; G.heat = 150; const h0 = G.heat;
+        for (let i = 0; i < 20; i++) { E.scanT = 0; E.update(0.2); }
+        out.alley = { gone: !G.vehicles.includes(cop), cooled: G.heat < h0 };
+        G.onFoot = true; G.driving = null; G.removeVehicle(bike);
+      }
+      G.stars = 0; G.heat = 0; G.skills.off = false; G.news.cooldown = 0;
+      return out;
+    });
+    ok(esc.ramps >= 2 && esc.jump && esc.vault.n === 1 && esc.vault.up && esc.alleys && esc.alley.gone && esc.alley.cooled, 'escapes: stunt ramps launch a car, you vault a bench at a sprint, and cruisers will not follow a bike across a park', JSON.stringify(esc));
+    const mw = await S(() => {
+      const G = g(); const T = G.transit; const H = G.humans;
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true; G.cash = 100;
+      for (const v of [...G.vehicles]) if (v.ai === 'police') G.removeVehicle(v);
+      const s0 = T.stations[0]; H.setPlayerActive(true, s0.sx, s0.sz, 0);
+      const at = T.near(); G.stars = 3; G.heat = 150;
+      const cop = G.spawnVehicle('police', 0x1a1a24, s0.sx + 10, s0.sz, 0, 'parked'); cop.ai = 'police';
+      const refused = !T.ride(at) && G.cash === 100;
+      G.removeVehicle(cop);
+      const rode = T.ride(at); const clean = G.stars === 0;
+      G.skills.off = false;
+      return { refused, rode, clean };
+    });
+    await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
+    ok(mw.refused && mw.rode && mw.clean, 'the metro refuses you with a cop on you, but whisks you away once you are clear', JSON.stringify(mw));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
