@@ -13,6 +13,39 @@ export class Shops {
     return room.id === 'home' && Math.hypot(pl.x - (room.ox + 5.6), pl.z - (room.oz + 3.0)) < 2.4;
   }
 
+  // ---- bowling in the arcade (H): a power meter sweeps back and forth, press H to stop it; the nearer the middle the more pins fall
+  bowl: { t: number; pos: number } | null = null;
+  startBowling(): void {
+    const G = this.G;
+    if (this.bowl) { this.stopBowling(); return; }
+    if (!G.pay(80)) return;
+    this.bowl = { t: 0, pos: 0 };
+    G.hud.toast(bi('Bowling! Press H when the marker is in the middle.', '볼링! 마커가 가운데 올 때 H를 누르세요.'), 2400);
+  }
+  private stopBowling(): void {
+    const G = this.G;
+    if (!this.bowl) return;
+    const miss = Math.abs(this.bowl.pos - 0.5) * 2;       // 0 = dead centre, 1 = the gutter
+    const pins = Math.max(0, Math.min(10, Math.round(10 - miss * 11 + (Math.random() - 0.5) * 1.5)));
+    const prize = pins >= 10 ? 400 : pins >= 8 ? 150 : pins >= 5 ? 60 : 0;
+    this.bowl = null;
+    G.hud.showGig(false);
+    const pl = G.humans.player;
+    if (prize > 0) { G.addCash(prize, 'other'); G.popups.spawn(pl.x, 3, pl.z, `+$${prize}`, '#35e0ff'); }
+    G.hud.toast(pins >= 10 ? bi('STRIKE!', '스트라이크!') : `${pins} ${bi('pins', '핀')}${prize ? ` - $${prize}` : bi(' - better luck next time', ' - 다음엔 더 잘해봐요')}`, 2600);
+  }
+  updateBowling(dt: number, room: Room): void {
+    if (!this.bowl) return;
+    if (room.id !== 'arcade') { this.bowl = null; this.G.hud.showGig(false); return; }
+    this.bowl.t += dt * 1.6;
+    const ph = this.bowl.t % 2;
+    this.bowl.pos = ph < 1 ? ph : 2 - ph;
+    const cells = 15, at = Math.round(this.bowl.pos * (cells - 1));
+    let bar = '';
+    for (let i = 0; i < cells; i++) bar += i === at ? '\u25C6' : i === Math.floor(cells / 2) ? '|' : '\u00B7';
+    this.G.hud.showGig(true, bi('BOWLING', '볼링'), bar, bi('[H] throw', '[H] 던지기'));
+  }
+
   // ---- robbing a till: with a gun out, press G at a counter (donut shop, arcade, clothes shop)
   private robbed: Record<string, number> = {};
   private now(): number { return performance.now() / 1000; }
@@ -175,7 +208,7 @@ export class Shops {
       switch (room.id) {
         case 'donut': return this.G.mood.saved ? bi('[F] Buy a donut - $5 (hero discount!)', '[F] 도넛 구매 - $5 (영웅 할인!)') : bi('[F] Buy a donut - $10 (full HP)', '[F] 도넛 구매 - $10 (체력 회복)');
         case 'motel': return bi('[F] Rest and save - $40', '[F] 휴식 및 저장 - $40');
-        case 'arcade': return bi('[F] Play a game - $50', '[F] 게임하기 - $50');
+        case 'arcade': return this.bowl ? bi('Press [H] to throw!', '[H]를 눌러 던지세요!') : bi('[F] Slots - $50   [H] Bowling - $80', '[F] 게임기 - $50   [H] 볼링 - $80');
         case 'clothes': return bi('[F] Try a new outfit - $100', '[F] 새 옷 입어보기 - $100');
         case 'bank': return bi('[F] Deposit all cash (safe from busts, +1%/min)', '[F] 전액 입금 (체포 안전, 분당 +1%)');
         case 'gun': return bi('[F] Browse weapons', '[F] 무기 보기');

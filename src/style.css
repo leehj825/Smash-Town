@@ -322,8 +322,10 @@ body.foot-mode.gun-out #btn-auto { display: block; }
 /* touch gun controls: one row above the action buttons, so nothing overlaps; RELOAD keeps its slot (hidden until the magazine is not full) */
 #touch .gunrow { display: none; gap: 10px; justify-content: flex-end; }
 body.foot-mode.gun-out #touch .gunrow { display: flex; }
-#touch .gunrow #btn-aim, #touch .gunrow #btn-auto, #touch .gunrow #btn-reload { position: static; display: block; right: auto; bottom: auto; width: 52px; height: 52px; font-size: 11px; }
+#touch .gunrow #btn-aim, #touch .gunrow #btn-auto, #touch .gunrow #btn-reload, #touch .gunrow #btn-rob { position: static; display: block; right: auto; bottom: auto; width: 52px; height: 52px; font-size: 11px; }
 #touch .gunrow #btn-reload { visibility: hidden; }
+#touch .gunrow #btn-rob { display: none; }
+body.can-rob #touch .gunrow #btn-rob { display: block; background: rgba(214,45,58,.85); }
 body.can-reload #touch .gunrow #btn-reload { visibility: visible; }
 @media (max-height: 460px) { #touch .gunrow { gap: 8px; } #touch .gunrow button { width: 46px; height: 46px; } }
 #ammo small { display: block; font-size: 10px; color: #ff9b9b; letter-spacing: .5px; }
@@ -332,7 +334,7 @@ body.can-reload #touch .gunrow #btn-reload { visibility: visible; }
 @media (max-height: 340px) {
   #touch button { width: 42px; height: 42px; font-size: 10px; }
   #touch button.hit, #touch button.gas { width: 54px; height: 54px; }
-  #touch .gunrow { gap: 6px; } #touch .gunrow button, #touch .gunrow #btn-aim, #touch .gunrow #btn-auto, #touch .gunrow #btn-reload { width: 38px; height: 38px; font-size: 9px; }
+  #touch .gunrow { gap: 6px; } #touch .gunrow button, #touch .gunrow #btn-aim, #touch .gunrow #btn-auto, #touch .gunrow #btn-reload, #touch .gunrow #btn-rob { width: 38px; height: 38px; font-size: 9px; }
   #touch .zone-right { gap: 6px; } #touch .grid3 { gap: 6px; }
   #stick { width: 100px; height: 100px; }
   #status { transform: scale(.66); }

@@ -605,6 +605,7 @@ export class Game {
       const r = this.ret;
       if (this.inside?.id === 'garage') this.returnCarToStreet();
       this.inside = null;
+      document.body.classList.remove('can-rob');
       this.humans.setPlayerActive(true, r.x, r.z, r.h);
       this.syncFoot();
       this.cameraRig.snap();
@@ -693,8 +694,11 @@ export class Game {
       else if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shops.action(room);
     }
     if (playing && input.wasPressed('KeyG') && Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) this.shops.rob(room);
+    if (playing && room.id === 'arcade' && input.wasPressed('KeyH')) this.shops.startBowling();
+    this.shops.updateBowling(dt, room);
     this.input.gunOut = false; this.cameraRig.aimMode = 0; this.guns.aimPoint = null; this.hud.setCrosshair(false); this.hud.setLockOn(false); this.hud.setGunOut(false);
     this.hud.setPrompt(this.state === 'play' ? this.shops.prompt(room) : null);
+    document.body.classList.toggle('can-rob', this.shops.canRob(room) && Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4);
     this.progress.tick(dt);
     this.updateLights();
     this.hud.update(this.followable, 1, 1, false, [], dt);
