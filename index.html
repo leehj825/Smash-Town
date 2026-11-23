@@ -13,6 +13,7 @@
     <canvas id="game"></canvas>
 
     <div id="photo-hint" hidden></div>
+    <div id="perf" hidden></div>
     <div id="hud" hidden>
       <button id="btn-pause" class="hud-btn" aria-label="Pause">☰</button>
       <button id="btn-map" class="hud-btn" aria-label="Map">&#128506;</button>
@@ -109,6 +110,12 @@
             <button class="seg quality" data-q="high" data-i18n="ui.quality.high"></button>
             <button class="seg quality" data-q="medium" data-i18n="ui.quality.medium"></button>
             <button class="seg quality" data-q="low" data-i18n="ui.quality.low"></button>
+          </div>
+        </div>
+        <div class="row"><span data-i18n="ui.settings.perf">Performance display</span>
+          <div class="segs">
+            <button class="seg a11y" data-a="perfHud" data-v="1" data-i18n="ui.on"></button>
+            <button class="seg a11y" data-a="perfHud" data-v="0" data-i18n="ui.off"></button>
           </div>
         </div>
         <div class="row"><span data-i18n="ui.settings.bigui">Large text</span>

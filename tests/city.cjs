@@ -149,14 +149,16 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       const dbg = { phase: R.phase, state: G.state, stars: G.stars, cd: R.cooldown, inside: !!G.inside, onFoot: G.onFoot, drv: !!G.driving, sp: G.driving && G.driving.ctrl.speed, d: G.driving && Math.hypot(st.x - G.driving.x, st.z - G.driving.z) };
       console.log('DBG', JSON.stringify(dbg));
       const rivals = R.rivals.length;
-      let best = 0;
+      let best = 0, sawArrow = false, maxTrail = 0;
       for (let i = 0; i < 1400; i++) {
         G.update(0.05); v.ctrl.vx = v.ctrl.vz = 0;
         for (const r of R.rivals) best = Math.max(best, r.idx + (r.done ? 100 : 0)); // progress is read while the race runs (it ends on its own)
+        if (R.arrow.visible) sawArrow = true;
+        maxTrail = Math.max(maxTrail, R.trail.count);
       }
       const prog = [best];
       const riv = (R.rivals.map((r) => ({ sp: Math.round(r.v.ctrl.speed), x: Math.round(r.v.x), z: Math.round(r.v.z), cp: R.cp[r.idx] && [Math.round(R.cp[r.idx].x), Math.round(R.cp[r.idx].z)], thr: r.v.control.throttle, st: r.v.control.steer, hb: r.v.control.handbrake, rt: r.route && r.route.length, ai: r.v.ai, phase: R.phase })));
-      const trail = R.trail.count, arrow = R.arrow.visible;
+      const trail = maxTrail, arrow = sawArrow;
       R.stop && R.stop();
       return { riv, rivals, prog, trail, arrow, left: G.vehicles.filter((q) => q.isGigTarget).length };
     });
@@ -285,6 +287,10 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { started, moving, done, cash: G.cash };
     });
     ok(bowl.started && bowl.moving && bowl.done && bowl.cash >= 920, 'arcade bowling: pay, watch the meter, throw', JSON.stringify(bowl));
+    await S(() => { document.querySelector('.seg.a11y[data-a="perfHud"][data-v="1"]').click(); });
+    await p.waitForTimeout(1500);
+    const perf = await S(() => { const e = document.getElementById('perf'); const r = { shown: !e.hidden, text: e.textContent }; document.querySelector('.seg.a11y[data-a="perfHud"][data-v="0"]').click(); return { ...r, hidden: e.hidden }; });
+    ok(perf.shown && /fps/.test(perf.text) && /tris/.test(perf.text) && perf.hidden, 'the performance display shows fps, triangles and draw calls and can be switched off', JSON.stringify(perf));
     // savings, houses and race records survive a reload
     await S(() => { const G = g(); G.save.bank = 4321; G.save.homes = [1, 2]; G.save.raceBest = [0, 77.5]; G.flushSave(); });
     await p.reload();
