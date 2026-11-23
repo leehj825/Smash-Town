@@ -205,7 +205,7 @@ export class Gear {
   update(dt: number): void {
     const G = this.game;
     const input = G.input;
-    if (G.state !== 'play' || G.inside) { if (this.wheelOpen) this.closeWheel(); return; }
+    if (G.state !== 'play' || G.inside || G.mode === 'kids') { if (this.wheelOpen) this.closeWheel(); return; }
     if (input.wasPressed('KeyG')) { if (this.wheelOpen) this.closeWheel(); else this.openWheel(); }
     if (input.wasPressed('KeyZ')) this.useTool();
     if (input.wasPressed('KeyU')) this.quick('donut');

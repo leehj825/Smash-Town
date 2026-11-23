@@ -31,6 +31,7 @@ export class Progression {
 
   stage(): Stage {
     const G = this.game;
+    if (G.mode === 'kids') return 1; // no weapons, no big jobs
     if (G.mode !== 'story') return 4;
     // (the intro chapter is not counted: stage 2 is the first real chapter done)
     const ch = G.story.done ? 99 : G.story.ch - 1;

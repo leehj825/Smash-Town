@@ -146,6 +146,8 @@ export class Humans {
   readonly list: Human[] = [];
   readonly player: Human;
   unlockedBaton = false;
+  /** Kids Play: nobody is hurt or knocked down. People hit run away instead (cops too, but others take their place), and the player cannot be hurt. */
+  gentle = false;
   /** The baseball bat: a new story starts without it and finds it in the first fight. */
   batOwned = true;
   /** Which guns the player owns (pistol, SMG, shotgun, rocket, paintball). */
@@ -540,8 +542,21 @@ export class Humans {
     void landed;
   }
 
+  /** Kids Play: a hit does not hurt: whoever it lands on runs away. */
+  private scare(att: Human, t: Human, a: Attack, nx: number, nz: number): void {
+    t.flash = 0.14; t.attack = null; t.buffered = 0;
+    t.vx = nx * a.push * 0.4; t.vz = nz * a.push * 0.4;
+    if (t.role === Role.Cop) { t.leaving = true; t.leaveT = 6 + this.rng() * 3; t.hostile = false; }
+    else t.fleeing = true;
+    this.hooks.onHit(att, t, a, (att.x + t.x) / 2, t.y + 1.2, (att.z + t.z) / 2, false);
+  }
+
   private applyHit(att: Human, t: Human, a: Attack, nx: number, nz: number): boolean {
     if (t.invuln > 0) { if (t.role === Role.Player) this.hooks.onWhiff(att); return false; }
+    if (this.gentle) {
+      if (t.role === Role.Player) return false;
+      if (!t.ally) { this.scare(att, t, a, nx, nz); return true; }
+    }
     // a riot shield soaks most hits that come from the front
     const blocked = t.riot && !this.ignoreShield && Math.sin(t.heading) * -nx + Math.cos(t.heading) * -nz > 0.25;
     const dmg = (att.role === Role.Cop ? 8 : a.dmg * (att.role === Role.Player ? this.bodyPower * this.skillPower : 1)) * (blocked ? 0.2 : 1);
@@ -593,6 +608,11 @@ export class Humans {
       if (Math.abs(t.x - cx) > r + 0.7 || Math.abs(t.z - cz) > r + 0.7) continue;
       if (Math.hypot(t.x - cx, t.z - cz) > r + 0.45) continue;
       t.attack = null;
+      if (this.gentle) { // a car only bumps them: they run off
+        t.vx = vx * 0.2; t.vz = vz * 0.2; t.flash = 0.14; t.fleeing = true;
+        if (t.role === Role.Cop) { t.leaving = true; t.leaveT = 6; t.hostile = false; }
+        return t;
+      }
       const fast = Math.hypot(vx, vz) > 9;
       let killed = (t.role === Role.Cop || t.role === Role.Civ) && (t.hp -= fast || t.role === Role.Cop ? 40 : 12) <= 0;
       if (this.kids && killed) { t.hp = 1; killed = false; if (t.role === Role.Cop) t.ko = true; else this.hooks.onCivDown?.(t, null); }
@@ -615,6 +635,7 @@ export class Humans {
   }
 
   private dropBaton(x: number, z: number): void {
+    if (this.gentle) return;
     if (this.unlockedBaton) return;
     const p = this.pickups.find((q) => !q.active);
     if (!p) return;
@@ -817,8 +838,9 @@ export class Humans {
       h.leaveT -= dt;
       const a = Math.atan2(-dx, -dz);
       h.heading += wrap(a - h.heading) * Math.min(1, dt * 6);
-      h.mvx = Math.sin(h.heading) * 3.2; h.mvz = Math.cos(h.heading) * 3.2;
-      h.speed = 3.2; h.state = St.Walk;
+      const away = this.gentle ? 5.4 : 3.2; // Kids Play: they run
+      h.mvx = Math.sin(h.heading) * away; h.mvz = Math.cos(h.heading) * away;
+      h.speed = away; h.state = this.gentle ? St.Run : St.Walk;
       if (h.leaveT <= 0 || dist > 70) { h.active = false; this.hide(h); }
       return;
     }

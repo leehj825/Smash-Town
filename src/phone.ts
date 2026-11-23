@@ -19,6 +19,10 @@ export class Phone {
 
   private services(): Service[] {
     const G = this.game;
+    if (G.mode === 'kids') return [
+      { id: 'kids-next', en: 'Change car (U)', ko: '차 바꾸기 (U)', cost: 0, run: () => { G.kidsMode.nextCar(1); } },
+      { id: 'kids-prev', en: 'Change car: back', ko: '차 바꾸기: 이전', cost: 0, run: () => { G.kidsMode.nextCar(-1); } },
+    ];
     const sb = G.sandbox;
     const sandbox: Service[] = G.mode !== 'sandbox' ? [] : [
       { id: 'sb-stars', en: `Sandbox: wanted level ${G.stars}\u2605 > next`, ko: `샌드박스: 수배 ${G.stars}\u2605 > 다음`, cost: 0, run: () => { sb.cycleStars(); } },

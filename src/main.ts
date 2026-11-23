@@ -26,7 +26,6 @@ type Quality = 'high' | 'medium' | 'low';
 const QUALITY_KEY = 'smashtown.quality';
 const TIME_KEY = 'smashtown.time';
 const AUDIO_KEY = 'smashtown.audio';
-const KIDS_KEY = 'smashtown.kids';
 // ordinary civilian cars (police are never counted here)
 const TRAFFIC: Record<Quality, number> = { high: 18, medium: 12, low: 8 };
 
@@ -205,14 +204,7 @@ document.querySelectorAll<HTMLElement>('.radio').forEach((b) => b.classList.togg
 const savedW = storedGet(WEATHER_KEY);
 applyWeather(savedW === 'clear' || savedW === 'rain' || savedW === 'fog' || savedW === 'storm' || savedW === 'snow' ? savedW : 'auto');
 
-/** Kids Play (default ON): nobody dies - defeated cops and the player are only knocked out. */
-function applyKids(on: boolean): void {
-  game.humans.kids = on;
-  storedSet(KIDS_KEY, on ? '1' : '0');
-  document.getElementById('dialog')!.addEventListener('click', () => game.advanceDialog());
-document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.classList.toggle('sel', (b.dataset.k === '1') === on));
-}
-applyKids(storedGet(KIDS_KEY) !== '0');
+document.getElementById('dialog')!.addEventListener('click', () => game.advanceDialog());
 
 // ---------------------------------------------------------------- UI wiring
 const titleEl = document.getElementById('title')!;
@@ -243,6 +235,7 @@ function buildSlots(): void {
     box.appendChild(b);
   }
 }
+document.body.classList.add('mode-' + game.mode);
 /** The two ways to play, side by side: the story (saved in a slot) and the free sandbox (everything unlocked, nothing saved). */
 function buildModes(): void {
   const box = document.getElementById('modes');
@@ -251,10 +244,11 @@ function buildModes(): void {
   const defs: [string, string, string][] = [
     ['story', bi('STORY', '스토리'), bi('start with nothing, grow', '맨몸으로 시작해 성장')],
     ['sandbox', bi('FREE SANDBOX', '프리 샌드박스'), bi('everything unlocked, not saved', '모두 해금, 저장 안 됨')],
+    ['kids', bi('KIDS PLAY', '어린이 모드'), bi('fists only, everyone runs away', '주먹만, 모두 도망가요')],
   ];
   for (const [id, name, sub] of defs) {
     const b = document.createElement('button');
-    const active = game.mode === 'sandbox' ? id === 'sandbox' : id === 'story';
+    const active = game.mode === 'sandbox' ? id === 'sandbox' : game.mode === 'kids' ? id === 'kids' : id === 'story';
     b.className = active ? 'sel' : '';
     b.innerHTML = `${name}<small>${sub}</small>`;
     b.addEventListener('click', () => {
@@ -265,7 +259,7 @@ function buildModes(): void {
     box.appendChild(b);
   }
   const slots = document.getElementById('slots');
-  if (slots) slots.style.display = game.mode === 'sandbox' ? 'none' : '';
+  if (slots) slots.style.display = game.mode === 'sandbox' || game.mode === 'kids' ? 'none' : '';
 }
 buildSlots();
 buildModes();
@@ -278,7 +272,7 @@ function startGame(): void {
   titleEl.hidden = true;
   hudEl.hidden = false;
   if (!settings.tutorialDone) howto.open();
-  if (!navigator.webdriver && game.mode !== 'sandbox') window.setTimeout(() => game.claimLogin(), 1200); // (automated test browsers skip the bonus so cash totals stay exact)
+  if (!navigator.webdriver && game.mode !== 'sandbox' && game.mode !== 'kids') window.setTimeout(() => game.claimLogin(), 1200); // (automated test browsers skip the bonus so cash totals stay exact)
   try {
     game.audio.init(); // needs a user gesture
     applyRadio(radioChoice());
@@ -319,7 +313,6 @@ document.querySelectorAll<HTMLElement>('.lang').forEach((b) => b.addEventListene
 document.querySelectorAll<HTMLElement>('.quality').forEach((b) => b.addEventListener('click', () => { autoQuality = false; slowT = 0; applyQuality(b.dataset.q as Quality); }));
 document.querySelectorAll<HTMLElement>('.tod').forEach((b) => b.addEventListener('click', () => applyTime(b.dataset.t as TimeOfDay)));
 document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.addEventListener('click', () => applyAudio(b.dataset.a === '1')));
-document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.addEventListener('click', () => applyKids(b.dataset.k === '1')));
 const segSync = (cls: string, cur: number) =>
   document.querySelectorAll<HTMLElement>('.seg.' + cls).forEach((b) => b.classList.toggle('sel', Math.abs(Number(b.dataset.v) - cur) < 0.01));
 function wireSeg(cls: 'sens' | 'aimSens' | 'fov' | 'shake'): void {
@@ -491,7 +484,7 @@ function tick(): void {
     for (let i = 0; i < steps; i++) game.update(dt / steps);
     vfx.update(dt);
     if (clockEl) {
-      const t = (game.mode === 'sandbox' ? 'SANDBOX ' : '') + game.clock.text();
+      const t = (game.mode === 'sandbox' ? 'SANDBOX ' : game.mode === 'kids' ? 'KIDS ' : '') + game.clock.text();
       if (t !== clockEl.textContent) clockEl.textContent = t;
       const b = game.clock.band;
       if (b !== lastClockBand) { lastClockBand = b; document.querySelectorAll<HTMLElement>('.tod').forEach((el) => el.classList.toggle('sel', el.dataset.t === b)); }

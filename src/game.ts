@@ -46,6 +46,7 @@ import { Juice } from './juice';
 import { Barricades } from './barricades';
 import { currentMode, type GameMode } from './mode';
 import { Sandbox } from './sandbox';
+import { Kids } from './kids';
 import { Progression, GUN_STAGE } from './progression';
 import { SAVE_VERSION, migrateSave } from './saveMigrate';
 import { JOBS } from './jobs';
@@ -166,6 +167,7 @@ export class Game {
   /** story, sandbox or classic (see mode.ts). */
   readonly mode: GameMode = currentMode();
   sandbox!: Sandbox;
+  kidsMode!: Kids;
   progression!: Progression;
   /** A story game with no save yet: it starts on foot with almost nothing. */
   private freshStory = false;
@@ -315,8 +317,10 @@ export class Game {
     this.juice = new Juice(this);
     this.barricades = new Barricades(this);
     this.sandbox = new Sandbox(this);
+    this.kidsMode = new Kids(this);
     this.progression = new Progression(this);
-    if (this.mode === 'sandbox') { this.noSave = true; this.story.done = true; }
+    if (this.mode === 'sandbox' || this.mode === 'kids') { this.noSave = true; this.story.done = true; }
+    if (this.mode === 'kids') this.humans.gentle = true;
     this.fires = new Fires(this);
     this.thieves = new Thieves(this);
     this.factions = new Factions(this);
@@ -380,6 +384,8 @@ export class Game {
     const fallback: SaveData = this.mode === 'story'
       ? { cash: 50, unlocked: [], selected: 'sedan', guns: [], bat: false }
       : { cash: 2000, unlocked: ['sports', 'sedan'], selected: 'sports' };
+    // Kids Play: every car, no weapons, nothing saved
+    if (this.mode === 'kids') return { cash: 0, unlocked: [...PLAYER_ROSTER], selected: 'sports', guns: [], bat: false };
     // the sandbox starts rich and fully unlocked, and never reads (or writes) a story slot
     if (this.mode === 'sandbox') {
       const ammo: Partial<Record<GunId, number>> = {};
@@ -980,6 +986,7 @@ export class Game {
       },
       onBuyGun: (id) => {
         if (this.guns.has(id)) return;
+        if (this.mode === 'kids') { this.hud.toast(bi('There are no weapons in Kids Play.', '어린이 모드에는 무기가 없어요.'), 2200); return; }
         if (!this.progression.allows(GUN_STAGE[id])) { this.progression.refuse(GUN_STAGE[id]); return; }
         if (!this.pay(GUNS[id].price)) return;
         this.guns.buyGun(id);
@@ -1144,7 +1151,7 @@ export class Game {
     this.updateCombo(dt);
     this.updateGarageZones();
     this.gigs.update(dt);
-    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.clock.update(dt); this.completion.update(dt); this.riots.update(dt); this.crossfire.update(dt); this.truckHeist.update(dt); this.gear.update(dt); this.escapes.update(dt); this.phone.update(dt); this.director.update(dt); this.challenge.update(dt); this.juice.update(); this.barricades.update(dt); this.sandbox.update(); this.progression.update(dt); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
+    if (this.state === 'play') { this.roofDash.update(dt); this.sideQuests.update(dt); this.mood.update(dt); this.progress.tick(dt); this.range.update(dt); this.shops.tickBank(dt); this.taxi.update(dt); this.race.update(dt); this.delivery.update(dt); this.festival.update(dt); this.fishing.update(dt); this.gangs.update(dt); if (!this.boatsTried) this.spawnBoats(); this.paramedic.update(dt); this.firefighter.update(dt); this.patrol.update(dt); this.clock.update(dt); this.completion.update(dt); this.riots.update(dt); this.crossfire.update(dt); this.truckHeist.update(dt); this.gear.update(dt); this.escapes.update(dt); this.phone.update(dt); this.director.update(dt); this.challenge.update(dt); this.juice.update(); this.barricades.update(dt); this.sandbox.update(); this.kidsMode.update(); this.progression.update(dt); this.fires.update(dt); this.thieves.update(dt); this.reputation.update(dt); this.npcs.update(dt); this.skills.update(dt); this.buddy.update(dt); }
     if (this.driving && !this.onFoot) this.progress.add('driveM', Math.abs(this.driving.ctrl.forwardSpeed) * dt);
     this.story.update(dt);
     this.collectibles.update(dt);
@@ -1632,9 +1639,11 @@ export class Game {
     let nearest = Infinity;
     for (const v of this.policeVehicles()) nearest = Math.min(nearest, Math.hypot(v.x - this.focusX, v.z - this.focusZ));
     this.crimeT += dt;
-    this.unseen = nearest > 85 ? this.unseen + dt : 0;
-    if (this.unseen > 6 && this.crimeT > 12 && this.heat > this.minHeat) {
-      this.heat = Math.max(this.minHeat, this.heat - 12 * dt);
+    // Kids Play: get a short way off and they lose you within seconds
+    const easy = this.mode === 'kids';
+    this.unseen = nearest > (easy ? 45 : 85) ? this.unseen + dt : 0;
+    if (this.unseen > (easy ? 1.5 : 6) && this.crimeT > (easy ? 2 : 12) && this.heat > (easy ? 0 : this.minHeat)) {
+      this.heat = Math.max(easy ? 0 : this.minHeat, this.heat - (easy ? 45 : 12) * dt);
       let s = 0;
       for (let i = 0; i < STAR_HEAT.length; i++) if (this.heat >= STAR_HEAT[i]) s = i + 1;
       if (s < this.stars) {

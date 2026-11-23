@@ -27,7 +27,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     let r = await p.evaluate(() => { const G = g(); return { mode: G.mode, cash: G.cash, unlocked: G.save.unlocked.length, noSave: G.noSave }; });
     ok(r.mode === 'classic' && r.cash === 2000 && r.unlocked === 2 && !r.noSave, 'an automated browser starts in classic mode with $2,000 and two cars', JSON.stringify(r));
     r = await p.evaluate(() => ({ modes: [...document.querySelectorAll('#modes button')].map((x) => x.textContent), sel: [...document.querySelectorAll('#modes button')].findIndex((x) => x.classList.contains('sel')) }));
-    ok(r.modes.length === 2, 'the title screen offers the story and the free sandbox', JSON.stringify(r));
+    ok(r.modes.length === 3, 'the title screen offers the story, the free sandbox and Kids Play', JSON.stringify(r));
     await ctx.close();
 
     // a new story: $50, on foot, bare hands, nothing to drive
@@ -154,6 +154,54 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(r.three && r.zero && r.one && r.held && r.god && r.car && r.phone && r.hooks, 'the sandbox panel sets, holds and clears the wanted level, grants god mode, spawns cars, changes weather and time', JSON.stringify(r));
+    await ctx.close();
+    // Kids Play: its own mode, fists only, everyone runs away, easy escapes, quick car swaps
+    ({ p, ctx } = await open('?mode=kids'));
+    r = await p.evaluate(() => {
+      const G = g(); const out = { mode: G.mode, gentle: G.humans.gentle, guns: G.guns.owned.length, bat: G.humans.batOwned, noSave: G.noSave, cars: G.save.unlocked.length, stage: G.progression.stage() };
+      out.sel = [...document.querySelectorAll('#modes button')].findIndex((x) => x.classList.contains('sel'));
+      out.buttons = document.querySelectorAll('#modes button').length;
+      out.noToggle = !document.querySelector('.kids-row') && !document.querySelector('button.kids');
+      return out;
+    });
+    ok(r.mode === 'kids' && r.gentle && r.guns === 0 && !r.bat && r.noSave && r.cars >= 10 && r.stage === 1 && r.sel === 2 && r.buttons === 3 && r.noToggle, 'Kids Play is a mode of its own: no weapons, nothing saved, and the old option is gone from the settings', JSON.stringify(r));
+    await p.evaluate(() => window.__smash.startGame());
+    await p.waitForTimeout(800);
+    r = await p.evaluate(() => {
+      const G = g(); const H = G.humans; const out = {};
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.stars = 0; G.heat = 0;
+      H.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0);
+      // a person you hit runs away instead of falling
+      const civ = H.list.find((h) => h.active && h.role === 0 && !h.named && !h.ally);
+      civ.x = H.player.x + 1.5; civ.z = H.player.z; civ.state = 0; civ.hp = 20; civ.fleeing = false;
+      const hit = H.gunHit(H.player, civ, 999, 1, 0, true);
+      out.civ = { hit, up: civ.state !== 6 && civ.state !== 7 && civ.state !== 8, hp: civ.hp === 20, fled: civ.fleeing, dead: civ.hp <= 0 };
+      // a cop runs off too, and nobody is credited with a knock-out
+      H.spawnCop(0);
+      const cop = H.list.find((h) => h.active && h.role === 1 && !h.gang);
+      const downs = H.copsDefeated;
+      cop.x = H.player.x + 1.5; cop.z = H.player.z; cop.hp = 30; cop.state = 0;
+      H.gunHit(H.player, cop, 999, 1, 0, true);
+      out.cop = { leaving: cop.leaving, hp: cop.hp === 30, noDown: H.copsDefeated === downs };
+      // the player cannot be hurt
+      H.player.hp = H.player.maxHp; const hurt = H.gunHit(cop, H.player, 50, 1, 0, true);
+      out.safe = hurt === false && H.player.hp === H.player.maxHp;
+      // swapping the car on the spot (U): a different kind, same place, old one gone
+      G.boardVehicle(G.spawnVehicle('sedan', 0x3b82f6, H.player.x, H.player.z, 0, 'parked'));
+      const old = G.driving; const x0 = old.x, z0 = old.z;
+      const kind = G.kidsMode.nextCar(1);
+      out.swap = { changed: G.driving !== old && G.driving.kind === kind, near: Math.hypot(G.driving.x - x0, G.driving.z - z0) < 1, gone: !G.vehicles.includes(old), driving: !G.onFoot };
+      // the car cannot be wrecked
+      G.driving.ctrl.hp = 0.01; G.kidsMode.update(); out.tough = G.driving.ctrl.hp === 1;
+      // getting away is easy: nobody near, and within seconds the stars are gone
+      for (const v of [...G.vehicles]) if (v.ai === 'police') G.removeVehicle(v);
+      for (const h of H.list) if (h.role === 1 && h.active) { h.active = false; }
+      G.stars = 3; G.heat = 200; G.minHeat = 170; G.crimeT = 10;
+      for (let i = 0; i < 40 && G.stars > 0; i++) G.updateWanted(0.5);
+      out.escape = G.stars === 0;
+      return out;
+    });
+    ok(r.civ.hit && r.civ.up && r.civ.hp && r.civ.fled && !r.civ.dead && r.cop.leaving && r.cop.hp && r.cop.noDown && r.safe && r.swap.changed && r.swap.near && r.swap.gone && r.swap.driving && r.tough && r.escape, 'Kids Play: hits make people and cops run, you cannot be hurt, U swaps the car, and the police lose you quickly', JSON.stringify(r));
     await ctx.close();
   } finally {
     ok(errs.length === 0, 'no page errors', errs.slice(0, 3).join(' | '));
