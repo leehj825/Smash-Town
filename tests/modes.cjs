@@ -508,6 +508,59 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(r.stalls && r.open && r.inside && r.snack && r.rumour && r.wanted && r.closed && r.counts && r.shelf && r.weather, 'the night market, trophies on the shelf, and bad weather that pays', JSON.stringify(r));
+    // story rework, stage 0: walk-up goals, story rooms with things to examine, and no clock on the opening
+    r = await p.evaluate(async () => {
+      const G = g(); const S = G.story; const H = G.humans; const out = {};
+      G.state = 'play'; G.stars = 0; G.heat = 0; G.inside = null; G.dialogue.active = false; G.hud.hideDialog(); G.skills.off = true;
+      const spot = G.world.landmarks.story.donna;
+      S.done = false; S.ch = 3; S.step = 0; S.prog = 0;
+      const ch = S.chapter; const saved = ch.steps;
+      const wh = G.interiors.rooms.find((r) => r.id === 'warehouse');
+      out.rooms = !!wh && wh.story === true && wh.inspects.length === 4 && !!G.interiors.rooms.find((r) => r.id === 'cityhall');
+      ch.steps = [
+        { k: 'goto', spot: 'donna', walk: true, text: ['Walk up', '걸어가기'] },
+        { k: 'enter', room: 'warehouse', text: ['Go in', '들어가기'] },
+        { k: 'inspect', room: 'warehouse', ids: ['crate0', 'desk'], notes: { crate0: ['Crate one', '상자 하나'], desk: ['The desk', '책상'] }, text: ['Look around', '둘러보기'] },
+        { k: 'leave', room: 'warehouse', text: ['Out', '나가기'] },
+        { k: 'goto', spot: 'donna', text: ['End', '끝'] },
+      ];
+      // 1. a car is not enough: you have to be on foot
+      const car = G.spawnVehicle('sedan', 0x3366cc, spot.x + 1, spot.z, 0, 'parked'); G.boardVehicle(car);
+      S.update(0.1); S.update(0.1);
+      out.carStays = S.step === 0 && S.walkHint === true;
+      G.driving = null; G.removeVehicle(car); G.onFoot = true; H.setPlayerActive(true, spot.x + 1, spot.z, 0);
+      S.update(0.1);
+      out.walked = S.step === 1;
+      // 2. the warehouse door is shut except while the story asks for it
+      S.update(0.1);
+      out.doorOpen = !!G.interiors.roomAt(wh.door.x, wh.door.z, 2.6);
+      G.interiors.open.clear();
+      out.doorShut = G.interiors.roomAt(wh.door.x, wh.door.z, 2.6) === null;
+      S.update(0.1);
+      // 3. going in, then examining two things
+      G.inside = wh; H.setPlayerActive(true, wh.exit.x, wh.exit.z - 2.2, Math.PI);
+      S.updateInside(0.1);
+      out.entered = S.step === 2;
+      out.far = S.inspectNear(wh) === null;
+      const c0 = wh.inspects.find((q) => q.id === 'crate0'); H.setPlayerActive(true, c0.x + 1, c0.z + 1, 0);
+      out.near = S.inspectNear(wh)?.id === 'crate0' && /Examine|살펴보기/.test(S.inspectPrompt(wh));
+      S.inspect(wh);
+      out.one = S.step === 2 && S.inspectNear(wh) === null;
+      const dk = wh.inspects.find((q) => q.id === 'desk'); H.setPlayerActive(true, dk.x - 1, dk.z + 1, 0);
+      S.inspect(wh);
+      out.two = S.step === 3;
+      // 4. coming back out finishes the step
+      G.inside = null; S.update(0.1);
+      out.left = S.step === 4;
+      ch.steps = saved; S.ch = 0; S.step = 3; S.prog = 0;
+      // 5. no clock on the opening's delivery
+      S.update(0.1);
+      out.untimed = G.delivery.untimed === true;
+      S.step = 0; S.prog = 0; S.ch = 3; S.update(0.1);
+      G.delivery.untimed = false; S.done = true; G.skills.off = false;
+      return out;
+    });
+    ok(r.rooms && r.carStays && r.walked && r.doorOpen && r.doorShut && r.entered && r.far && r.near && r.one && r.two && r.left && r.untimed, 'story rework base: walk-up goals, story rooms with things to examine, and no clock on the opening', JSON.stringify(r));
     await ctx.close();
 
     // a story saved before the intro existed skips it (chapters move up one place)

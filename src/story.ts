@@ -1,4 +1,4 @@
-import type * as THREE from 'three';
+import * as THREE from 'three';
 import { Beacon } from './beacon';
 import type { Game } from './game';
 import { bi, t } from './i18n';
@@ -9,12 +9,20 @@ import type { GameVehicle } from './vehicles';
 
 import { ENDING, ARRIVAL, PARK as PARK_SCRIPT, DONNA as DONNA_SCRIPT, AMBUSH, BONNIE, PARK_CALL, SHOP_THUGS, CASHBOX, SIRENS, SG_THANKS, TEASERS } from './introscript';
 import type { DScript } from './dialogue';
+import type { ShopKind, Room } from './interiors';
 
 type Pair = [string, string]; // [English, Korean]
-type SpotKey = 'donna' | 'motel' | 'hall' | 'gate' | 'crate0' | 'crate1' | 'crate2' | 'door:arcade' | 'door:gun' | 'door:clothes';
+export type SpotKey = 'donna' | 'motel' | 'hall' | 'gate' | 'crate0' | 'crate1' | 'crate2' | 'door:arcade' | 'door:gun' | 'door:clothes';
 interface Line { who: Pair; text: Pair }
 type Step =
-  | { k: 'goto'; spot: SpotKey; text: Pair }
+  /** `walk`: you must be on foot to count (a car is not enough: get out and walk up). */
+  | { k: 'goto'; spot: SpotKey; text: Pair; walk?: boolean }
+  /** Go through the door of a story room. */
+  | { k: 'enter'; room: ShopKind; text: Pair }
+  /** Examine things inside a room (their ids are in the room's list); `notes` is what each one tells you. */
+  | { k: 'inspect'; room: ShopKind; ids: string[]; notes: Record<string, Pair>; text: Pair }
+  /** Step back out into the street. */
+  | { k: 'leave'; room: ShopKind; text: Pair }
   | { k: 'dialog'; lines: Line[] }
   | { k: 'smash'; count: number; text: Pair }
   | { k: 'steal'; text: Pair }
@@ -28,12 +36,13 @@ type Step =
   /** Get any kind of ride. */
   | { k: 'ride'; text: Pair }
   /** Three of the mayor's thugs are wrecking Donna's shop: they taunt you, then you fight them. */
-  | { k: 'brawl'; text: Pair }
+  /** A fight: thugs stand at `at` (default: Donna's shop) and `count` of them (default 3); `taunt` is their line before it starts. */
+  | { k: 'brawl'; text: Pair; at?: SpotKey; count?: number; taunt?: { script: DScript; start: string } }
   /** A thief runs off with something: catch them on foot. */
   | { k: 'runner'; text: Pair }
   /** The police are after you (`stars` of them): lose them. */
   | { k: 'escape'; stars: number; text: Pair };
-interface Chapter { title: Pair; reward: number; finale?: boolean; intro?: boolean; /** The reward is paid in full in the story mode (the others are a fraction: see Game.scaled). */ fixed?: boolean; steps: Step[] }
+export interface Chapter { title: Pair; reward: number; finale?: boolean; intro?: boolean; /** The reward is paid in full in the story mode (the others are a fraction: see Game.scaled). */ fixed?: boolean; steps: Step[] }
 /** Chapters the story mode puts in front of the original eight (the opening and "Smash and Grab"). */
 export const STORY_EXTRA = 2;
 
@@ -223,6 +232,8 @@ export class StoryManager {
   private batAt: { x: number; z: number } | null = null;
   private monoStarted = false;
   private carHint = false;
+  private walkHint = false;
+  private marks: THREE.Mesh[] = [];
   private brawl: 'idle' | 'staged' | 'talk' | 'fight' = 'idle';
   private runnerT = 0;
   private escapeT = 0;
@@ -271,7 +282,8 @@ export class StoryManager {
     this.idleT = 0;
     this.base = null;
     this.monoStarted = false;
-    this.brawl = 'idle'; this.escapeT = 0; this.runnerT = 0; this.carHint = false;
+    this.brawl = 'idle'; this.escapeT = 0; this.runnerT = 0; this.carHint = false; this.walkHint = false;
+    this.game.delivery.untimed = false;
     this.game.delivery.stopsLimit = 3; this.game.delivery.payScale = 1; this.game.delivery.range = null; // Donna's small first job is over
     if (this.step >= c.steps.length) this.completeChapter(c);
     this.persist();
@@ -373,6 +385,8 @@ export class StoryManager {
       g.hud.toast(bi('Your phone rings: unknown number', '전화가 울려요: 모르는 번호'), 2400);
       g.dialogue.start(t, 'x1', null);
     }
+    g.interiors.open.clear();
+    this.hideMarks();
     const s = this.current;
     if (!s || this.dialog) { if (!s) this.beacon.visible = false; this.idleT = 0; return; }
     this.waiting = false;
@@ -382,10 +396,22 @@ export class StoryManager {
         const p = this.spot(s.spot);
         this.beacon.setPosition(p.x, p.z); this.beacon.visible = true;
         if (g.state === 'play' && this.inRange(p)) {
-          if (g.stars > 0) this.waiting = true; else this.next();
+          if (g.stars > 0) this.waiting = true;
+          else if (s.walk && !g.onFoot) { if (!this.walkHint) { this.walkHint = true; g.hud.toast(bi('Park and get out (F), then walk up.', '차를 세우고 내린 뒤(F) 걸어서 다가가세요.'), 3200); } }
+          else this.next();
         }
         break;
       }
+      case 'enter':
+      case 'inspect': {
+        const room = g.interiors.rooms.find((r) => r.id === s.room);
+        if (room) { g.interiors.open.add(room.id); this.beacon.setPosition(room.door.x, room.door.z); this.beacon.visible = true; }
+        break;
+      }
+      case 'leave':
+        this.beacon.visible = false;
+        if (!g.inside) this.next();
+        break;
       case 'dialog':
         this.beacon.visible = false;
         if (g.state === 'play') {
@@ -415,6 +441,7 @@ export class StoryManager {
         break;
       case 'deliver': {
         this.beacon.visible = false;
+        g.delivery.untimed = true; // no clock on the opening: take your time
         g.delivery.stopsLimit = 2; g.delivery.payScale = 0.4; g.delivery.range = [30, 60]; // short walks: the whole job fits in a couple of blocks of Old Town
         if (this.base === null) this.base = g.delivery.completed;
         this.ambushUpdate(dt);
@@ -488,6 +515,78 @@ export class StoryManager {
   /** Is Donna's first job the current goal? (It is the one side job that works before the opening is over.) */
   deliveryStep(): boolean { const s = this.current; return !!s && s.k === 'deliver'; }
 
+  // ------------------------------------------------------------------ inside the story rooms
+  private hideMarks(): void { for (const m of this.marks) m.visible = false; }
+
+  /** The thing you are standing next to (and have not examined yet), if the current step asks for it in this room. */
+  inspectNear(room: Room): NonNullable<Room['inspects']>[number] | null {
+    const s = this.current;
+    if (!s || s.k !== 'inspect' || s.room !== room.id || this.dialog || this.game.dialogue.active) return null;
+    const p = this.game.humans.player;
+    for (const it of room.inspects ?? []) {
+      const bit = s.ids.indexOf(it.id);
+      if (bit < 0 || (this.prog & (1 << bit))) continue;
+      if (Math.hypot(it.x - p.x, it.z - p.z) < 2.6) return it;
+    }
+    return null;
+  }
+
+  inspectPrompt(room: Room): string | null {
+    const it = this.inspectNear(room);
+    return it ? `${bi('[F] Examine', '[F] 살펴보기')}: ${bi(it.en, it.ko)}` : null;
+  }
+
+  /** Examine what is in front of you: it tells you something, and when everything is found the step is done. */
+  inspect(room: Room): void {
+    const s = this.current;
+    const it = this.inspectNear(room);
+    if (!s || s.k !== 'inspect' || !it) return;
+    this.prog |= 1 << s.ids.indexOf(it.id);
+    const note = s.notes[it.id];
+    this.game.audio.cash();
+    this.game.popups.spawn(it.x, 2.4, it.z, bi(note[0], note[1]), '#ffe9a8');
+    this.game.hud.toast(bi(note[0], note[1]), 5200);
+    const all = s.ids.every((_, i) => this.prog & (1 << i));
+    if (all) this.next(); else this.persist();
+  }
+
+  /** Called every frame while the player is inside a room (the street is frozen, so only the steps that happen indoors run). */
+  updateInside(dt: number): void {
+    const g = this.game;
+    const s = this.current;
+    const room = g.inside;
+    if (!room) return;
+    for (const m of this.marks) m.rotation.y += dt * 2;
+    if (!s || this.dialog) return;
+    switch (s.k) {
+      case 'enter':
+        if (room.id === s.room) this.next();
+        break;
+      case 'inspect': {
+        if (room.id !== s.room) break;
+        while (this.marks.length < s.ids.length) {
+          const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.2).scale(1, 1.7, 1), new THREE.MeshBasicMaterial({ color: 0xffd23a, fog: false }));
+          g.scene.add(m);
+          this.marks.push(m);
+        }
+        s.ids.forEach((id, i) => {
+          const it = room.inspects?.find((q) => q.id === id);
+          const m = this.marks[i];
+          m.visible = !!it && !(this.prog & (1 << i));
+          if (it) m.position.set(it.x, 2.2 + Math.sin(g.time * 3 + i) * 0.1, it.z);
+        });
+        break;
+      }
+      case 'monologue':
+        if (g.state === 'play' && !g.dialogue.active && !this.monoStarted) {
+          this.monoStarted = true;
+          g.dialogue.start(s.script, s.start, null, () => this.next());
+        }
+        break;
+    }
+    if (s.k !== 'inspect') this.hideMarks();
+  }
+
   /** The person the story wants you to talk to now (they get a yellow diamond). */
   questNpc(): string | null {
     const s = this.current;
@@ -533,10 +632,13 @@ export class StoryManager {
     const g = this.game;
     if (this.brawl === 'idle') {
       for (const m of g.humans.gangMembers()) if (!m.hostile) g.humans.removeGang(m);
-      const room = g.interiors.rooms.find((r) => r.id === 'donut');
-      const d = room ? room.door : this.spot('donna');
+      const cur = this.current;
+      const at = cur && cur.k === 'brawl' ? cur.at : undefined;
+      const n = cur && cur.k === 'brawl' ? cur.count ?? 3 : 3;
+      const room = at ? null : g.interiors.rooms.find((r) => r.id === 'donut');
+      const d = at ? this.spot(at) : room ? room.door : this.spot('donna');
       const h0 = room ? room.door.h : 0;
-      for (let k = 0; k < 3; k++) {
+      for (let k = 0; k < n; k++) {
         const along = 5 + k * 1.8, side = (k - 1) * 2.2;
         const x = d.x + Math.cos(h0) * along + Math.sin(h0) * side, z = d.z - Math.sin(h0) * along + Math.cos(h0) * side;
         const h = g.humans.spawnGang(x, z, 0x7a3a3a, false);
@@ -553,7 +655,8 @@ export class StoryManager {
       if (alive.some((h) => h.hostile)) { this.brawl = 'fight'; return; }
       if (g.state === 'play' && !g.dialogue.active && Math.hypot(alive[0].x - g.focusX, alive[0].z - g.focusZ) < 12) {
         this.brawl = 'talk';
-        g.dialogue.start(SHOP_THUGS, 's1', alive[0], () => { for (const h of this.aliveThugs()) h.hostile = true; this.brawl = 'fight'; g.slowMo(0.9); });
+        const tc = this.current && this.current.k === 'brawl' ? this.current.taunt : undefined;
+        g.dialogue.start(tc ? tc.script : SHOP_THUGS, tc ? tc.start : 's1', alive[0], () => { for (const h of this.aliveThugs()) h.hostile = true; this.brawl = 'fight'; g.slowMo(0.9); });
       }
       return;
     }
@@ -701,6 +804,7 @@ export class StoryManager {
     const label = this.stepText(s);
     switch (s.k) {
       case 'goto': { const p = this.spot(s.spot); return { x: p.x, z: p.z, label }; }
+      case 'enter': case 'inspect': { if (g.inside) return null; const r = g.interiors.rooms.find((q) => q.id === s.room); return r ? { x: r.door.x, z: r.door.z, label } : null; }
       case 'monologue': return null;
       case 'brawl': { const t0 = this.aliveThugs()[0]; return t0 ? { x: t0.x, z: t0.z, label } : null; }
       case 'runner': { const m = g.thieves.markers()[0]; return m ? { x: m.x, z: m.z, label } : null; }
@@ -766,6 +870,8 @@ export class StoryManager {
       case 'ride': return { title, text: bi(s.text[0], s.text[1]) };
       case 'drive': return { title, text: this.game.driving === this.limo && this.limo ? bi(s.text[0], s.text[1]) : bi('Get back into the limo!', '리무진에 다시 타세요!') };
       case 'dialog': return { title, text: bi('Talk to them', '대화하기') };
+      case 'enter': case 'leave': return { title, text: bi(s.text[0], s.text[1]) };
+      case 'inspect': return { title, text: `${bi(s.text[0], s.text[1])} (${s.ids.filter((_, i) => this.prog & (1 << i)).length}/${s.ids.length})` };
     }
   }
 

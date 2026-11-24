@@ -103,7 +103,7 @@ export class BigMap {
     const R = 9;
     for (const s of w.garages) dot(s.x, s.z, R, '#3dff8a');
     for (const m of g.roofDash.markers()) dot(m.x, m.z, R, '#4dd2ff');
-    for (const r of g.interiors.rooms) { dot(r.door.x, r.door.z, R - 1, r.css); c.fillStyle = '#fff'; c.font = '700 15px sans-serif'; c.textAlign = 'center'; c.strokeStyle = '#000'; c.lineWidth = 3; c.strokeText(bi(r.en, r.ko), X(r.door.x), Z(r.door.z) - 12); c.fillText(bi(r.en, r.ko), X(r.door.x), Z(r.door.z) - 12); }
+    for (const r of g.interiors.rooms) { if (r.story) continue; dot(r.door.x, r.door.z, R - 1, r.css); c.fillStyle = '#fff'; c.font = '700 15px sans-serif'; c.textAlign = 'center'; c.strokeStyle = '#000'; c.lineWidth = 3; c.strokeText(bi(r.en, r.ko), X(r.door.x), Z(r.door.z) - 12); c.fillText(bi(r.en, r.ko), X(r.door.x), Z(r.door.z) - 12); }
     for (const m of g.gigs.markers) if (m.cooldown <= 0) dot(m.x, m.z, R - 1, '#ff9a3d');
     g.pickups.forEach((type, x, z) => { if (type !== 'cash') dot(x, z, R - 4, Pickups.color(type)); });
     for (let i = 0; i < g.collectibles.total; i++) if (!g.collectibles.isCollected(i)) { const s = g.collectibles.spot(i); dot(s.x, s.z, R - 3, '#ffe27a'); }

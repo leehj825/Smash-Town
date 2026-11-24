@@ -25,6 +25,8 @@ export class DeliveryJob {
   /** The story's opening wants short walks: the distance range (metres) of an order from the last stop. null = the normal long ones. */
   range: [number, number] | null = null;
   payScale = 1;
+  /** No clock (the story's opening): the order never goes cold. */
+  untimed = false;
   /** Bad weather pays better: +25% in rain, +40% in a storm (not during the story opening, whose pay is fixed). */
   weatherMul(): number { const G = this.game; if (G.mode === 'story' && !G.sideOpen) return 1; return G.weatherKind === 'storm' ? 1.4 : G.weatherKind === 'rain' ? 1.25 : 1; }
 
@@ -101,10 +103,10 @@ export class DeliveryJob {
       }
       return;
     }
-    this.time -= dt;
+    if (!this.untimed) this.time -= dt; else this.time = 60;
     const s = this.stops[this.i];
     const left = Math.hypot(s.x - px, s.z - pz);
-    G.hud.showGig(true, bi('DELIVERY', '배달'), `${bi('Order', '주문')} ${this.i + 1}/${this.stops.length} · ${Math.round(left)} m`, `${Math.max(0, Math.ceil(this.time))}s`);
+    G.hud.showGig(true, bi('DELIVERY', '배달'), `${bi('Order', '주문')} ${this.i + 1}/${this.stops.length} · ${Math.round(left)} m`, this.untimed ? '' : `${Math.max(0, Math.ceil(this.time))}s`);
     if (left < 7.5 && !G.story.blocksDelivery()) {
       const dist = Math.hypot(s.x - this.legStart.x, s.z - this.legStart.z);
       const pay = Math.round((120 + dist * 0.35) * this.payScale * this.weatherMul());
