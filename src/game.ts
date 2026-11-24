@@ -356,7 +356,7 @@ export class Game {
     this.crime = new Crime(this);
     this.medics = new Medics(this);
     this.sideQuests = new SideQuests(this);
-    this.progress = new Progress(this.save.progress, (m) => this.hud.toast(m, 3600), (n) => { this.cash += n; this.hud.setCash(this.cash); this.saveDirty = true; this.audio.cash(); }, () => { this.saveDirty = true; });
+    this.progress = new Progress(this.save.progress, (m) => this.hud.toast(m, 3600), (n) => { const v = this.scaled(n, 0.2); this.cash += v; this.hud.setCash(this.cash); this.saveDirty = true; this.audio.cash(); return v; }, () => { this.saveDirty = true; }, () => !this.sideOpen);
     this.mood = new Mood(this);
     this.applyOutfit(this.save.outfit ?? 0);
     this.humans.guns = this.guns.flags();

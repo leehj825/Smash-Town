@@ -81,7 +81,12 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       out.dark = G.gigs.markers.every((m) => !m.beacon.visible) && !G.delivery.markers().length === false;
       out.noPad = G.delivery.markers().length === 1 && !G.pickup; // (the pad marker list exists but nothing is shown on the street)
       out.blips = true;
+      // achievement and daily-challenge money waits for the open world, and is small there
+      const cash1 = G.cash; G.progress.add('smashes', 100); G.progress.add('deliveries', 1);
+      out.held = G.cash === cash1 && G.progress.daily.done.length === 0;
       S.ch = 2; out.open = G.sideOpen === true;
+      G.progress.add('smashes', 1);
+      const got = G.cash - cash1; out.small = got > 0 && got <= 500;
       S.ch = 0;
       // carjacking a driver: a small heat (under one star), and the kind joins the garage for free
       G.dialogue.active = false; G.hud.hideDialog(); G.state = 'play'; S.monoStarted = true;
@@ -94,7 +99,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       G.removeVehicle(v); G.driving = null; G.onFoot = true; G.heat = 0; G.skills.off = false;
       return out;
     });
-    ok(r.closed && r.dark && r.open && r.jack && r.kept, 'the side jobs stay dark until the opening is over; a carjacking is a small crime and the car joins your garage', JSON.stringify(r));
+    ok(r.closed && r.dark && r.held && r.open && r.small && r.jack && r.kept, 'the side jobs stay dark until the opening is over; a carjacking is a small crime and the car joins your garage', JSON.stringify(r));
     await ctx.close();
 
     // the opening, face to face: arrival, Mr. Park (a choice), Donna (a donut), a job with a fight and Bonnie on the way, a first ride
