@@ -13,7 +13,7 @@ import { REWORK } from './chapters';
 import type { ShopKind, Room } from './interiors';
 
 type Pair = [string, string]; // [English, Korean]
-export type SpotKey = 'donna' | 'motel' | 'hall' | 'gate' | 'crate0' | 'crate1' | 'crate2' | 'door:arcade' | 'door:gun' | 'door:clothes';
+export type SpotKey = 'donna' | 'motel' | 'hall' | 'gate' | 'crate0' | 'crate1' | 'crate2' | 'door:arcade' | 'door:gun' | 'door:clothes' | 'door:warehouse' | 'door:cityhall';
 interface Line { who: Pair; text: Pair }
 type Step =
   /** `walk`: you must be on foot to count (a car is not enough: get out and walk up). */
@@ -642,7 +642,8 @@ export class StoryManager {
       const n = cur && cur.k === 'brawl' ? cur.count ?? 3 : 3;
       const room = at ? null : g.interiors.rooms.find((r) => r.id === 'donut');
       const d = at ? this.spot(at) : room ? room.door : this.spot('donna');
-      const h0 = room ? room.door.h : 0;
+      const dr = at && at.startsWith('door:') ? g.interiors.rooms.find((r) => r.id === at.slice(5)) : null;
+      const h0 = room ? room.door.h : dr ? dr.door.h : 0;
       for (let k = 0; k < n; k++) {
         const along = 5 + k * 1.8, side = (k - 1) * 2.2;
         const x = d.x + Math.cos(h0) * along + Math.sin(h0) * side, z = d.z - Math.sin(h0) * along + Math.cos(h0) * side;

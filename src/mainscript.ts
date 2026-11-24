@@ -49,3 +49,49 @@ export const C2_HALE: DScript = {
   h2: { id: 'h2', who: HALE, text: ['I am only the deputy. The mayor does not listen to me. But I will see that this lands in front of the council, and I will not let Bigsby bury it.', '저는 부시장일 뿐이라 시장은 제 말을 듣지 않아요. 하지만 이걸 의회 앞에 올려놓을 거고, 빅스비가 묻어 버리게 두지 않을 겁니다.'], next: 'h3' },
   h3: { id: 'h3', who: HALE, text: ['Be careful. Men like Bigsby do not lose votes. They buy them, or they break the people who ask. Watch your back.', '조심해요. 빅스비 같은 사람은 표결에서 지지 않아요. 표를 사거나 요구한 사람을 부숴 버리죠. 뒤를 조심해요.'] },
 };
+
+// ---------------------------------------------------------------- chapter 3: Inside Job
+const KANE: Pair = ['Kane', '케인'];
+const LOU: Pair = ['Captain Lou', '캡틴 루'];
+const THUG: Pair = ['Bigsby Thug', '빅스비 패거리'];
+
+/** Kane briefs you on the mayor's limo. */
+export const C3_KANE: DScript = {
+  k1: { id: 'k1', who: KANE, text: ['You are the one breaking his props. Good. I sell information, and I have a free sample for you.', '그 사람이구나, 시장네 물건 부수고 다니는. 좋아. 난 정보를 파는데, 당신한텐 샘플을 공짜로 줄게.'], next: 'k2' },
+  k2: { id: 'k2', who: KANE, text: ["Bigsby's black limo drives to the harbor every night to meet somebody who signs with one letter. I need that car at the harbor gate, in one piece.", '빅스비의 검은 리무진은 매일 밤 항구로 가서 글자 하나로 서명하는 누군가를 만나. 그 차가 항구 입구에 멀쩡하게 서 있어야 해.'], next: 'k3' },
+  k3: {
+    id: 'k3', who: YOU, text: ['(Borrow the mayor\'s car. Not exactly legal.)', '(시장의 차를 빌린다. 합법은 아니네.)'],
+    choices: [
+      { label: ['Where do I find the limo?', '리무진은 어디 있죠?'], next: 'k4' },
+      { label: ['Why do you want it at the harbor?', '왜 항구에 가져다 놓으라는 거죠?'], next: 'k4b', fx: { friend: ['kane', 1] } },
+    ],
+  },
+  k4: { id: 'k4', who: KANE, text: ['It is marked on your map. Drive it gently: a scratched limo and the deal is off.', '지도에 표시해 놨어. 살살 몰아. 긁히면 거래는 없던 일이야.'] },
+  k4b: { id: 'k4b', who: KANE, text: ['Because the harbor master owes me a favor, and the man in the grey coat only trusts that car. It is marked on your map. Drive it gently.', '부두 관리인이 내게 빚이 있고, 회색 코트 남자는 그 차만 믿거든. 지도에 표시해 놨어. 살살 몰아.'] },
+};
+
+/** At the harbor gate. */
+export const C3_LOU: DScript = {
+  l1: { id: 'l1', who: LOU, text: ['That is the mayor\'s car, alright. Kane said somebody was bringing it. Park it where the cameras cannot see.', '시장 차가 맞군. 케인이 누가 가져올 거라고 하더군. 카메라가 안 보이는 데 세워.'], next: 'l2' },
+  l2: { id: 'l2', who: LOU, text: ['The Big Shipment arrives tonight: three crates, no paperwork. Mayor\'s men guard the warehouse, but I have the key. Take a look inside before they move it.', '오늘 밤 대형 화물이 들어와. 상자 세 개에 서류는 없어. 시장 패거리가 창고를 지키지만 열쇠는 내게 있어. 옮기기 전에 안을 봐 둬.'] },
+};
+
+// ---------------------------------------------------------------- chapter 4: The Big Shipment
+/** Inside the warehouse, after you have looked at the crates and the foreman's desk. */
+export const C4_INSIDE: DScript = {
+  w1: { id: 'w1', who: YOU, text: ['(Blueprints for the Mega Mall. And an invoice signed with a single letter: G.)', '(메가몰 청사진. 그리고 글자 하나로 서명된 송장: G.)'], next: 'w2' },
+  w2: { id: 'w2', who: THUG, text: ['Hey! The warehouse is open! Somebody is inside!', '어이! 창고가 열려 있어! 안에 누가 있어!'], next: 'w3' },
+  w3: { id: 'w3', who: YOU, text: ['(Time to go. Take the blueprints and get out of here.)', '(나갈 시간이야. 청사진을 챙겨 나가자.)'] },
+};
+
+/** The mayor's men wait at the door. */
+export const C4_TAUNT: DScript = {
+  t1: { id: 't1', who: THUG, text: ['That is Bigsby\'s paper you are holding. Hand it over, or we take it.', '그건 빅스비 서류야. 내놔, 아니면 뺏는다.'], next: 't2' },
+  t2: { id: 't2', who: YOU, text: ['Come and take it.', '와서 가져가 봐.'] },
+};
+
+/** Handing the blueprints to Deputy Hale. */
+export const C4_HALE: DScript = {
+  b1: { id: 'b1', who: HALE, text: ['The blueprints. Signed invoices. Do you realize what this is? Proof that the Mega Mall was never meant to be built on public land.', '청사진. 서명된 송장. 이게 뭔지 알아요? 메가몰이 공공 부지에 지어질 계획이 아니었다는 증거예요.'], next: 'b2' },
+  b2: { id: 'b2', who: HALE, text: ['And that letter, G... I have seen it on a lot of papers in this building. I do not know who G is. But somebody above the mayor has been paying him.', '그리고 그 글자 G... 이 건물의 많은 서류에서 본 적이 있어요. G가 누군지는 몰라요. 하지만 시장 위의 누군가가 그에게 돈을 주고 있었어요.'] },
+};

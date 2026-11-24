@@ -1,5 +1,5 @@
 import type { Chapter } from './story';
-import { C1_START, C1_DONE, C2_PARK, C2_MEET, C2_HALE } from './mainscript';
+import { C1_START, C1_DONE, C2_PARK, C2_MEET, C2_HALE, C3_KANE, C3_LOU, C4_INSIDE, C4_TAUNT, C4_HALE } from './mainscript';
 
 /**
  * The story mode's own version of the eight main chapters. Same titles and same order as the originals (so rewards, teasers, stages and the
@@ -27,5 +27,30 @@ export const REWORK: (Chapter | null)[] = [
       { k: 'talk', npc: 'hale', script: C2_HALE, start: 'h1', text: ['Take the petition to Deputy Hale downtown (yellow diamond)', '시내의 헤일 부시장에게 청원서를 전하세요 (노란 마름모)'] },
     ],
   },
-  null, null, null, null, null, null,
+  {
+    title: ['Inside Job', '내부 작전'], reward: 2500,
+    steps: [
+      { k: 'talk', npc: 'kane', script: C3_KANE, start: 'k1', text: ['Meet Kane, the informant (yellow diamond)', '정보원 케인을 만나세요 (노란 마름모)'] },
+      { k: 'steal', text: ["Borrow Mayor Bigsby's black limo (marked on the map)", '빅스비 시장의 검은 리무진을 빌리세요 (지도에 표시됨)'] },
+      { k: 'drive', spot: 'gate', text: ['Drive the limo to the Harbor gate - keep it in one piece!', '리무진을 항구 입구까지 몰고 가세요 - 망가뜨리지 마세요!'] },
+      { k: 'talk', npc: 'lou', script: C3_LOU, start: 'l1', text: ['Get out and talk to Captain Lou, the dockmaster (yellow diamond)', '차에서 내려 부두 관리인 캡틴 루와 이야기하세요 (노란 마름모)'] },
+    ],
+  },
+  {
+    title: ['The Big Shipment', '대형 화물'], reward: 3000,
+    steps: [
+      { k: 'enter', room: 'warehouse', text: ['Slip into the harbor warehouse (walk up to the door, F)', '항구 창고에 몰래 들어가세요 (문 앞에서 F)'] },
+      { k: 'inspect', room: 'warehouse', ids: ['crate0', 'crate1', 'crate2', 'desk'], notes: {
+        crate0: ['Crate 1: steel beams stamped "MEGA MALL".', '상자 1: "메가몰"이라고 찍힌 철골.'],
+        crate1: ['Crate 2: demolition charges, enough to level a block.', '상자 2: 한 블록을 날릴 만한 철거용 폭약.'],
+        crate2: ['Crate 3: cash boxes and a ledger signed with the letter G.', '상자 3: 현금 상자와 글자 G로 서명된 장부.'],
+        desk: ["The foreman's desk: blueprints and an invoice. You take them.", '감독관의 책상: 청사진과 송장. 챙겼어요.'],
+      }, text: ["Search the warehouse: 3 crates and the foreman's desk (F)", '창고를 뒤져 보세요: 상자 3개와 감독관의 책상 (F)'] },
+      { k: 'monologue', script: C4_INSIDE, start: 'w1', text: ['Voices outside!', '밖에서 목소리가 들려요!'] },
+      { k: 'leave', room: 'warehouse', text: ['Get out of the warehouse', '창고에서 나가세요'] },
+      { k: 'brawl', at: 'door:warehouse', count: 3, taunt: { script: C4_TAUNT, start: 't1' }, text: ["Beat the mayor's men waiting at the door", '문 앞에서 기다리는 시장의 패거리를 쓰러뜨리세요'] },
+      { k: 'talk', npc: 'hale', script: C4_HALE, start: 'b1', text: ['Bring the blueprints to Deputy Hale downtown (yellow diamond)', '청사진을 시내의 헤일 부시장에게 가져가세요 (노란 마름모)'] },
+    ],
+  },
+  null, null, null, null,
 ];

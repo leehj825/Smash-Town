@@ -601,6 +601,53 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(Object.values(r).every((v) => v === true), 'story rework: chapters 1 and 2 are told on foot, face to face and indoors', JSON.stringify(r));
+    // story rework, stage 2: Kane and the limo, the dockmaster, the warehouse search, the fight at the door
+    r = await p.evaluate(async () => {
+      const G = g(); const S = G.story; const H = G.humans; const D = G.dialogue; const out = {};
+      G.state = 'play'; G.stars = 0; G.heat = 0; G.inside = null; D.active = false; G.hud.hideDialog(); G.skills.off = true; G.onFoot = true;
+      const rec = (id) => G.npcs.list.find((n) => n.def.id === id);
+      const human = (id) => { const r = rec(id); r.human = r.human ?? H.spawnNamed(H.player.x + 2, H.player.z, 0, { shirt: 0, pants: 0, skin: 0xf1c27d, hair: 0, shoe: 0, cap: false }); return r; };
+      const talk = (id) => { const r = human(id); G.npcs.talk({ def: r.def, human: r.human }); };
+      const run = (max = 12) => { for (let i = 0; i < max && D.active; i++) { if (D.node && D.node.choices) D.choose(0); else D.advance(); } G.state = 'play'; D.active = false; };
+      S.done = false; S.ch = 4; S.step = 0; S.prog = 0; S.pendingTeaser = null;
+      // chapter 3: Kane, the limo, the gate, then out of the car to Captain Lou
+      out.c3 = S.chapter.title[0] === 'Inside Job' && S.chapter.steps.length === 4 && S.chapter.steps[0].k === 'talk';
+      talk('kane'); out.k1 = D.active && D.node.id === 'k1';
+      run(); out.s1 = S.step === 1;
+      S.update(0.1);
+      const limo = S.limo; out.limo = !!limo;
+      G.driving = limo; limo.ai = 'player'; G.onFoot = false;
+      S.update(0.1); out.s2 = S.step === 2;
+      const gate = G.world.landmarks.story.gate; limo.ctrl.position.x = gate.x; limo.ctrl.position.z = gate.z;
+      S.update(0.1); out.s3 = S.step === 3;
+      out.lou = S.questNpc() === 'lou';
+      G.driving = null; G.onFoot = true; H.setPlayerActive(true, gate.x + 2, gate.z, 0);
+      talk('lou'); out.l1 = D.active && D.node.id === 'l1';
+      run(); out.ch3done = S.ch === 5 && S.step === 0;
+      S.update(0.1); out.teaser = D.active; run(); // the stranger rings after the chapter
+      // chapter 4: the warehouse, four things to search, voices, out, a fight, Deputy Hale
+      out.c4 = S.chapter.title[0] === 'The Big Shipment' && S.chapter.steps.length === 6;
+      const wh = G.interiors.rooms.find((q) => q.id === 'warehouse');
+      S.update(0.1); out.open = !!G.interiors.roomAt(wh.door.x, wh.door.z, 2.6);
+      G.inside = wh; H.setPlayerActive(true, wh.exit.x, wh.exit.z - 2.2, Math.PI);
+      S.updateInside(0.1); out.in = S.step === 1;
+      for (const id of ['crate0', 'crate1', 'crate2', 'desk']) { const it = wh.inspects.find((q) => q.id === id); H.setPlayerActive(true, it.x + 1, it.z + 1, 0); S.inspect(wh); }
+      out.search = S.step === 2;
+      S.updateInside(0.1); out.voices = D.active && D.node.id === 'w1';
+      run(); out.s4 = S.step === 3;
+      G.inside = null; H.setPlayerActive(true, wh.door.x, wh.door.z, 0);
+      S.update(0.1); out.s5 = S.step === 4;
+      S.update(0.1); out.thugs = S.thugs.length === 3;
+      const d0 = S.thugs[0] ?? { x: 0, z: 0 }; H.setPlayerActive(true, d0.x - 4, d0.z, 0);
+      S.update(0.1); out.taunt = D.active && D.node.id === 't1';
+      run(); for (const h of S.thugs) { h.hp = 0; h.ko = true; h.state = 8; }
+      S.update(0.1); out.fought = S.step === 5;
+      talk('hale'); out.b1 = D.active && D.node.id === 'b1';
+      run(); out.ch4done = S.ch === 6 && S.step === 0;
+      S.done = true; G.skills.off = false; G.cash = 0;
+      return out;
+    });
+    ok(Object.values(r).every((v) => v === true), 'story rework: chapters 3 and 4 use Kane and the dockmaster, a warehouse search and a fight at the door', JSON.stringify(r));
     await ctx.close();
 
     // a story saved before the intro existed skips it (chapters move up one place)
