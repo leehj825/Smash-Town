@@ -198,7 +198,7 @@ export class Npcs {
         act: (g, t) => { if (t !== 'friendly') return null; g.factions.add('watch', 12); return bi('The City Watch thinks better of you.', '시티 워치가 당신을 더 좋게 봐요.'); },
       },
       {
-        id: 'hale', name: ['Mayor Hale', '헤일 시장'], job: ['Mayor', '시장'], look: { shirt: 0x1a2a4a, pants: 0x1a1a24, skin: 0xf1c27d, hair: 0x3a3a3a },
+        id: 'hale', name: ['Deputy Hale', '헤일 부시장'], job: ['Deputy mayor', '부시장'], look: { shirt: 0x1a2a4a, pants: 0x1a1a24, skin: 0xf1c27d, hair: 0x3a3a3a },
         where: () => roadside('downtown', 0),
         lines: {
           friendly: [['The city owes you. One word from me and the police will drop this whole matter.', '이 도시는 당신에게 빚졌어요. 제가 한마디 하면 경찰이 이 일을 접을 거예요.']],

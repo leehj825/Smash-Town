@@ -9,6 +9,7 @@ import type { GameVehicle } from './vehicles';
 
 import { ENDING, ARRIVAL, PARK as PARK_SCRIPT, DONNA as DONNA_SCRIPT, AMBUSH, BONNIE, PARK_CALL, SHOP_THUGS, CASHBOX, SIRENS, SG_THANKS, TEASERS } from './introscript';
 import type { DScript } from './dialogue';
+import { REWORK } from './chapters';
 import type { ShopKind, Room } from './interiors';
 
 type Pair = [string, string]; // [English, Korean]
@@ -243,7 +244,11 @@ export class StoryManager {
   constructor(game: Game, scene: THREE.Scene, saved?: StorySave) {
     this.game = game;
     // the story mode starts with the intro; a story saved before the intro existed skips it (every chapter moves up one place)
-    if (game.mode === 'story' && !CHAPTERS.includes(INTRO)) CHAPTERS.unshift(INTRO, SMASHGRAB);
+    if (game.mode === 'story' && !CHAPTERS.includes(INTRO)) {
+      // (the story mode's own version of the eight main chapters: see chapters.ts)
+      const main = CHAPTERS.map((c, i) => REWORK[i] ?? c);
+      CHAPTERS.splice(0, CHAPTERS.length, INTRO, SMASHGRAB, ...main);
+    }
     // (saves from before the opening: +1; saves from before "Smash and Grab": +1 more if they were past the opening)
     const v = game.save.storyV ?? 1;
     let shift = 0;

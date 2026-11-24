@@ -561,6 +561,46 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(r.rooms && r.carStays && r.walked && r.doorOpen && r.doorShut && r.entered && r.far && r.near && r.one && r.two && r.left && r.untimed, 'story rework base: walk-up goals, story rooms with things to examine, and no clock on the opening', JSON.stringify(r));
+    // story rework, stage 1: chapters 1 and 2 told on foot, face to face and indoors
+    r = await p.evaluate(async () => {
+      const G = g(); const S = G.story; const H = G.humans; const D = G.dialogue; const out = {};
+      G.state = 'play'; G.stars = 0; G.heat = 0; G.inside = null; D.active = false; G.hud.hideDialog(); G.skills.off = true; G.onFoot = true;
+      const rec = (id) => G.npcs.list.find((n) => n.def.id === id);
+      const human = (id) => { const r = rec(id); r.human = r.human ?? H.spawnNamed(H.player.x + 2, H.player.z, 0, { shirt: 0, pants: 0, skin: 0xf1c27d, hair: 0, shoe: 0, cap: false }); return r; };
+      const talk = (id) => { const r = human(id); G.npcs.talk({ def: r.def, human: r.human }); };
+      const run = (max = 12) => { for (let i = 0; i < max && D.active; i++) { if (D.node && D.node.choices) D.choose(0); else D.advance(); } G.state = 'play'; D.active = false; };
+      S.done = false; S.ch = 2; S.step = 0; S.prog = 0; S.pendingTeaser = null; G.cash = 0;
+      // chapter 1: Donna, four piles of junk, Donna again
+      out.c1 = S.chapter.title[0] === 'Welcome to Sunset Bay' && S.chapter.steps.length === 3 && S.chapter.steps[0].k === 'talk';
+      out.who = S.questNpc() === 'donna';
+      talk('donna'); out.d1 = D.active && D.node.id === 'a1';
+      run(); out.s1 = S.step === 1;
+      for (let i = 0; i < 4; i++) S.onSmash();
+      S.update(0.1); out.s2 = S.step === 2;
+      talk('donna'); out.d2 = D.active && D.node.id === 'b1';
+      run(); out.ch1done = S.ch === 3 && S.step === 0 && G.cash > 0;
+      // chapter 2: Mr. Park outside, the meeting indoors, the petition, crates, Deputy Hale
+      out.c2 = S.chapter.title[0] === 'Smash for Good' && S.chapter.steps.length === 7;
+      talk('park'); out.p1 = D.active && D.node.id === 'p1';
+      run(); out.s3 = S.step === 1;
+      const room = G.interiors.rooms.find((q) => q.id === 'motel');
+      S.update(0.1); out.open = !!G.interiors.roomAt(room.door.x, room.door.z, 2.6);
+      G.inside = room; H.setPlayerActive(true, room.exit.x, room.exit.z - 2.2, Math.PI);
+      S.updateInside(0.1); out.in = S.step === 2;
+      S.updateInside(0.1); out.meet = D.active && D.node.id === 'm1';
+      run(); out.s4 = S.step === 3;
+      const it = room.inspects.find((q) => q.id === 'petition'); H.setPlayerActive(true, it.x + 1, it.z + 1, 0);
+      S.inspect(room); out.s5 = S.step === 4;
+      G.inside = null; S.update(0.1); out.s6 = S.step === 5;
+      for (let i = 0; i < 8; i++) S.onSmash();
+      S.update(0.1); out.s7 = S.step === 6;
+      talk('hale'); out.h1 = D.active && D.node.id === 'h1';
+      run(); out.ch2done = S.ch === 4 && S.step === 0;
+      out.deputy = rec('hale').def.name[0] === 'Deputy Hale';
+      S.done = true; G.skills.off = false; G.cash = 0;
+      return out;
+    });
+    ok(Object.values(r).every((v) => v === true), 'story rework: chapters 1 and 2 are told on foot, face to face and indoors', JSON.stringify(r));
     await ctx.close();
 
     // a story saved before the intro existed skips it (chapters move up one place)
