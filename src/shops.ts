@@ -7,6 +7,10 @@ import type { Room } from './interiors';
 
 /** What the counters and desks inside the shops do (buying, resting, the bank), kept apart from the game loop. */
 export class Shops {
+  private disguiseUntil = 0;
+  /** True while a shop's till is still empty from your robbery (the owner remembers). */
+  wasRobbed(id: string): boolean { return (this.robbed[id] ?? 0) > this.now(); }
+
   constructor(private G: Game) {}
 
   wardrobeNear(room: Room): boolean {
@@ -132,10 +136,20 @@ export class Shops {
         break;
       }
       case 'clothes': {
+        const disguise = this.G.stars > 0;
+        if (disguise) { // a change of clothes while wanted: only if nobody saw you come in, and not again for a while
+          if (!this.G.hideouts.canHide()) { this.G.hud.toast(bi('The police are too close to change!', '경찰이 너무 가까워서 갈아입을 수 없어요!'), 2200); return; }
+          if (this.disguiseUntil > this.now()) { this.G.hud.toast(bi('Same disguise again? They will recognise you. Wait a bit.', '또 변장하면 알아봐요. 잠시 기다려요.'), 2600); return; }
+        }
         if (!this.G.pay(100)) return;
         this.G.save.outfit = ((this.G.save.outfit ?? 0) + 1) % GameClass.OUTFITS.length;
         this.G.applyOutfit(this.G.save.outfit);
         this.G.popups.spawn(pl.x, 3, pl.z, bi('New look!', '새 옷!'), '#b084ff');
+        if (disguise) {
+          this.disguiseUntil = this.now() + 180;
+          this.G.coolHeat(0, 0.5);
+          this.G.hud.toast(bi('Disguised! The heat drops.', '변장 성공! 수배가 줄어요.'), 2400);
+        }
         break;
       }
       case 'bank': {
@@ -212,7 +226,7 @@ export class Shops {
         case 'donut': return this.G.mood.saved ? bi('[F] Buy a donut - $5 (hero discount!)', '[F] 도넛 구매 - $5 (영웅 할인!)') : bi('[F] Buy a donut - $10 (full HP)', '[F] 도넛 구매 - $10 (체력 회복)');
         case 'motel': return bi('[F] Rest and save - $40', '[F] 휴식 및 저장 - $40');
         case 'arcade': return this.bowl ? bi('Press [H] to throw!', '[H]를 눌러 던지세요!') : bi('[F] Slots - $50   [H] Bowling - $80', '[F] 게임기 - $50   [H] 볼링 - $80');
-        case 'clothes': return bi('[F] Try a new outfit - $100', '[F] 새 옷 입어보기 - $100');
+        case 'clothes': return this.G.stars > 0 ? bi('[F] Disguise - $100 (halves the heat)', '[F] 변장 - $100 (수배 절반)') : bi('[F] Try a new outfit - $100', '[F] 새 옷 입어보기 - $100');
         case 'bank': return bi('[F] Deposit all cash (safe from busts, +1%/min)', '[F] 전액 입금 (체포 안전, 분당 +1%)');
         case 'gun': return bi('[F] Browse weapons', '[F] 무기 보기');
         case 'home': return this.G.stars > 0 ? bi('[F] Lie low here until the heat is gone', '[F] 수배가 풀릴 때까지 여기서 숨기') : bi('[F] Rest and save (free)', '[F] 쉬기와 저장 (무료)');

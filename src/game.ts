@@ -859,6 +859,7 @@ export class Game {
       this.humans.setPlayerActive(false, 0, 0, 0);
       this.cameraRig.snap();
       this.audio.thump();
+      this.glovebox(v);
       // story mode: stealing is how you get cars. A kind you have driven joins your garage (free), and money goes into upgrading it
       if (this.mode === 'story' && PLAYER_ROSTER.includes(v.kind) && !this.save.unlocked.includes(v.kind)) {
         this.unlockVehicle(v.kind);
@@ -1388,6 +1389,28 @@ export class Game {
       this.audio.cash();
     });
     this.hud.setPlayerArmor(this.humans.armor / 50);
+  }
+
+  /** When you come back to a story save: one short reminder of where you were and what is next. Nothing for a brand-new game. */
+  welcomeBack(): void {
+    if (this.mode !== 'story' || this.story.done || (this.story.ch === 0 && this.story.step === 0)) return;
+    const info = this.story.hudInfo();
+    if (!info) return;
+    this.hud.toast(`${bi('Welcome back', '다시 오셨네요')} - ${info.title}${info.text ? ': ' + info.text : ''}`, 5200);
+  }
+
+  private looted = new WeakSet<GameVehicle>();
+  private lootAt = 0;
+  /** A stolen car sometimes has a little cash in the glovebox: small, once per car, not too often, and never during the story opening. */
+  private glovebox(v: GameVehicle): void {
+    if (this.mode !== 'story' || !this.sideOpen || v.owned || v.isGigTarget || v.isPolice || this.looted.has(v)) return;
+    this.looted.add(v);
+    const now = performance.now() / 1000;
+    if (now < this.lootAt || Math.random() > 0.25) return;
+    this.lootAt = now + 40;
+    const n = this.scaled(5 + Math.floor(Math.random() * 16), 1);
+    this.addCash(n, 'other');
+    this.popups.spawn(this.focusX, 3, this.focusZ, bi(`Glovebox: +$${n}`, `글러브박스: +$${n}`), '#3dff8a');
   }
 
   /** Pick up golden stars by touching them (in a car or on foot). */

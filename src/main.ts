@@ -295,6 +295,7 @@ function startGame(): void {
   titleEl.hidden = true;
   hudEl.hidden = false;
   if (!settings.tutorialDone) howto.open();
+  window.setTimeout(() => game.welcomeBack(), 900);
   if (!navigator.webdriver && game.mode !== 'sandbox' && game.mode !== 'kids') window.setTimeout(() => game.claimLogin(), 1200); // (automated test browsers skip the bonus so cash totals stay exact)
   try {
     game.audio.init(); // needs a user gesture

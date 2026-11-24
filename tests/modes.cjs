@@ -358,6 +358,52 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(r.open && r.list && r.closed && r.radio && r.radioSeen && r.tipWaits && r.tipOnce && r.mods && r.diff, 'story pill steps, police radio, first-time tips, visible car upgrades and difficulty', JSON.stringify(r));
+    // batch one: a disguise while wanted, glovebox cash, a welcome back, and shopkeepers who remember you
+    r = await p.evaluate(async () => {
+      const G = g(); const H = G.humans; const out = {};
+      G.state = 'play'; G.stars = 0; G.heat = 0; G.inside = null; G.dialogue.active = false; G.hud.hideDialog(); G.skills.off = true;
+      const room = G.interiors.rooms.find((r) => r.id === 'clothes');
+      // 1. disguise: needs nobody close, halves the heat, then a cooldown
+      G.cash = 1000; G.stars = 3; G.heat = 300;
+      for (const v of [...G.vehicles]) if (v.ai === 'police') G.removeVehicle(v);
+      const o0 = G.save.outfit ?? 0;
+      G.shops.action(room);
+      out.changed = (G.save.outfit ?? 0) !== o0 && G.cash === 900;
+      out.halved = G.heat <= 150;
+      const c1 = G.cash; G.heat = 300; G.shops.action(room);
+      out.cooldown = G.cash === c1 && G.heat === 300;
+      G.shops.disguiseUntil = 0;
+      const pv = G.spawnVehicle('police', 0xffffff, G.focusX + 5, G.focusZ, 0, 'police');
+      const c2 = G.cash; G.shops.action(room);
+      out.seen = G.cash === c2;
+      G.removeVehicle(pv); G.stars = 0; G.heat = 0; G.shops.disguiseUntil = 0;
+      // 2. glovebox cash: small, once per car, none before the story opens
+      const orig = Math.random; Math.random = () => 0.01;
+      G.lootAt = 0; G.cash = 0;
+      const car = G.spawnVehicle('sedan', 0x3366cc, H.player.x + 2, H.player.z, 0, 'parked');
+      G.glovebox(car);
+      out.loot = G.cash >= 1 && G.cash <= 25;
+      const c3 = G.cash; G.glovebox(car); out.once = G.cash === c3;
+      Math.random = orig; G.removeVehicle(car);
+      // 3. welcome back: a toast for a saved story, nothing at the very start
+      const ts = []; const tt = G.hud.toast.bind(G.hud); G.hud.toast = (m, ms) => { ts.push(m); return tt(m, ms); };
+      G.story.done = false; G.story.ch = 0; G.story.step = 0; G.welcomeBack(); out.fresh = ts.length === 0;
+      G.story.ch = 4; G.story.step = 1; G.welcomeBack(); out.back = ts.length === 1 && /Welcome back|다시 오셨/.test(ts[0]);
+      G.hud.toast = tt; G.story.ch = 5; G.story.step = 0;
+      // 4. a robbed shopkeeper shouts, a friendly one waves
+      const said = []; const sp = G.popups.spawn.bind(G.popups); G.popups.spawn = (x, y, z, text, c) => { said.push(text); return sp(x, y, z, text, c); };
+      const donut = G.interiors.rooms.find((r) => r.id === 'donut');
+      H.setPlayerActive(true, donut.door.x + 2, donut.door.z, 0); G.onFoot = true; G.driving = null;
+      G.shops.robbed.donut = performance.now() / 1000 + 100; G.voices.shopT = 0; G.voices.shopSaid = {};
+      G.voices.update(0.1);
+      out.shout = said.some((x) => /come back|오지 마/.test(x));
+      said.length = 0; G.shops.robbed.donut = 0; G.voices.shopT = 0; G.voices.shopSaid = {};
+      G.mood.saved = true; G.voices.update(0.1);
+      out.wave = said.some((x) => /welcome|어서 와요/.test(x));
+      G.mood.saved = false; G.popups.spawn = sp; G.skills.off = false; G.cash = 0;
+      return out;
+    });
+    ok(r.changed && r.halved && r.cooldown && r.seen && r.loot && r.once && r.fresh && r.back && r.shout && r.wave, 'a disguise while wanted, glovebox cash, a welcome back, and shopkeepers who remember you', JSON.stringify(r));
     await ctx.close();
 
     // a story saved before the intro existed skips it (chapters move up one place)
