@@ -32,7 +32,7 @@
       </div>
 
       <div id="top-center">
-        <div id="story-pill" hidden><div id="story-title"></div><div id="story-text"></div><div id="story-nav" hidden><span id="nav-arrow">&#9650;</span><span id="nav-dist"></span></div></div>
+        <div id="story-pill" hidden><div id="story-title"></div><div id="story-text"></div><div id="story-list" hidden></div><div id="story-nav" hidden><span id="nav-arrow">&#9650;</span><span id="nav-dist"></span></div></div>
         <div id="gig" hidden><div id="gig-title"></div><div id="gig-obj"></div><div id="gig-time"></div></div>
       </div>
       <div id="dialog" hidden><div id="dlg-who"></div><div id="dlg-text"></div><div id="dlg-hint"></div></div>
@@ -44,7 +44,7 @@
       <div id="overlay-msg" hidden></div>
 
       <canvas id="minimap" width="280" height="280"></canvas>
-      <div id="wanted-banner" hidden data-i18n="ui.wanted">WANTED</div>
+      <div id="wanted-banner" hidden><span data-i18n="ui.wanted">WANTED</span><small id="wanted-radio" hidden></small></div>
 
       <div id="telemetry">
         <div id="speedo-wrap">
@@ -95,6 +95,7 @@
         <h1 data-i18n="ui.title">SMASH TOWN</h1>
         <p data-i18n="ui.tagline"></p>
         <div id="modes"></div>
+        <div id="diffs"></div>
         <div id="slots"></div>
         <button id="btn-play" class="big" data-i18n="ui.play">PLAY</button>
       </div>

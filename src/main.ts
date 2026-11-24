@@ -19,7 +19,7 @@ import { Weather, type WeatherKind } from './weather';
 import { ControlsPanel, HowToPlay, StatsPanel, type Modal } from './overlays';
 import { settings, saveSettings } from './settings';
 import { SAVE_KEY, SLOT_KEY, currentSlot, slotSaveKey } from './game';
-import { MODE_KEY } from './mode';
+import { MODE_KEY, DIFF_KEY } from './mode';
 import { setupTouch } from './touch';
 
 type Quality = 'high' | 'medium' | 'low';
@@ -261,9 +261,32 @@ function buildModes(): void {
   const slots = document.getElementById('slots');
   if (slots) slots.style.display = game.mode === 'sandbox' || game.mode === 'kids' ? 'none' : '';
 }
+/** Story difficulty (easy / normal / hard): shown only for the story mode; a change reloads the page like the mode does. */
+function buildDiffs(): void {
+  const box = document.getElementById('diffs');
+  if (!box) return;
+  box.innerHTML = '';
+  box.style.display = game.mode === 'story' ? '' : 'none';
+  const lab = document.createElement('span');
+  lab.textContent = bi('Difficulty', '난이도');
+  box.appendChild(lab);
+  const names = [bi('Easy', '쉬움'), bi('Normal', '보통'), bi('Hard', '어려움')];
+  names.forEach((nm, i) => {
+    const b = document.createElement('button');
+    b.className = i === game.difficulty ? 'sel' : '';
+    b.textContent = nm;
+    b.addEventListener('click', () => {
+      if (i === game.difficulty) return;
+      try { localStorage.setItem(DIFF_KEY, String(i)); } catch { /* ignore */ }
+      location.reload();
+    });
+    box.appendChild(b);
+  });
+}
 buildSlots();
 buildModes();
-onLangChange(() => { buildSlots(); buildModes(); });
+buildDiffs();
+onLangChange(() => { buildSlots(); buildModes(); buildDiffs(); });
 
 function startGame(): void {
   if (state !== 'title') return;

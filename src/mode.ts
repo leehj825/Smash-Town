@@ -19,3 +19,10 @@ export function currentMode(): GameMode {
     return m === 'sandbox' ? 'sandbox' : m === 'kids' ? 'kids' : 'story';
   } catch { return 'story'; }
 }
+
+/** Story difficulty: 0 easy, 1 normal, 2 hard. It changes only two things: how fast the police heat builds and how much cash found in the world is worth. */
+export const DIFF_KEY = 'smashtown.diff';
+export const DIFFS = [{ heat: 0.75, money: 1.25 }, { heat: 1, money: 1 }, { heat: 1.3, money: 0.8 }] as const;
+export function currentDifficulty(): 0 | 1 | 2 {
+  try { if (navigator.webdriver) return 1; const d = Number(localStorage.getItem(DIFF_KEY)); return d === 0 || d === 2 ? d : 1; } catch { return 1; }
+}

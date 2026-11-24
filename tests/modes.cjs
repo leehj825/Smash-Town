@@ -316,6 +316,48 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(r.offer && r.owned && r.slow && r.voice && r.hunter && r.noHunterYet && r.rumor && r.endStart && r.endChoices && r.endLaw && r.endDone, 'new plates, a slow-motion beat, street voices, a price on your head, radio rumours, and an ending you choose', JSON.stringify(r));
+    // the next five: story pill steps, police radio, first-time tips, visible car upgrades, difficulty
+    r = await p.evaluate(async () => {
+      const G = g(); const H = G.hud; const out = {};
+      G.state = 'play'; G.stars = 0; G.heat = 0; G.inside = null; G.dialogue.active = false; G.hud.hideDialog();
+      // 1. tap the objective pill to see today's steps
+      document.getElementById('story-pill').hidden = false;
+      document.getElementById('story-pill').click();
+      out.open = H.storyOpen === true;
+      H.setStoryList([{ text: 'a', state: 'done' }, { text: 'b', state: 'now' }, { text: 'c', state: 'todo' }]);
+      out.list = document.getElementById('story-list').children.length === 3 && !document.getElementById('story-list').hidden;
+      document.getElementById('story-pill').click();
+      H.setStoryList([{ text: 'a', state: 'now' }]);
+      out.closed = document.getElementById('story-list').hidden === true;
+      // 2. police radio
+      G.stars = 2; G.heat = 100; G.copCars.length = 0; G.radioT = 0; G.radioSeen = '';
+      const line = G.radioLine(0.1);
+      out.radio = /Lost visual|Suspect|시야|용의자/.test(line);
+      G.copCars.push({ x: G.humans.player.x + 10, z: G.humans.player.z }); G.radioT = 0;
+      out.radioSeen = /in sight|확인/.test(G.radioLine(0.1));
+      G.stars = 0; G.heat = 0; G.copCars.length = 0;
+      // 3. first-time tips: once, only when calm
+      G.save.tips = []; G.tips.t = 0;
+      const toasts = []; const tt = H.toast.bind(H); H.toast = (m, ms) => { toasts.push(m); return tt(m, ms); };
+      G.stars = 2; G.tips.update(0.1); out.tipWaits = toasts.length === 0; G.stars = 0;
+      G.humans.player.hp = G.humans.player.maxHp;
+      const sp = G.sideOpen; Object.defineProperty(G, 'sideOpen', { get: () => true, configurable: true });
+      G.tips.t = 0; G.tips.update(0.1); G.tips.t = 0; G.tips.update(0.1);
+      out.tipOnce = toasts.length === 1 && G.save.tips.includes('pill');
+      delete G.sideOpen; H.toast = tt;
+      // 4. upgrades show on the car (exhaust from the first upgrade on)
+      const v = G.spawnVehicle('sedan', 0x3366cc, G.humans.player.x + 4, G.humans.player.z, 0, 'parked');
+      const cnt = () => { let n = 0; v.ctrl.model.root.traverse((o) => { if (o.isMesh) n++; }); return n; };
+      v.setMods(0); const n0 = cnt(); v.setMods(1); const n1 = cnt(); v.setMods(12); const n12 = cnt();
+      out.mods = n1 === n0 + 1 && n12 === n1;
+      G.removeVehicle(v);
+      // 5. difficulty is one multiplier on found cash and on heat
+      const mode = G.mode; const d0 = G.difficulty;
+      G.difficulty = 0; const easy = G.scaled(100, 1); G.difficulty = 2; const hard = G.scaled(100, 1); G.difficulty = d0;
+      out.diff = mode !== 'story' || (easy === 125 && hard === 80);
+      return out;
+    });
+    ok(r.open && r.list && r.closed && r.radio && r.radioSeen && r.tipWaits && r.tipOnce && r.mods && r.diff, 'story pill steps, police radio, first-time tips, visible car upgrades and difficulty', JSON.stringify(r));
     await ctx.close();
 
     // a story saved before the intro existed skips it (chapters move up one place)

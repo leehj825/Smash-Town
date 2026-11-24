@@ -44,17 +44,18 @@ import { Director } from './director';
 import { Challenge } from './challenge';
 import { Juice } from './juice';
 import { Barricades } from './barricades';
-import { currentMode, type GameMode } from './mode';
+import { currentMode, currentDifficulty, DIFFS, type GameMode } from './mode';
 import { Sandbox } from './sandbox';
 import { Kids } from './kids';
 import { Dialogue } from './dialogue';
 import { StoryBeats } from './storybeats';
+import { Tips } from './tips';
 import { StreetVoices } from './streetvoices';
 import { Progression, GUN_STAGE } from './progression';
 import { STORY_EXTRA } from './story';
 import { SAVE_VERSION, migrateSave } from './saveMigrate';
 import { JOBS } from './jobs';
-import { Reputation } from './reputation';
+import { Reputation, AREA_NAMES } from './reputation';
 import { Npcs } from './npcs';
 import { Skills } from './skills';
 import { Buddy } from './buddy';
@@ -92,7 +93,7 @@ export function currentSlot(): number {
 }
 export const slotSaveKey = (slot: number): string => (slot === 1 ? 'smashtown.save.v1' : `smashtown.save.v1.s${slot}`);
 export const SAVE_KEY = slotSaveKey(currentSlot());
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; friends?: Record<string, number>; bat?: boolean; storyV?: number; beats?: string[]; ending?: string; gear?: Record<string, number>; survivalBest?: number; v?: number; hour?: number; milestone?: number; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; friends?: Record<string, number>; bat?: boolean; storyV?: number; beats?: string[]; tips?: string[]; ending?: string; gear?: Record<string, number>; survivalBest?: number; v?: number; hour?: number; milestone?: number; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -174,6 +175,7 @@ export class Game {
   kidsMode!: Kids;
   dialogue!: Dialogue;
   beats!: StoryBeats;
+  tips!: Tips;
   voices!: StreetVoices;
   progression!: Progression;
   /** A story game with no save yet: it starts on foot with almost nothing. */
@@ -330,6 +332,7 @@ export class Game {
     this.kidsMode = new Kids(this);
     this.dialogue = new Dialogue(this);
     this.beats = new StoryBeats(this);
+    this.tips = new Tips(this);
     this.voices = new StreetVoices(this);
     this.progression = new Progression(this);
     if (this.mode === 'sandbox' || this.mode === 'kids') { this.noSave = true; this.story.done = true; }
@@ -448,7 +451,8 @@ export class Game {
       const storyV = Number(s.storyV) >= 3 ? 3 : Number(s.storyV) >= 2 ? 2 : undefined;
       const beats = Array.isArray(s.beats) ? s.beats.filter((x: unknown): x is string => typeof x === 'string') : undefined;
       const ending = typeof s.ending === 'string' && ['law', 'fist', 'deal'].includes(s.ending) ? s.ending : undefined;
-      return { bat, storyV, beats, ending, cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, friends, gear, survivalBest: Number(s.survivalBest) > 0 ? Math.floor(Number(s.survivalBest)) : undefined, rep, skills, login, progress: s.progress, v: s.v ?? SAVE_VERSION, milestone: [25, 50, 75, 100].includes(Number(s.milestone)) ? Number(s.milestone) : undefined, hour: typeof s.hour === 'number' && s.hour >= 0 && s.hour < 24 ? s.hour : undefined };
+      const tips = Array.isArray(s.tips) ? s.tips.filter((x: unknown): x is string => typeof x === 'string') : undefined;
+      return { bat, storyV, beats, tips, ending, cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, friends, gear, survivalBest: Number(s.survivalBest) > 0 ? Math.floor(Number(s.survivalBest)) : undefined, rep, skills, login, progress: s.progress, v: s.v ?? SAVE_VERSION, milestone: [25, 50, 75, 100].includes(Number(s.milestone)) ? Number(s.milestone) : undefined, hour: typeof s.hour === 'number' && s.hour >= 0 && s.hour < 24 ? s.hour : undefined };
     } catch {
       this.freshStory = this.mode === 'story';
       return fallback;
@@ -490,7 +494,9 @@ export class Game {
   }
 
   /** The story mode is a climb from nothing: money found on the street, golden stars and the big rewards are a fraction of what they were. (The other modes keep the full amounts.) */
-  scaled(n: number, factor: number): number { return this.mode === 'story' ? Math.max(1, Math.round(n * factor)) : n; }
+  readonly difficulty = currentDifficulty();
+  /** Story-mode money: the base fraction, times the difficulty. The only place the difficulty touches cash. */
+  scaled(n: number, factor: number): number { return this.mode === 'story' ? Math.max(1, Math.round(n * factor * DIFFS[this.difficulty].money)) : n; }
 
   addCash(n: number, src: EarnSrc = 'other'): void {
     if (n > 0) { this.earned[src] += n; this.progress?.add('earned', n); }
@@ -613,7 +619,7 @@ export class Game {
   // ------------------------------------------------------------------ wanted
   addHeat(n: number): void {
     if (n > 0 && this.state === 'dialog') return; // nobody is a criminal in the middle of a conversation
-    if (n > 0) { this.crimeT = 0; n = Math.max(1, Math.round(n * this.skills.heatMul)); } // stealth takes the edge off
+    if (n > 0) { this.crimeT = 0; n = Math.max(1, Math.round(n * this.skills.heatMul * (this.mode === 'story' ? DIFFS[this.difficulty].heat : 1))); } // stealth takes the edge off
     this.heat = Math.min(400, Math.max(this.heat + n, this.minHeat));
     const prev = this.stars;
     let s = 0;
@@ -1204,6 +1210,7 @@ export class Game {
     this.dialogue.update(dt);
     this.story.update(dt);
     this.beats.update(dt);
+    this.tips.update(dt);
     this.voices.update(dt);
     this.collectibles.update(dt);
     this.collectStars();
@@ -1224,12 +1231,15 @@ export class Game {
     const pl = this.humans.player;
     this.hud.setStory(this.race.active ? this.race.pillInfo() : this.story.hudInfo());
     this.hud.setStoryProgress(this.story.progressText());
+    this.hud.setStoryList(!this.hud.storyOpen || this.state === 'dialog' || this.race.active || this.story.done ? null : this.story.checklist().steps);
     this.hud.setTelemetryVisible(!!d);
     this.hud.setFootMode(this.onFoot, pl.weapon, this.humans.ownedFlags());
     this.hud.setAmmo(this.onFoot || (this.driving && this.guns.current() && this.guns.current()!.id !== 'rocket' && this.guns.current()!.id !== 'grenade') ? this.guns.hudText() : null, `${this.aimOn ? 'AIM' : ''}${this.aimOn && this.autoAim ? ' \u00B7 ' : ''}${this.autoAim ? 'AUTO' : ''}`);
     this.hud.setReloadButton(this.onFoot && this.guns.needsReload());
     this.hud.setPlayerHp(Math.max(0, pl.hp / pl.maxHp));
     this.hud.setWantedBanner(this.stars > 0);
+    this.hud.setRadio(this.stars > 0 && this.state === 'play' ? this.radioLine(dt) : '');
+    if (this.stars === 0) { this.radioSeen = ''; this.radioT = 0; }
 
     if (this.saveDirty) {
       this.saveTimer -= dt;
@@ -1847,6 +1857,43 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ presentation helpers
+  private radioT = 0;
+  private radioText = '';
+  private radioSeen = '';
+  /** The police radio: what the cops are told about you. Refreshed every few seconds; reacts to a car swap and to losing them. */
+  private radioLine(dt: number): string {
+    this.radioT -= dt;
+    if (this.radioT > 0) return this.radioText;
+    this.radioT = 2.5;
+    const d = this.driving;
+    const hue = (c: number): string[] => {
+      const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      if (mx - mn < 28) return mx < 70 ? ['black', '검은'] : mx > 190 ? ['white', '흰색'] : ['grey', '회색'];
+      if (r >= g && r >= b) return g > b + 40 && g > 120 ? ['yellow', '노란'] : ['red', '빨간'];
+      if (g >= r && g >= b) return ['green', '초록'];
+      return ['blue', '파란'];
+    };
+    const pl = this.humans.player;
+    let near = Infinity;
+    for (const c of this.copCars) near = Math.min(near, Math.hypot(c.x - pl.x, c.z - pl.z));
+    const seen = near < 55;
+    const spot = this.reputation.area(pl.x, pl.z);
+    const place = bi(AREA_NAMES[spot][0], AREA_NAMES[spot][1]);
+    let what: string;
+    if (d && d.kind !== 'police') {
+      const h = hue(d.color);
+      const nm = t(('veh.' + d.kind) as Parameters<typeof t>[0]);
+      const name = nm.startsWith('veh.') ? d.kind : nm;
+      what = bi(`${h[0]} ${name.toLowerCase()}`, `${h[1]} ${name}`);
+    } else what = bi('suspect on foot', '도보 용의자');
+    const swapped = !!this.radioSeen && this.radioSeen !== what;
+    this.radioSeen = what;
+    this.radioText = swapped ? bi('Suspect switched vehicles!', '용의자가 차를 바꿨다!')
+      : seen ? bi(`Suspect in sight: ${what}, ${place}`, `용의자 확인: ${what}, ${place}`)
+      : bi(`Lost visual. Last seen in ${place}`, `시야에서 놓침. 마지막 위치: ${place}`);
+    return this.radioText;
+  }
+
   updateLights(): void {
     const n = this.env.night * (this.blackout ? 0.06 : 1);
     this.world.windowMaterial.emissiveIntensity = n * 1.1;

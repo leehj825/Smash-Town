@@ -72,6 +72,7 @@ export class Hud {
   private pHealth = $('phealth-fill');
   private pArmor = $('parmor-fill');
   private wantedBanner = $('wanted-banner');
+  private wantedRadio = $('wanted-radio');
   private slots = Array.from(document.querySelectorAll<HTMLElement>('#weapon-slots .slot'));
   private lastFoot: boolean | null = null;
   private dialogEl = $('dialog');
@@ -82,6 +83,10 @@ export class Hud {
   private storyTitle = $('story-title');
   private storyText = $('story-text');
   private storyNav = $('story-nav');
+  private storyList = $('story-list');
+  private storyListKey = '';
+  /** True while the player has the objective pill expanded to show today's steps. */
+  storyOpen = false;
   private navArrow = $('nav-arrow');
   private navDist = $('nav-dist');
   private route: { x: number; z: number }[] | null = null;
@@ -93,6 +98,7 @@ export class Hud {
   constructor(private world: World) {
     this.setWanted(0);
     this.setCombo(0, 1);
+    this.storyPill.addEventListener('click', () => { this.storyOpen = !this.storyOpen; });
   }
 
   setWanted(n: number): void {
@@ -136,6 +142,24 @@ export class Hud {
     this.lastStory = key;
     this.storyPill.hidden = !info;
     if (info) { this.storyTitle.textContent = info.title; this.storyText.textContent = info.text; }
+  }
+
+  /** Expand the pill into the step list (tap the pill). Keeps its text in step with the story; collapsed it costs nothing. */
+  setStoryList(steps: { text: string; state: 'done' | 'now' | 'todo' }[] | null): void {
+    const show = this.storyOpen && !!steps && steps.length > 0 && !this.storyPill.hidden;
+    this.storyPill.classList.toggle('open', show);
+    this.storyList.hidden = !show;
+    if (!show) { this.storyListKey = ''; return; }
+    const key = steps!.map((x) => x.state + x.text).join('|');
+    if (key === this.storyListKey) return;
+    this.storyListKey = key;
+    this.storyList.innerHTML = '';
+    for (const x of steps!) {
+      const d = document.createElement('div');
+      d.className = x.state;
+      d.textContent = (x.state === 'done' ? '\u2713 ' : x.state === 'now' ? '\u25B6 ' : '\u25CB ') + x.text;
+      this.storyList.appendChild(d);
+    }
   }
 
   /** Guide arrow in the story pill: `angle` is clockwise from straight ahead (radians); null hides it. */
@@ -287,6 +311,12 @@ export class Hud {
 
   setWantedBanner(on: boolean): void {
     this.wantedBanner.hidden = !on;
+  }
+
+  /** The police-radio line under the wanted banner (shares its slot); empty hides it. */
+  setRadio(text: string): void {
+    this.wantedRadio.hidden = !text;
+    if (this.wantedRadio.textContent !== text) this.wantedRadio.textContent = text;
   }
 
   update(f: Followable, hp: number, nitro: number, nitroActive: boolean, blips: Blip[], dt: number): void {
