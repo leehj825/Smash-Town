@@ -95,3 +95,50 @@ export const C4_HALE: DScript = {
   b1: { id: 'b1', who: HALE, text: ['The blueprints. Signed invoices. Do you realize what this is? Proof that the Mega Mall was never meant to be built on public land.', '청사진. 서명된 송장. 이게 뭔지 알아요? 메가몰이 공공 부지에 지어질 계획이 아니었다는 증거예요.'], next: 'b2' },
   b2: { id: 'b2', who: HALE, text: ['And that letter, G... I have seen it on a lot of papers in this building. I do not know who G is. But somebody above the mayor has been paying him.', '그리고 그 글자 G... 이 건물의 많은 서류에서 본 적이 있어요. G가 누군지는 몰라요. 하지만 시장 위의 누군가가 그에게 돈을 주고 있었어요.'] },
 };
+
+// ---------------------------------------------------------------- chapter 5: Save the Day
+/** Deputy Hale: the vote is tomorrow, and the mall crew is coming for the rally in the plaza. */
+export const C5_HALE: DScript = {
+  s1: { id: 's1', who: HALE, text: ['The council meets in the plaza at noon. With the blueprints and the petition I can stop the vote, if the rally holds.', '의회가 정오에 광장에서 열려요. 청사진과 청원서가 있으면 표결을 막을 수 있어요. 집회가 무사히 열린다면요.'], next: 's2' },
+  s2: { id: 's2', who: HALE, text: ['But Bigsby sent his mall crew to break it up. I cannot ask the police: half of them work for him.', '그런데 빅스비가 일꾼들을 보내 집회를 깨려 해요. 경찰에겐 부탁할 수 없어요. 절반이 그의 사람이거든요.'], next: 's3' },
+  s3: {
+    id: 's3', who: YOU, text: ['(The whole thing depends on the plaza staying calm.)', '(광장이 무사해야 모든 게 풀려.)'],
+    choices: [
+      { label: ['I will hold the plaza. Go and set up.', '내가 광장을 지킬게요. 가서 준비하세요.'], next: 's4a', fx: { rep: 3 } },
+      { label: ['Do you have a plan if I fail?', '내가 실패하면 대책이 있나요?'], next: 's4b' },
+    ],
+  },
+  s4a: { id: 's4a', who: HALE, text: ['Thank you. They will come from the harbor side. Do not let them reach the stage.', '고마워요. 항구 쪽에서 올 거예요. 무대까지 못 가게 막아요.'] },
+  s4b: { id: 's4b', who: HALE, text: ['No. That is why I am asking you. They will come from the harbor side. Do not let them reach the stage.', '없어요. 그래서 당신에게 부탁하는 거예요. 항구 쪽에서 올 거예요. 무대까지 못 가게 막아요.'] },
+};
+
+/** The mall crew at the plaza. */
+export const C5_TAUNT: DScript = {
+  t1: { id: 't1', who: THUG, text: ['Rally? There is no rally. Everybody go home before somebody gets hurt.', '집회? 그런 건 없어. 다치기 전에 다들 집에 가.'], next: 't2' },
+  t2: { id: 't2', who: YOU, text: ['The vote happens today. You are in the way.', '표결은 오늘이야. 방해되는 건 너희야.'] },
+};
+
+/** After the rally: Donna and the celebration. */
+export const C5_DONNA: DScript = {
+  e1: { id: 'e1', who: DONNA, text: ['They stopped the vote! The council sent the Mega Mall back to the drawing board. Old Town is still standing!', '표결이 중단됐어! 의회가 메가몰 계획을 백지로 돌렸대. 올드타운은 아직 서 있어!'], next: 'e2' },
+  e2: { id: 'e2', who: DONNA, text: ['Everyone is in the plaza. Let me give you something: the town is giving you a supercar, and I am giving you the biggest donut I have.', '다들 광장에 모였어. 선물이 있어: 마을이 슈퍼카를 드리고, 나는 제일 큰 도넛을 줄게.'], fx: { gift: 'donut' } },
+};
+
+// ---------------------------------------------------------------- chapter 6: Arcade Rumors
+/** Kane outside: come to the arcade. */
+export const C6_KANE: DScript = {
+  k1: { id: 'k1', who: KANE, text: ['You made the news. That is good for business, and bad for your health. The mayor lost the vote, so now he is asking who is behind it.', '뉴스에 났더군. 장사엔 좋고 건강엔 나빠. 시장이 표결에서 졌으니 이제 누가 뒤에 있는지 찾을 거야.'], next: 'k2' },
+  k2: { id: 'k2', who: KANE, text: ['Not here. Meet me in the arcade. Loud machines, nobody listens.', '여기선 말고. 오락실에서 보자. 기계 소리가 시끄러워서 아무도 안 들어.'] },
+};
+
+/** Inside the arcade, over the noise of the machines. */
+export const C6_ARCADE: DScript = {
+  a1: { id: 'a1', who: KANE, text: ['Here is what I have. The mayor has a courier who carries envelopes between his office and a man nobody names. Tonight he drops a satchel at the harbor.', '내가 아는 건 이거야. 시장에겐 사무실과 이름 없는 남자 사이에서 봉투를 나르는 배달꾼이 있어. 오늘 밤 항구에 가방을 떨궈.'], next: 'a2' },
+  a2: { id: 'a2', who: KANE, text: ['The man is called G. If you catch the courier before he gets there, you will have his satchel. Bring it to me.', '그 남자 이름이 G야. 배달꾼이 닿기 전에 잡으면 가방이 당신 거야. 나한테 가져와.'], next: 'a3' },
+  a3: { id: 'a3', who: YOU, text: ['(A courier with a satchel. How hard can it be?)', '(가방 든 배달꾼이라. 어렵겠어?)'] },
+};
+
+export const C6_END: DScript = {
+  z1: { id: 'z1', who: KANE, text: ['Good work. Look at this: a delivery schedule, and a map with the Harbor Stash circled in red.', '잘했어. 이걸 봐. 배달 일정표, 그리고 항구 창고가 빨갛게 표시된 지도야.'], next: 'z2' },
+  z2: { id: 'z2', who: KANE, text: ['Bonnie at the gun shop knows the harbor better than anyone. Go and see her. Tell her I sent you.', '총기 상점의 보니가 항구를 제일 잘 알아. 가서 봐. 내가 보냈다고 해.'] },
+};

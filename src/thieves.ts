@@ -21,7 +21,7 @@ export class Thieves {
   markers(): { x: number; z: number }[] { return this.thief ? [{ x: this.thief.x, z: this.thief.z }] : []; }
 
   /** Pick a civilian near the player and turn them into a thief (also used by tests). */
-  start(near?: { x: number; z: number }, story = false): boolean {
+  start(near?: { x: number; z: number }, story = false, msg?: [string, string]): boolean {
     const G = this.game;
     if (this.thief) return false;
     const p = near ?? G.humans.player;
@@ -36,7 +36,7 @@ export class Thieves {
     this.thief = best; this.left = story ? 80 : 45; this.storyChase = story;
     G.humans.thiefSpeed = story ? 6.2 : 6.6; // (a sprint is 8.2: he can be caught)
     G.bus.emit({ type: 'theft', x: best.x, z: best.z });
-    G.hud.toast(story ? bi('He is running off with the cash box! Sprint after him (Shift)!', '돈 상자를 들고 도망가요! Shift로 전력 질주해서 쫓으세요!') : bi('Thief! Someone snatched a bag - catch them (yellow marker)!', '도둑이에요! 가방을 낚아챘어요 - 노란 마커를 쫓아가 잡으세요!'), 3600);
+    G.hud.toast(story && msg ? bi(msg[0], msg[1]) : story ? bi('He is running off with the cash box! Sprint after him (Shift)!', '돈 상자를 들고 도망가요! Shift로 전력 질주해서 쫓으세요!') : bi('Thief! Someone snatched a bag - catch them (yellow marker)!', '도둑이에요! 가방을 낚아챘어요 - 노란 마커를 쫓아가 잡으세요!'), 3600);
     G.audio.tink();
     return true;
   }

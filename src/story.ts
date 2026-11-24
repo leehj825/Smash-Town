@@ -40,7 +40,8 @@ type Step =
   /** A fight: thugs stand at `at` (default: Donna's shop) and `count` of them (default 3); `taunt` is their line before it starts. */
   | { k: 'brawl'; text: Pair; at?: SpotKey; count?: number; taunt?: { script: DScript; start: string } }
   /** A thief runs off with something: catch them on foot. */
-  | { k: 'runner'; text: Pair }
+  /** A chase on foot: someone runs off with something (from Donna's shop, or `from`); `msg` is the line when it starts. */
+  | { k: 'runner'; text: Pair; from?: SpotKey; msg?: Pair }
   /** The police are after you (`stars` of them): lose them. */
   | { k: 'escape'; stars: number; text: Pair };
 export interface Chapter { title: Pair; reward: number; finale?: boolean; intro?: boolean; /** The reward is paid in full in the story mode (the others are a fraction: see Game.scaled). */ fixed?: boolean; steps: Step[] }
@@ -466,7 +467,7 @@ export class StoryManager {
         if (g.onFoot && !this.carHint && g.thieves.active && this.thiefFar()) { this.carHint = true; g.hud.toast(bi('Too slow on foot? Grab any parked car (F) and run him down!', '걸어서 따라잡기 힘든가요? 근처 아무 차나 타세요 (F) - 차로 쫓으면 돼요!'), 4200); }
         if (!g.thieves.active && g.state === 'play') {
           this.runnerT -= dt;
-          if (this.runnerT <= 0) { const donut = g.npcs.homeOf('donna') ?? { x: g.focusX, z: g.focusZ }; this.runnerT = g.thieves.start(donut, true) ? 0 : 3; }
+          if (this.runnerT <= 0) { const donut = s.from ? this.spot(s.from) : g.npcs.homeOf('donna') ?? { x: g.focusX, z: g.focusZ }; this.runnerT = g.thieves.start(donut, true, s.msg) ? 0 : 3; }
         }
         break;
       }

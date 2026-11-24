@@ -1,5 +1,5 @@
 import type { Chapter } from './story';
-import { C1_START, C1_DONE, C2_PARK, C2_MEET, C2_HALE, C3_KANE, C3_LOU, C4_INSIDE, C4_TAUNT, C4_HALE } from './mainscript';
+import { C1_START, C1_DONE, C2_PARK, C2_MEET, C2_HALE, C3_KANE, C3_LOU, C4_INSIDE, C4_TAUNT, C4_HALE, C5_HALE, C5_TAUNT, C5_DONNA, C6_KANE, C6_ARCADE, C6_END } from './mainscript';
 
 /**
  * The story mode's own version of the eight main chapters. Same titles and same order as the originals (so rewards, teasers, stages and the
@@ -52,5 +52,24 @@ export const REWORK: (Chapter | null)[] = [
       { k: 'talk', npc: 'hale', script: C4_HALE, start: 'b1', text: ['Bring the blueprints to Deputy Hale downtown (yellow diamond)', '청사진을 시내의 헤일 부시장에게 가져가세요 (노란 마름모)'] },
     ],
   },
-  null, null, null, null,
+  {
+    title: ['Save the Day', '마을을 구하자'], reward: 10000, finale: true,
+    steps: [
+      { k: 'talk', npc: 'hale', script: C5_HALE, start: 's1', text: ['Meet Deputy Hale downtown (yellow diamond)', '시내의 헤일 부시장을 만나세요 (노란 마름모)'] },
+      { k: 'brawl', at: 'hall', count: 4, taunt: { script: C5_TAUNT, start: 't1' }, text: ['Hold the plaza: beat the mall crew', '광장을 지키세요: 일꾼 패거리를 쓰러뜨리세요'] },
+      { k: 'talk', npc: 'donna', script: C5_DONNA, start: 'e1', text: ['Celebrate with Donna (yellow diamond)', '도나와 함께 축하하세요 (노란 마름모)'] },
+    ],
+  },
+  {
+    title: ['Arcade Rumors', '오락실 소문'], reward: 4000,
+    steps: [
+      { k: 'talk', npc: 'kane', script: C6_KANE, start: 'k1', text: ['Meet Kane (yellow diamond)', '케인을 만나세요 (노란 마름모)'] },
+      { k: 'enter', room: 'arcade', text: ['Go into the arcade (walk up to the door, F)', '오락실로 들어가세요 (문 앞에서 F)'] },
+      { k: 'monologue', script: C6_ARCADE, start: 'a1', text: ['Kane talks over the noise of the machines', '케인이 기계 소리 너머로 이야기해요'] },
+      { k: 'leave', room: 'arcade', text: ['Step back outside', '밖으로 나가세요'] },
+      { k: 'runner', from: 'door:arcade', msg: ['The courier bolts with the satchel! Sprint after him (Shift)!', '배달꾼이 가방을 들고 달아나요! Shift로 전력 질주해서 쫓으세요!'], text: ["Catch the mayor's courier (yellow marker) - sprint with Shift!", '시장의 배달꾼을 잡으세요 (노란 마커) - Shift로 전력 질주!'] },
+      { k: 'talk', npc: 'kane', script: C6_END, start: 'z1', text: ['Bring the satchel to Kane (yellow diamond)', '가방을 케인에게 가져가세요 (노란 마름모)'] },
+    ],
+  },
+  null, null,
 ];
