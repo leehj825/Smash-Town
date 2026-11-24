@@ -404,6 +404,67 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(r.changed && r.halved && r.cooldown && r.seen && r.loot && r.once && r.fresh && r.back && r.shout && r.wave, 'a disguise while wanted, glovebox cash, a welcome back, and shopkeepers who remember you', JSON.stringify(r));
+    // batch two: friend stories, Donna's card, Bonnie's gear, clues about G, and a rival crew
+    r = await p.evaluate(async () => {
+      const G = g(); const H = G.humans; const D = G.dialogue; const out = {};
+      G.state = 'play'; G.stars = 0; G.heat = 0; G.inside = null; D.active = false; G.hud.hideDialog(); G.skills.off = true;
+      G.story.done = false; G.story.ch = 5; G.story.step = 0;
+      G.save.friends = { donna: 3, kane: 9 }; G.save.fstory = {}; G.save.clues = []; G.save.stamps = 0; G.save.buddyGear = 0;
+      const rec = (id) => G.npcs.list.find((n) => n.def.id === id);
+      // 1. a friend's story is told face to face, in order, once; the main story and errands come first
+      const qn = G.story.questNpc; G.story.questNpc = () => 'donna';
+      out.gated = G.friendStories.next('donna') === null;
+      G.story.questNpc = qn;
+      const donna = rec('donna'); donna.human = donna.human ?? H.spawnNamed(H.player.x + 2, H.player.z, 0, { shirt: 0, pants: 0, skin: 0xf1c27d, hair: 0, shoe: 0, cap: false });
+      G.npcs.talk({ def: donna.def, human: donna.human });
+      out.started = D.active && D.node.id === 'a';
+      for (let i = 0; i < 4 && D.active; i++) D.advance();
+      G.state = 'play'; D.active = false;
+      out.stage1 = G.save.fstory.donna === 1;
+      out.waits = G.friendStories.next('donna') === null; // she needs 8 chats for the next chapter
+      G.save.friends.donna = 8;
+      out.stage2Ready = !!G.friendStories.next('donna');
+      // kane's second chapter gives a clue
+      G.save.fstory.kane = 1;
+      const k = G.friendStories.next('kane'); out.kaneNext = !!k;
+      D.start(k.script, k.start, null, k.done);
+      for (let i = 0; i < 4 && D.active; i++) D.advance();
+      G.state = 'play'; D.active = false;
+      out.clue = G.save.clues.includes('kane') && G.save.fstory.kane === 2;
+      // 2. Donna's card: nothing until she shows it, then four stamps earn donuts
+      G.save.fstory.donna = 1; G.stampCard(); out.noCard = (G.save.stamps ?? 0) === 0;
+      G.save.fstory.donna = 2; const d0 = G.gear.count('donut');
+      for (let i = 0; i < 3; i++) G.stampCard();
+      out.stamps = G.save.stamps === 3;
+      G.stampCard(); out.box = G.gear.count('donut') > d0 && G.save.stamps === 0;
+      // 3. Bonnie's gear: two levels, +25% each, no more
+      out.power0 = G.buddyPower === 1;
+      G.buddyGearUp(); G.buddyGearUp(); out.capped = G.buddyGearUp() === false && G.buddyPower === 1.5;
+      // 4. a clue counts once, and what you found changes the ending's first line
+      G.save.clues = []; G.addClue('a'); G.addClue('a'); out.once = G.save.clues.length === 1;
+      G.addClue('b'); G.addClue('c');
+      G.story.done = false; G.story.ch = 9; G.story.step = 0;
+      G.story.completeChapter(G.story.chapter); G.story.update(0.1);
+      out.endClues = D.active && D.node.id === 'e0';
+      for (let i = 0; i < 6 && D.active; i++) D.advance();
+      G.state = 'play'; D.active = false; G.save.ending = undefined; G.story.done = true; G.hud.hideDialog();
+      // 5. a rival crew: only with two blocks, a warning, and the block is lost if nobody comes
+      G.story.done = false; G.story.ch = 5;
+      const Z = G.gangs.zones; const keep = Z.map((z) => z.owner);
+      Z[0].owner = 'player'; Z[1].owner = 'player'; Z[2].owner = 'gang'; if (Z[3]) Z[3].owner = 'gang';
+      G.gangs.rival = null; G.gangs.rivalCd = 0; G.stars = 0;
+      Z[1].owner = 'gang'; G.gangs.update(0.1); out.oneBlock = G.gangs.rival === null; Z[1].owner = 'player';
+      G.gangs.rivalCd = 0; G.gangs.update(0.1);
+      out.rival = !!G.gangs.rival;
+      const idx = G.gangs.rival.i; G.gangs.rival.t = 0;
+      G.gangs.update(0.1);
+      out.lost = Z[idx].owner === 'gang' && G.gangs.rival === null;
+      Z.forEach((z, i) => { z.owner = keep[i]; });
+      G.save.turf = Z.map((z, i) => (z.owner === 'player' ? i : -1)).filter((i) => i >= 0);
+      G.story.done = true; G.skills.off = false;
+      return out;
+    });
+    ok(r.gated && r.started && r.stage1 && r.waits && r.stage2Ready && r.kaneNext && r.clue && r.noCard && r.stamps && r.box && r.power0 && r.capped && r.once && r.endClues && r.oneBlock && r.rival && r.lost, 'friend stories, a loyalty card, Bonnie gear, clues about G and a rival crew', JSON.stringify(r));
     await ctx.close();
 
     // a story saved before the intro existed skips it (chapters move up one place)

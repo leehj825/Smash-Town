@@ -50,6 +50,11 @@ export class Phone {
       { id: 'survival', en: 'Challenge: five-star survival', ko: '도전: 5성 생존', cost: 0, need: '*', run: () => G.challenge.startSurvival() },
       { id: 'chaos-rockets', en: `Chaos: endless rockets (${G.challenge.chaos.rockets ? 'ON' : 'off'})`, ko: `카오스: 무한 로켓 (${G.challenge.chaos.rockets ? '켜짐' : '꺼짐'})`, cost: 0, need: '*', run: () => G.challenge.toggleChaos('rockets') },
       { id: 'chaos-moon', en: `Chaos: moon gravity (${G.challenge.chaos.moon ? 'ON' : 'off'})`, ko: `카오스: 달 중력 (${G.challenge.chaos.moon ? '켜짐' : '꺼짐'})`, cost: 0, need: '*', run: () => G.challenge.toggleChaos('moon') },
+      { id: 'bonnie-gear', en: `Bonnie: better gear (${G.save.buddyGear ?? 0}/2)`, ko: `보니: 장비 업그레이드 (${G.save.buddyGear ?? 0}/2)`, cost: (G.save.buddyGear ?? 0) === 0 ? 400 : 900, need: 'bonnie', run: () => {
+        if (!G.buddy.hired) { G.hud.toast(bi('Hire Bonnie at the gun shop first.', '먼저 총기 상점에서 보니를 고용하세요.'), 2200); return false; }
+        if (!G.buddyGearUp(1)) { G.hud.toast(bi('Her gear is already the best money can buy.', '그녀의 장비는 이미 최고예요.'), 2200); return false; }
+        G.hud.toast(bi('Bonnie has better gear: her cover fire hits harder.', '보니의 장비가 좋아졌어요: 엄호 사격이 더 세요.'), 2800);
+      } },
       { id: 'bonnie-follow', en: 'Bonnie: follow me', ko: '보니: 따라와', cost: 0, run: () => this.command(false) },
       { id: 'bonnie-hold', en: 'Bonnie: cover this spot', ko: '보니: 여기서 엄호해', cost: 0, run: () => this.command(true) },
     ];

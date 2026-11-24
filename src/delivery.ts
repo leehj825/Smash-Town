@@ -117,6 +117,7 @@ export class DeliveryJob {
         G.addCash(bonus, 'gigs');
         G.progress.add('gigs');
         G.progress.add('deliveries');
+        G.stampCard();
         G.bus.emit({ type: 'helped', x: px, z: pz, amount: 2 });
         this.count++;
         G.hud.toast(`${bi('All delivered!', '배달 완료!')} $${this.earned + bonus} (${bi('bonus', '보너스')} $${bonus})`, 3200);

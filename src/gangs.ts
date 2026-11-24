@@ -34,6 +34,9 @@ export class Gangs {
   readonly zones: Zone[] = [];
   private revealUntil: Record<number, number> = {};
   private incomeT = 60;
+  /** A rival crew moving on one of your blocks (story mode, from two blocks on): clear them before the timer runs out or the block is lost. */
+  rival: { i: number; t: number; spawned: boolean } | null = null;
+  private rivalCd = 600;
   private gangs = [
     { name: 'The Reds', ko: '더 레즈', color: 0xd62d3a, css: '#d62d3a' },
     { name: 'The Violets', ko: '더 바이올렛츠', color: 0x8e44ad, css: '#b072d6' },
@@ -92,6 +95,50 @@ export class Gangs {
     return this.zones.map((z, i) => ({ x: z.x, z: z.z, color: z.owner === 'player' ? '#ffd23a' : z.css, flash: (z.owner === 'gang' && z.members.some((m) => m.hostile)) || (this.revealUntil[i] ?? 0) > now }));
   }
 
+  private updateRival(dt: number): void {
+    const G = this.game;
+    if (G.mode !== 'story' || !G.sideOpen) return;
+    if (!this.rival) {
+      const owned = this.zones.map((z, i) => (z.owner === 'player' ? i : -1)).filter((i) => i >= 0);
+      if (owned.length < 2) return;
+      this.rivalCd -= dt;
+      if (this.rivalCd > 0 || G.stars > 0) return;
+      const i = owned[Math.floor(Math.random() * owned.length)];
+      const z = this.zones[i];
+      this.rival = { i, t: 240, spawned: false };
+      this.rivalCd = 600;
+      this.reveal(z, 240);
+      G.hud.toast(bi(`A rival crew is moving on ${z.name}'s old block! Get there within 4 minutes.`, `라이벌 패거리가 ${z.nameKo}의 옛 구역을 노려요! 4분 안에 가세요.`), 4200);
+      return;
+    }
+    const r = this.rival;
+    const z = this.zones[r.i];
+    if (z.owner !== 'player') { this.rival = null; return; }
+    r.t -= dt;
+    if (!r.spawned && Math.hypot(z.x - G.focusX, z.z - G.focusZ) < 120) {
+      this.spawnCrew(z);
+      for (const m of z.members) m.hostile = true;
+      r.spawned = true;
+      G.hud.toast(bi('The rival crew is here - fight them off!', '라이벌 패거리가 나타났어요 - 막아내요!'), 2800);
+    }
+    if (r.spawned && z.members.length && this.alive(z).length === 0) {
+      const pay = G.scaled(Math.round(z.reward * 0.5), 1);
+      G.addCash(pay, 'other');
+      G.popups.spawn(z.x, 3, z.z, bi(`Held ${z.name}'s block! +$${pay}`, `${z.nameKo} 구역을 지켰어요! +$${pay}`), '#ffd23a');
+      for (const m of z.members) G.humans.removeGangLater(m);
+      z.members = [];
+      this.rival = null;
+    } else if (r.t <= 0) {
+      for (const m of z.members) G.humans.removeGang(m);
+      z.members = [];
+      z.owner = 'gang'; z.away = 0;
+      G.save.turf = (G.save.turf ?? []).filter((n) => n !== r.i);
+      G.hud.toast(bi(`The rivals took ${z.name}'s block from you!`, `라이벌이 ${z.nameKo} 구역을 빼앗았어요!`), 3400);
+      G.bus.emit({ type: 'turfLost', zone: r.i });
+      this.rival = null;
+    }
+  }
+
   private alive(z: Zone): Human[] {
     return z.members.filter((m) => m.active && m.gang && !m.ko && m.hp > 0 && m.state !== 6 && m.state !== 7 && m.state !== 8); // not down, getting up or dead
   }
@@ -139,6 +186,7 @@ export class Gangs {
     if (G.state !== 'play' || G.inside) return;
     const px = G.focusX, pz = G.focusZ;
     this.incomeT -= dt;
+    this.updateRival(dt);
     for (let i = 0; i < this.zones.length; i++) {
       const z = this.zones[i];
       z.ring.update(dt);

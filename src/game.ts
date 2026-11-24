@@ -50,6 +50,7 @@ import { Kids } from './kids';
 import { Dialogue } from './dialogue';
 import { StoryBeats } from './storybeats';
 import { Tips } from './tips';
+import { FriendStories } from './friendstories';
 import { StreetVoices } from './streetvoices';
 import { Progression, GUN_STAGE } from './progression';
 import { STORY_EXTRA } from './story';
@@ -93,7 +94,7 @@ export function currentSlot(): number {
 }
 export const slotSaveKey = (slot: number): string => (slot === 1 ? 'smashtown.save.v1' : `smashtown.save.v1.s${slot}`);
 export const SAVE_KEY = slotSaveKey(currentSlot());
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; friends?: Record<string, number>; bat?: boolean; storyV?: number; beats?: string[]; tips?: string[]; ending?: string; gear?: Record<string, number>; survivalBest?: number; v?: number; hour?: number; milestone?: number; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; friends?: Record<string, number>; bat?: boolean; storyV?: number; beats?: string[]; tips?: string[]; fstory?: Record<string, number>; clues?: string[]; stamps?: number; buddyGear?: number; ending?: string; gear?: Record<string, number>; survivalBest?: number; v?: number; hour?: number; milestone?: number; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -176,6 +177,7 @@ export class Game {
   dialogue!: Dialogue;
   beats!: StoryBeats;
   tips!: Tips;
+  friendStories!: FriendStories;
   voices!: StreetVoices;
   progression!: Progression;
   /** A story game with no save yet: it starts on foot with almost nothing. */
@@ -333,6 +335,7 @@ export class Game {
     this.dialogue = new Dialogue(this);
     this.beats = new StoryBeats(this);
     this.tips = new Tips(this);
+    this.friendStories = new FriendStories(this);
     this.voices = new StreetVoices(this);
     this.progression = new Progression(this);
     if (this.mode === 'sandbox' || this.mode === 'kids') { this.noSave = true; this.story.done = true; }
@@ -452,7 +455,12 @@ export class Game {
       const beats = Array.isArray(s.beats) ? s.beats.filter((x: unknown): x is string => typeof x === 'string') : undefined;
       const ending = typeof s.ending === 'string' && ['law', 'fist', 'deal'].includes(s.ending) ? s.ending : undefined;
       const tips = Array.isArray(s.tips) ? s.tips.filter((x: unknown): x is string => typeof x === 'string') : undefined;
-      return { bat, storyV, beats, tips, ending, cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, friends, gear, survivalBest: Number(s.survivalBest) > 0 ? Math.floor(Number(s.survivalBest)) : undefined, rep, skills, login, progress: s.progress, v: s.v ?? SAVE_VERSION, milestone: [25, 50, 75, 100].includes(Number(s.milestone)) ? Number(s.milestone) : undefined, hour: typeof s.hour === 'number' && s.hour >= 0 && s.hour < 24 ? s.hour : undefined };
+      const fstory: Record<string, number> = {};
+      if (s.fstory && typeof s.fstory === 'object') for (const [k, v] of Object.entries(s.fstory)) if (typeof v === 'number' && v > 0) fstory[k] = Math.min(3, Math.floor(v));
+      const clues = Array.isArray(s.clues) ? s.clues.filter((x: unknown): x is string => typeof x === 'string') : undefined;
+      const stamps = Number(s.stamps) > 0 ? Math.floor(Number(s.stamps)) % 4 : undefined;
+      const buddyGear = Number(s.buddyGear) > 0 ? Math.min(2, Math.floor(Number(s.buddyGear))) : undefined;
+      return { bat, storyV, beats, tips, fstory, clues, stamps, buddyGear, ending, cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, friends, gear, survivalBest: Number(s.survivalBest) > 0 ? Math.floor(Number(s.survivalBest)) : undefined, rep, skills, login, progress: s.progress, v: s.v ?? SAVE_VERSION, milestone: [25, 50, 75, 100].includes(Number(s.milestone)) ? Number(s.milestone) : undefined, hour: typeof s.hour === 'number' && s.hour >= 0 && s.hour < 24 ? s.hour : undefined };
     } catch {
       this.freshStory = this.mode === 'story';
       return fallback;
@@ -1397,6 +1405,40 @@ export class Game {
     const info = this.story.hudInfo();
     if (!info) return;
     this.hud.toast(`${bi('Welcome back', '다시 오셨네요')} - ${info.title}${info.text ? ': ' + info.text : ''}`, 5200);
+  }
+
+  /** A clue about the stranger G (from a radio rumour or a friend). Each one counts once; the ending reads how many you found. */
+  addClue(id: string): void {
+    const c = (this.save.clues ??= []);
+    if (c.includes(id)) return;
+    c.push(id);
+    this.saveDirty = true;
+    this.hud.toast(bi(`New clue about G (${c.length})`, `G에 대한 새 단서 (${c.length})`), 3200);
+  }
+
+  /** Bonnie's gear (0 to 2): each level makes her cover fire 25% stronger, so at most +50%. Returns false when it is already at the top. */
+  buddyGearUp(n = 1): boolean {
+    const cur = this.save.buddyGear ?? 0;
+    if (cur >= 2) return false;
+    this.save.buddyGear = Math.min(2, cur + n);
+    this.saveDirty = true;
+    return true;
+  }
+  get buddyPower(): number { return 1 + 0.25 * (this.save.buddyGear ?? 0); }
+
+  /** Donna's loyalty card: every finished delivery gets a stamp (once she has shown you the card); four stamps earn a box of donuts. */
+  stampCard(): void {
+    if (this.mode !== 'story' || (this.save.fstory?.donna ?? 0) < 2) return;
+    const n = (this.save.stamps ?? 0) + 1;
+    if (n >= 4) {
+      this.save.stamps = 0;
+      this.gear.give('donut', 3);
+      this.hud.toast(bi("Donna's card is full: a box of three donuts!", '도나의 카드가 가득 찼어요: 도넛 세 개!'), 3600);
+    } else {
+      this.save.stamps = n;
+      this.hud.toast(bi(`Donna's card: ${n}/4 stamps`, `도나의 카드: 도장 ${n}/4`), 2600);
+    }
+    this.saveDirty = true;
   }
 
   private looted = new WeakSet<GameVehicle>();

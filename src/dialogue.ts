@@ -6,7 +6,7 @@ import { AREAS } from './reputation';
 type Pair = [string, string]; // [English, Korean]
 
 /** What a line (or a choice) does when it is shown (or picked): a little standing, a friend, a gift, some cash. */
-export interface DEffect { rep?: number; friend?: [string, number]; gift?: 'donut'; cash?: number; watch?: number; mafia?: number; repAll?: number; ending?: string }
+export interface DEffect { rep?: number; friend?: [string, number]; gift?: 'donut'; cash?: number; watch?: number; mafia?: number; repAll?: number; ending?: string; clue?: string; gearUp?: number }
 export interface DChoice { label: Pair; next: string; fx?: DEffect }
 export interface DNode {
   id: string;
@@ -62,6 +62,8 @@ export class Dialogue {
     if (e.mafia) G.factions.add('mafia', e.mafia);
     if (e.repAll) { const rep = (G.save.rep ??= {}); for (const a of AREAS) rep[a] = Math.max(-100, Math.min(100, (rep[a] ?? 0) + e.repAll)); }
     if (e.ending) { G.save.ending = e.ending; G.saveDirty = true; }
+    if (e.clue) G.addClue(e.clue);
+    if (e.gearUp) G.buddyGearUp(e.gearUp);
   }
 
   private go(id: string): void {

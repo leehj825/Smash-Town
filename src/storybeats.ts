@@ -49,6 +49,7 @@ export class StoryBeats {
     if (this.rumorT <= 0 && G.story.ch > STORY_EXTRA && !G.story.done) {
       this.rumorT = 420 + Math.random() * 240;
       G.news.report('rumor', true, G.story.ch - STORY_EXTRA - 1);
+      G.addClue('radio' + Math.min(3, G.story.ch - STORY_EXTRA - 1));
     }
     const seen = (G.save.beats ??= []);
     for (const b of BEATS) {

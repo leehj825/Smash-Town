@@ -279,6 +279,7 @@ export class Npcs {
     if (st) { G.dialogue.start(st.script, st.start, n.human, st.done); return; }
     const rec = this.list.find((q) => q.def === n.def)!;
     const tier = G.reputation.tier(n.human.x, n.human.z);
+    if (tier !== 'hostile' && G.friendStories.tryStart(n.def.id, n.human)) return; // a chapter of their own story
     const id = n.def.id;
     const lvl = this.level(id);
     let lines = n.def.lines[tier];

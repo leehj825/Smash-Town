@@ -356,7 +356,16 @@ export class StoryManager {
     }
     if (this.pendingEnding && g.state === 'play' && !g.dialogue.active && !this.dialog && g.stars === 0 && !g.truckHeist.active) {
       this.pendingEnding = false;
-      g.dialogue.start(ENDING, 'e1', null);
+      const n = g.save.clues?.length ?? 0;
+      if (n >= 2) {
+        const e0: DScript = {
+          ...ENDING,
+          e0: { id: 'e0', who: ['Festival Night', '축제의 밤'], text: n >= 5
+            ? ['You pieced it together: the grey coat, the leaked patrol times, the Harbor Stash, the letter G. Bigsby was only the mask. When he kneels, he whispers the name you already knew.', '당신은 퍼즐을 맞췄어요. 회색 코트, 새어 나간 순찰 시간, 항구 창고, 그리고 글자 G. 빅스비는 가면일 뿐이었죠. 그가 무릎을 꿇자 당신이 이미 아는 이름을 속삭여요.']
+            : ['You have a few pieces of the puzzle: the letter G keeps turning up. Bigsby kneels, and for a moment he looks at the crowd as if waiting for somebody else.', '퍼즐 조각이 몇 개 모였어요. 글자 G가 계속 나타나요. 빅스비는 무릎을 꿇고 누군가를 기다리는 듯 군중을 둘러봐요.'], next: 'e1' },
+        };
+        g.dialogue.start(e0, 'e0', null);
+      } else g.dialogue.start(ENDING, 'e1', null);
     }
     // a call from the stranger after some chapters, once nothing else is going on
     if (this.pendingTeaser && g.state === 'play' && !g.dialogue.active && !this.dialog && g.stars === 0 && !g.jobOnDuty(null) && !g.truckHeist.active) {

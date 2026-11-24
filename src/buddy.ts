@@ -79,8 +79,9 @@ export class Buddy {
     G.vfx.emitSparks(d.x + Math.cos(d.ctrl.heading) * 1.1, 1.3, d.z - Math.sin(d.ctrl.heading) * 1.1, 4);
     G.audio.gun('pistol');
     G.vfx.emitSparks(target.x, 1, target.z, 3);
-    if (target.v) target.v.ctrl.damage(0.06);
-    else if (target.h) G.humans.gunHit(G.humans.player, target.h, 14, 0, 1, false);
+    const power = G.buddyPower;
+    if (target.v) target.v.ctrl.damage(0.06 * power);
+    else if (target.h) G.humans.gunHit(G.humans.player, target.h, 14 * power, 0, 1, false);
   }
 
   update(dt: number): void {
