@@ -340,10 +340,47 @@ export class Npcs {
 
   /** A yellow diamond over the person the story wants you to talk to. */
   private mark: THREE.Mesh | null = null;
+  /** Name tags over the named people (one small sprite each, shown when you are close). */
+  private tags = new Map<string, THREE.Sprite>();
+
+  private makeTag(name: string): THREE.Sprite {
+    const c = document.createElement('canvas');
+    c.width = 256; c.height = 64;
+    const g = c.getContext('2d')!;
+    g.font = '800 34px Montserrat, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = 8; g.strokeStyle = '#1a1a24'; g.strokeText(name, 128, 34);
+    g.fillStyle = '#ffffff'; g.fillText(name, 128, 34);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false }));
+    sp.scale.set(2.0, 0.5, 1);
+    sp.renderOrder = 10;
+    sp.visible = false;
+    this.game.scene.add(sp);
+    return sp;
+  }
+
+  /** Show each named person's name above their head while you are near (not indoors). */
+  private updateTags(): void {
+    const G = this.game;
+    const p = G.humans.player;
+    for (const n of this.list) {
+      const h = n.human;
+      let tag = this.tags.get(n.def.id);
+      if (!h || !h.active || G.inside || (G.state !== 'play' && G.state !== 'dialog')) { if (tag) tag.visible = false; continue; }
+      const near = Math.hypot(h.x - p.x, h.z - p.z) < 16;
+      if (!near) { if (tag) tag.visible = false; continue; }
+      if (!tag) { tag = this.makeTag(bi(n.def.name[0], n.def.name[1])); this.tags.set(n.def.id, tag); }
+      tag.visible = true;
+      tag.position.set(h.x, h.y + 2.2, h.z);
+    }
+  }
 
   update(dt: number): void {
     this.clock += dt;
     this.place();
+    this.updateTags();
     const G = this.game;
     const q = G.story.questNpc();
     const h = q ? this.humanOf(q) : null;

@@ -750,6 +750,25 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(Object.values(r).every((v) => v === true), 'story rework: chapters 7 and 8 raid the warehouse, face Bigsby in City Hall and reach the ending', JSON.stringify(r));
+        // name tags over the named people, and no marker over the player
+    r = await p.evaluate(async () => {
+      const G = g(); const H = G.humans; const out = {};
+      G.state = 'play'; G.inside = null; G.dialogue.active = false; G.hud.hideDialog(); G.onFoot = true;
+      out.noMarker = G.marker === undefined && typeof G.makePlayerMarker === 'undefined';
+      const rec = G.npcs.list.find((n) => n.def.id === 'donna');
+      rec.human = rec.human ?? H.spawnNamed(H.player.x + 2, H.player.z, 0, { shirt: 0, pants: 0, skin: 0xf1c27d, hair: 0, shoe: 0, cap: false });
+      rec.human.active = true; rec.human.x = H.player.x + 3; rec.human.z = H.player.z;
+      G.npcs.updateTags();
+      const tag = G.npcs.tags.get('donna');
+      out.near = !!tag && tag.visible === true;
+      rec.human.x = H.player.x + 60;
+      G.npcs.updateTags();
+      out.far = tag.visible === false;
+      rec.human.x = H.player.x + 3;
+      G.inside = {}; G.npcs.updateTags(); out.indoors = tag.visible === false; G.inside = null;
+      return out;
+    });
+    ok(Object.values(r).every((v) => v === true), 'named people wear a name tag when you are close, and the player has no floating marker', JSON.stringify(r));
     await ctx.close();
 
     // a story saved before the intro existed skips it (chapters move up one place)
