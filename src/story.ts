@@ -207,6 +207,18 @@ export const CHAPTERS: Chapter[] = [
   },
 ];
 
+/** For each reworked main chapter: where an old step lands in the new chapter (index = old step). */
+const LEGACY_STEPS: number[][] = [
+  [0, 0, 1, 2, 2],          // Welcome to Sunset Bay
+  [0, 0, 5, 6, 6],          // Smash for Good
+  [0, 2, 3],                // Inside Job
+  [0, 0, 0, 3, 5],          // The Big Shipment
+  [0, 1, 2],                // Save the Day
+  [0, 0, 4, 5, 5],          // Arcade Rumors
+  [0, 0, 1, 1, 4, 5, 6],    // The Harbor Stash
+  [0, 0, 5, 5],             // Festival Night
+];
+
 export interface StorySave { ch: number; step: number; prog: number }
 const GANG_DOWN = (s: number) => s === 6 || s === 7 || s === 8; // down, getting up or dead
 const FIREWORK_COLORS = [0xff4d6d, 0xffd23a, 0x4dd2ff, 0x7dff6a, 0xc77dff, 0xffffff];
@@ -257,6 +269,13 @@ export class StoryManager {
     this.ch = (saved?.ch ?? 0) + shift;
     this.step = saved?.step ?? 0;
     this.prog = saved?.prog ?? 0;
+    // a save from before the main chapters were reworked (storyV 4): move to the same moment of the new chapter (the chapter reward is only paid at its end, so nothing is paid twice)
+    const m = this.ch - STORY_EXTRA;
+    if (game.mode === 'story' && saved && v < 4 && m >= 0 && m < LEGACY_STEPS.length) {
+      const map = LEGACY_STEPS[m];
+      this.step = map[Math.max(0, Math.min(map.length - 1, this.step))];
+      this.prog = 0;
+    }
     // (an opening saved by an earlier version had more steps)
     if (game.mode === 'story' && this.ch === 0 && this.step >= INTRO.steps.length) this.step = INTRO.steps.length - 1;
     this.done = this.ch >= CHAPTERS.length;

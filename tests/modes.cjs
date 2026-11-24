@@ -761,8 +761,22 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return { p: pg, ctx: c };
     })());
     r = await p.evaluate(() => { const G = g(); return { ch: G.story.ch, step: G.story.step, cash: G.cash, car: !!G.driving, stage: G.progression.stage() }; });
-    ok(r.ch === 4 && r.step === 1 && r.cash === 777 && r.car && r.stage === 2, 'an older story save keeps its place (shifted past the intro), its cash and its car', JSON.stringify(r));
+    ok(r.ch === 4 && r.step === 2 && r.cash === 777 && r.car && r.stage === 2, 'an older story save keeps its place (shifted past the intro), its cash and its car', JSON.stringify(r));
     await ctx.close();
+
+    // a save from before the rework (storyV 3) lands at the same moment of the new chapter; a new save is stamped 4
+    for (const [ch, step, wantStep, label] of [[3, 2, 5, 'smashing in Smash for Good'], [5, 0, 0, 'the start of The Big Shipment'], [8, 6, 6, 'the last step of the harbor stash']]) {
+      ({ p, ctx } = await (async () => {
+        const c = await b.newContext({ viewport: { width: 800, height: 480 } });
+        await c.addInitScript(([chv, stv]) => { localStorage.setItem('smashtown.settings.v1', JSON.stringify({ tutorialDone: true })); localStorage.setItem('smashtown.save.v1', JSON.stringify({ cash: 500, unlocked: ['sports'], selected: 'sports', storyV: 3, story: { ch: chv, step: stv, prog: 7 } })); window.g = () => window.__smash.game; }, [ch, step]);
+        const pg = await c.newPage(); pg.on('pageerror', (e) => errs.push(e.message));
+        await pg.goto(`http://localhost:${PORT}/?mode=story`); await pg.waitForFunction(() => window.__smash);
+        return { p: pg, ctx: c };
+      })());
+      r = await p.evaluate(() => { const G = g(); return { ch: G.story.ch, step: G.story.step, prog: G.story.prog }; });
+      ok(r.ch === ch && r.step === wantStep && r.prog === 0, `an old (storyV 3) save at ${label} moves to the same moment of the new chapter`, JSON.stringify(r));
+      await ctx.close();
+    }
 
     // the sandbox
     ({ p, ctx } = await open('?mode=sandbox'));

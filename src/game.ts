@@ -459,7 +459,7 @@ export class Game {
       const raceBest = Array.isArray(s.raceBest) ? s.raceBest.map((n: unknown) => (typeof n === 'number' && n > 0 ? n : 0)) : [];
       const login = s.login && typeof s.login.day === 'string' ? { day: s.login.day, streak: Number(s.login.streak) || 1 } : undefined;
       const bat = typeof s.bat === 'boolean' ? s.bat : undefined;
-      const storyV = Number(s.storyV) >= 3 ? 3 : Number(s.storyV) >= 2 ? 2 : undefined;
+      const storyV = Number(s.storyV) >= 4 ? 4 : Number(s.storyV) >= 3 ? 3 : Number(s.storyV) >= 2 ? 2 : undefined;
       const beats = Array.isArray(s.beats) ? s.beats.filter((x: unknown): x is string => typeof x === 'string') : undefined;
       const ending = typeof s.ending === 'string' && ['law', 'fist', 'deal'].includes(s.ending) ? s.ending : undefined;
       const tips = Array.isArray(s.tips) ? s.tips.filter((x: unknown): x is string => typeof x === 'string') : undefined;
@@ -525,7 +525,7 @@ export class Game {
   /** Called by the story when its position changes. */
   saveStory(s: StorySave): void {
     this.save.story = s;
-    if (this.mode === 'story') this.save.storyV = 3; // the story now starts with the opening and "Smash and Grab"
+    if (this.mode === 'story') this.save.storyV = 4; // 3: the story starts with the opening and "Smash and Grab"; 4: the main chapters are told on foot, face to face and indoors
     this.saveDirty = true;
   }
 
