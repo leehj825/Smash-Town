@@ -6,6 +6,7 @@ const PARK: Pair = ['Mr. Park', '미스터 박'];
 const BONNIE: Pair = ['Bonnie', '보니'];
 const YOU: Pair = ['You', '나'];
 const HALE: Pair = ['Deputy Hale', '헤일 부시장'];
+const BIGSBY: Pair = ['Mayor Bigsby', '빅스비 시장'];
 
 // ---------------------------------------------------------------- chapter 1: Welcome to Sunset Bay
 /** Donna asks for help clearing the junk the mayor's crew dumped in the street. */
@@ -141,4 +142,54 @@ export const C6_ARCADE: DScript = {
 export const C6_END: DScript = {
   z1: { id: 'z1', who: KANE, text: ['Good work. Look at this: a delivery schedule, and a map with the Harbor Stash circled in red.', '잘했어. 이걸 봐. 배달 일정표, 그리고 항구 창고가 빨갛게 표시된 지도야.'], next: 'z2' },
   z2: { id: 'z2', who: KANE, text: ['Bonnie at the gun shop knows the harbor better than anyone. Go and see her. Tell her I sent you.', '총기 상점의 보니가 항구를 제일 잘 알아. 가서 봐. 내가 보냈다고 해.'] },
+};
+
+// ---------------------------------------------------------------- chapter 7: The Harbor Stash
+/** Bonnie outside the gun shop. */
+export const C7_BONNIE: DScript = {
+  b1: { id: 'b1', who: BONNIE, text: ['Kane sent you. Good. I know the harbor: the stash is in the same warehouse you searched, but behind the crates. Bigsby moves the real money at night.', '케인이 보냈구나. 좋아. 난 항구를 알아. 창고는 전에 뒤져 본 그곳이야. 상자 뒤에 있어. 빅스비는 진짜 돈을 밤에 옮겨.'], next: 'b2' },
+  b2: { id: 'b2', who: BONNIE, text: ['Go in quietly, find the ledger, and get out. If an alarm goes off, the mayor\'s police will be on you in seconds.', '조용히 들어가서 장부를 찾고 나와. 경보가 울리면 시장의 경찰이 몇 초 만에 덮칠 거야.'], next: 'b3' },
+  b3: {
+    id: 'b3', who: YOU, text: ['(Quiet. Right.)', '(조용히. 알겠어.)'],
+    choices: [
+      { label: ['Cover me from the car.', '차에서 엄호해 줘요.'], next: 'b4a', fx: { friend: ['bonnie', 1] } },
+      { label: ['I work better alone.', '혼자가 편해요.'], next: 'b4b' },
+    ],
+  },
+  b4a: { id: 'b4a', who: BONNIE, text: ['I will be near. Do not wait for me if it goes loud.', '근처에 있을게. 시끄러워지면 날 기다리지 마.'] },
+  b4b: { id: 'b4b', who: BONNIE, text: ['Suit yourself. But if it goes loud, run first and think later.', '좋을 대로. 하지만 시끄러워지면 먼저 뛰고 나중에 생각해.'] },
+};
+
+/** Inside the warehouse: the alarm. */
+export const C7_ALARM: DScript = {
+  a1: { id: 'a1', who: YOU, text: ['(The ledger: every deed in Old Town, with a price and a signature. G. Again.)', '(장부: 올드타운의 모든 부동산 증서, 가격과 서명이 있어. G, 또 그 글자야.)'], next: 'a2' },
+  a2: { id: 'a2', who: THUG, text: ['ALARM! Somebody tripped the alarm! Call the police!', '경보다! 누가 경보를 건드렸어! 경찰 불러!'], next: 'a3' },
+  a3: { id: 'a3', who: BONNIE, text: ['(Over the radio) Run! I can hear the sirens!', '(무전으로) 뛰어! 사이렌 소리가 들려!'] },
+};
+
+/** Donna keeps the ledger. */
+export const C7_DONNA: DScript = {
+  d1: { id: 'd1', who: DONNA, text: ['You are shaking. Sit. Eat. Let me see that ledger.', '떨고 있네. 앉아. 먹어. 그 장부 좀 보자.'], fx: { gift: 'donut' }, next: 'd2' },
+  d2: { id: 'd2', who: DONNA, text: ['Every deed on my street, and he paid pennies. And a single letter, G. I will hide this where no mayor will ever look: under the donut dough.', '우리 동네 모든 증서에, 푼돈만 줬어. 그리고 글자 하나, G. 어떤 시장도 못 찾을 곳에 숨길게. 도넛 반죽 밑에.'], next: 'd3' },
+  d3: { id: 'd3', who: DONNA, text: ['Tomorrow is Festival Night, and Bigsby will be at City Hall. If he is ever going to answer for this, it is then.', '내일은 축제의 밤이고 빅스비는 시청에 있을 거야. 이 일에 대해 책임을 질 때가 있다면 바로 그때야.'] },
+};
+
+// ---------------------------------------------------------------- chapter 8: Festival Night
+/** Deputy Hale: tonight at City Hall. */
+export const C8_HALE: DScript = {
+  h1: { id: 'h1', who: HALE, text: ['The festival begins at dusk. Bigsby will be in his office on the top floor, shredding what he can.', '축제는 해 질 녘에 시작해요. 빅스비는 맨 위층 집무실에서 닥치는 대로 파기하고 있을 거예요.'], next: 'h2' },
+  h2: { id: 'h2', who: HALE, text: ['The lobby is open to the public tonight. His desk and the filing cabinet are right there. I cannot be seen with you. Go in, and bring what you find.', '오늘 밤은 로비가 시민에게 열려 있어요. 책상과 서류 캐비닛이 바로 거기 있죠. 저는 같이 보이면 안 돼요. 들어가서 찾는 걸 가져와요.'] },
+};
+
+/** Inside City Hall: Bigsby. */
+export const C8_BIGSBY: DScript = {
+  g1: { id: 'g1', who: BIGSBY, text: ['So you are the little pest who broke my mall. Do you know how many people owe me, kid? The council, the police, half of this town.', '네가 내 몰을 망친 쥐새끼구나. 얼마나 많은 사람이 내게 빚졌는지 아니? 의회, 경찰, 이 동네 절반이야.'], next: 'g2' },
+  g2: { id: 'g2', who: YOU, text: ['And somebody above you owes nobody. G.', '그리고 네 위의 누군가는 누구에게도 빚이 없지. G.'], next: 'g3' },
+  g3: { id: 'g3', who: BIGSBY, text: ['...Where did you hear that name? Boys! Get him! Do not let him leave this building!', '...그 이름을 어디서 들었어? 얘들아! 잡아! 이 건물에서 못 나가게 해!'] },
+};
+
+/** The guards outside. */
+export const C8_TAUNT: DScript = {
+  t1: { id: 't1', who: THUG, text: ['The mayor says nobody leaves with those papers. Hand them over.', '시장님이 그 서류 들고 아무도 못 나간대. 내놔.'], next: 't2' },
+  t2: { id: 't2', who: YOU, text: ['The whole town is watching tonight. Try me.', '오늘 밤은 온 동네가 지켜봐. 덤벼 봐.'] },
 };

@@ -1,5 +1,5 @@
 import type { Chapter } from './story';
-import { C1_START, C1_DONE, C2_PARK, C2_MEET, C2_HALE, C3_KANE, C3_LOU, C4_INSIDE, C4_TAUNT, C4_HALE, C5_HALE, C5_TAUNT, C5_DONNA, C6_KANE, C6_ARCADE, C6_END } from './mainscript';
+import { C1_START, C1_DONE, C2_PARK, C2_MEET, C2_HALE, C3_KANE, C3_LOU, C4_INSIDE, C4_TAUNT, C4_HALE, C5_HALE, C5_TAUNT, C5_DONNA, C6_KANE, C6_ARCADE, C6_END, C7_BONNIE, C7_ALARM, C7_DONNA, C8_HALE, C8_BIGSBY, C8_TAUNT } from './mainscript';
 
 /**
  * The story mode's own version of the eight main chapters. Same titles and same order as the originals (so rewards, teasers, stages and the
@@ -71,5 +71,33 @@ export const REWORK: (Chapter | null)[] = [
       { k: 'talk', npc: 'kane', script: C6_END, start: 'z1', text: ['Bring the satchel to Kane (yellow diamond)', '가방을 케인에게 가져가세요 (노란 마름모)'] },
     ],
   },
-  null, null,
+  {
+    title: ['The Harbor Stash', '항구의 비밀 창고'], reward: 5000,
+    steps: [
+      { k: 'talk', npc: 'bonnie', script: C7_BONNIE, start: 'b1', text: ['Meet Bonnie at the gun shop (yellow diamond)', '총기 상점 앞에서 보니를 만나세요 (노란 마름모)'] },
+      { k: 'enter', room: 'warehouse', text: ['Slip back into the harbor warehouse (walk up to the door, F)', '항구 창고에 다시 몰래 들어가세요 (문 앞에서 F)'] },
+      { k: 'inspect', room: 'warehouse', ids: ['crate1', 'desk'], notes: {
+        crate1: ['The stash behind the crates: sacks of cash, neatly counted.', '상자 뒤의 비밀 창고: 깔끔하게 세어 둔 현금 자루.'],
+        desk: ['The ledger: every Old Town deed, a price, and a signature: G.', '장부: 올드타운의 모든 증서, 가격, 그리고 서명: G.'],
+      }, text: ['Find the stash and the ledger (F)', '비밀 창고와 장부를 찾으세요 (F)'] },
+      { k: 'monologue', script: C7_ALARM, start: 'a1', text: ['An alarm goes off!', '경보가 울려요!'] },
+      { k: 'leave', room: 'warehouse', text: ['Run out of the warehouse', '창고에서 뛰쳐나가세요'] },
+      { k: 'escape', stars: 2, text: ["The alarm brought the mayor's police - lose them!", '경보가 시장의 경찰을 불렀어요 - 따돌리세요!'] },
+      { k: 'talk', npc: 'donna', script: C7_DONNA, start: 'd1', text: ['Take the ledger to Donna (yellow diamond)', '장부를 도나에게 가져가세요 (노란 마름모)'] },
+    ],
+  },
+  {
+    title: ['Festival Night', '축제의 밤'], reward: 20000, finale: true,
+    steps: [
+      { k: 'talk', npc: 'hale', script: C8_HALE, start: 'h1', text: ['Meet Deputy Hale downtown (yellow diamond)', '시내의 헤일 부시장을 만나세요 (노란 마름모)'] },
+      { k: 'enter', room: 'cityhall', text: ['Walk into the City Hall lobby (walk up to the door, F)', '시청 로비로 들어가세요 (문 앞에서 F)'] },
+      { k: 'inspect', room: 'cityhall', ids: ['desk', 'cabinet'], notes: {
+        desk: ["The mayor's desk: a half-shredded calendar, every Friday circled and marked G.", '시장의 책상: 반쯤 파쇄된 달력, 매주 금요일에 동그라미와 G 표시.'],
+        cabinet: ['The filing cabinet: payment slips to the Watch, to the council, to a man called G.', '서류 캐비닛: 시티 워치와 의회, 그리고 G라는 사람에게 보낸 지급 전표.'],
+      }, text: ["Search the mayor's desk and the filing cabinet (F)", '시장의 책상과 서류 캐비닛을 뒤지세요 (F)'] },
+      { k: 'monologue', script: C8_BIGSBY, start: 'g1', text: ['Bigsby appears', '빅스비가 나타나요'] },
+      { k: 'leave', room: 'cityhall', text: ['Get out of City Hall', '시청에서 나가세요'] },
+      { k: 'brawl', at: 'door:cityhall', count: 4, taunt: { script: C8_TAUNT, start: 't1' }, text: ["Beat the mayor's guards at the door", '문 앞의 시장 경호원들을 쓰러뜨리세요'] },
+    ],
+  },
 ];

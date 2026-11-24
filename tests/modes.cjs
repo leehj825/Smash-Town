@@ -696,6 +696,60 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(Object.values(r).every((v) => v === true), 'story rework: chapters 5 and 6 hold the plaza and chase the courier after Kane\'s arcade talk', JSON.stringify(r));
+    // story rework, stage 4: the harbor stash with an alarm and a chase, then City Hall and the ending
+    r = await p.evaluate(async () => {
+      const G = g(); const S = G.story; const H = G.humans; const D = G.dialogue; const out = {};
+      G.state = 'play'; G.stars = 0; G.heat = 0; G.inside = null; D.active = false; G.hud.hideDialog(); G.skills.off = true; G.onFoot = true;
+      const rec = (id) => G.npcs.list.find((n) => n.def.id === id);
+      const human = (id) => { const r = rec(id); r.human = r.human ?? H.spawnNamed(H.player.x + 2, H.player.z, 0, { shirt: 0, pants: 0, skin: 0xf1c27d, hair: 0, shoe: 0, cap: false }); return r; };
+      const talk = (id) => { const r = human(id); G.npcs.talk({ def: r.def, human: r.human }); };
+      const run = (max = 12) => { for (let i = 0; i < max && D.active; i++) { if (D.node && D.node.choices) D.choose(0); else D.advance(); } G.state = 'play'; D.active = false; };
+      const search = (room, ids) => { for (const id of ids) { const it = room.inspects.find((q) => q.id === id); H.setPlayerActive(true, it.x + 1, it.z + 1, 0); S.inspect(room); } };
+      S.done = false; S.ch = 8; S.step = 0; S.prog = 0; S.pendingTeaser = null; G.save.clues = [];
+      // chapter 7: Bonnie, the warehouse at night, the ledger, an alarm, the police, Donna
+      out.c7 = S.chapter.title[0] === 'The Harbor Stash' && S.chapter.steps.length === 7;
+      talk('bonnie'); out.b1 = D.active && D.node.id === 'b1';
+      run(); out.a = S.step === 1;
+      const wh = G.interiors.rooms.find((q) => q.id === 'warehouse');
+      G.inside = wh; H.setPlayerActive(true, wh.exit.x, wh.exit.z - 2.2, Math.PI);
+      S.updateInside(0.1); out.in = S.step === 2;
+      search(wh, ['crate1', 'desk']); out.search = S.step === 3;
+      S.updateInside(0.1); out.alarm = D.active && D.node.id === 'a1';
+      run(); out.out = S.step === 4;
+      G.inside = null; H.setPlayerActive(true, wh.door.x, wh.door.z, 0);
+      S.update(0.1); out.esc = S.step === 5;
+      S.update(0.1); out.cops = G.stars >= 2;
+      G.stars = 0; G.heat = 0; for (let i = 0; i < 6; i++) S.update(1);
+      out.lost = S.step === 6;
+      talk('donna'); out.d1 = D.active && D.node.id === 'd1';
+      run(); out.ch7done = S.ch === 9 && S.step === 0;
+      S.update(0.1); run();
+      // chapter 8: Hale, the lobby, the desk and the cabinet, Bigsby, the guards, then the ending
+      out.c8 = S.chapter.title[0] === 'Festival Night' && S.chapter.finale === true && S.chapter.steps.length === 6;
+      talk('hale'); out.h1 = D.active && D.node.id === 'h1';
+      run(); out.e = S.step === 1;
+      const hall = G.interiors.rooms.find((q) => q.id === 'cityhall');
+      S.update(0.1); out.open = !!G.interiors.roomAt(hall.door.x, hall.door.z, 2.6);
+      G.inside = hall; H.setPlayerActive(true, hall.exit.x, hall.exit.z - 2.2, Math.PI);
+      S.updateInside(0.1); out.hin = S.step === 2;
+      search(hall, ['desk', 'cabinet']); out.hsearch = S.step === 3;
+      S.updateInside(0.1); out.bigsby = D.active && D.node.id === 'g1';
+      run(); out.hout = S.step === 4;
+      G.inside = null; H.setPlayerActive(true, hall.door.x, hall.door.z, 0);
+      S.update(0.1); out.brawl = S.step === 5;
+      S.update(0.1); out.guards = S.thugs.length === 4;
+      const g0 = S.thugs[0] ?? { x: 0, z: 0 }; H.setPlayerActive(true, g0.x - 4, g0.z, 0);
+      S.update(0.1); out.taunt = D.active && D.node.id === 't1';
+      run(); for (const h of S.thugs) { h.hp = 0; h.ko = true; h.state = 8; }
+      S.update(0.1);
+      out.chapterDone = S.ch === 10 && S.done === true;
+      S.update(0.1); out.ending = D.active && (D.node.id === 'e1' || D.node.id === 'e0');
+      for (let i = 0; i < 12 && D.active; i++) { if (D.node && D.node.choices) D.choose(0); else D.advance(); }
+      G.state = 'play'; D.active = false; out.endSaved = G.save.ending === 'law';
+      G.save.ending = undefined; S.done = true; G.skills.off = false; G.cash = 0;
+      return out;
+    });
+    ok(Object.values(r).every((v) => v === true), 'story rework: chapters 7 and 8 raid the warehouse, face Bigsby in City Hall and reach the ending', JSON.stringify(r));
     await ctx.close();
 
     // a story saved before the intro existed skips it (chapters move up one place)
