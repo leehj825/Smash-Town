@@ -49,6 +49,7 @@ import { Sandbox } from './sandbox';
 import { Kids } from './kids';
 import { Dialogue } from './dialogue';
 import { StoryBeats } from './storybeats';
+import { StreetVoices } from './streetvoices';
 import { Progression, GUN_STAGE } from './progression';
 import { STORY_EXTRA } from './story';
 import { SAVE_VERSION, migrateSave } from './saveMigrate';
@@ -91,7 +92,7 @@ export function currentSlot(): number {
 }
 export const slotSaveKey = (slot: number): string => (slot === 1 ? 'smashtown.save.v1' : `smashtown.save.v1.s${slot}`);
 export const SAVE_KEY = slotSaveKey(currentSlot());
-interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; friends?: Record<string, number>; bat?: boolean; storyV?: number; beats?: string[]; gear?: Record<string, number>; survivalBest?: number; v?: number; hour?: number; milestone?: number; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
+interface SaveData { cash: number; unlocked: VehicleKind[]; selected: VehicleKind; story?: StorySave; collected?: number[]; cars?: Record<string, CarProgress>; body?: BodyProgress; guns?: GunId[]; ammo?: Partial<Record<GunId, number>>; gunUp?: Partial<Record<GunId, [number, number]>>; outfit?: number; bank?: number; homes?: number[]; raceBest?: number[]; turf?: number[]; friends?: Record<string, number>; bat?: boolean; storyV?: number; beats?: string[]; ending?: string; gear?: Record<string, number>; survivalBest?: number; v?: number; hour?: number; milestone?: number; rep?: Record<string, number>; skills?: Record<string, number>; buddy?: boolean; login?: { day: string; streak: number }; progress?: ProgressSave }
 export type EarnSrc = 'props' | 'stars' | 'gigs' | 'story' | 'police' | 'other';
 
 // Heat needed for 1..5 stars. Raised so a few smashed props don't instantly bring the whole police force.
@@ -173,6 +174,7 @@ export class Game {
   kidsMode!: Kids;
   dialogue!: Dialogue;
   beats!: StoryBeats;
+  voices!: StreetVoices;
   progression!: Progression;
   /** A story game with no save yet: it starts on foot with almost nothing. */
   private freshStory = false;
@@ -180,6 +182,9 @@ export class Game {
   sandboxHooks: { weather: () => string; time: () => string } | null = null;
   /** Slow motion while the quick wheel is open (1 = normal). */
   timeScale = 1;
+  /** A short slow-motion beat (used when a story fight breaks out). `slowUntil` is on the page clock. */
+  slowUntil = 0;
+  slowMo(seconds: number): void { this.slowUntil = performance.now() + seconds * 1000; }
   reputation!: Reputation;
   npcs!: Npcs;
   skills!: Skills;
@@ -325,6 +330,7 @@ export class Game {
     this.kidsMode = new Kids(this);
     this.dialogue = new Dialogue(this);
     this.beats = new StoryBeats(this);
+    this.voices = new StreetVoices(this);
     this.progression = new Progression(this);
     if (this.mode === 'sandbox' || this.mode === 'kids') { this.noSave = true; this.story.done = true; }
     if (this.mode === 'kids') this.humans.gentle = true;
@@ -441,7 +447,8 @@ export class Game {
       const bat = typeof s.bat === 'boolean' ? s.bat : undefined;
       const storyV = Number(s.storyV) >= 3 ? 3 : Number(s.storyV) >= 2 ? 2 : undefined;
       const beats = Array.isArray(s.beats) ? s.beats.filter((x: unknown): x is string => typeof x === 'string') : undefined;
-      return { bat, storyV, beats, cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, friends, gear, survivalBest: Number(s.survivalBest) > 0 ? Math.floor(Number(s.survivalBest)) : undefined, rep, skills, login, progress: s.progress, v: s.v ?? SAVE_VERSION, milestone: [25, 50, 75, 100].includes(Number(s.milestone)) ? Number(s.milestone) : undefined, hour: typeof s.hour === 'number' && s.hour >= 0 && s.hour < 24 ? s.hour : undefined };
+      const ending = typeof s.ending === 'string' && ['law', 'fist', 'deal'].includes(s.ending) ? s.ending : undefined;
+      return { bat, storyV, beats, ending, cash: typeof s.cash === 'number' ? s.cash : fallback.cash, unlocked, selected, story, collected, cars, body, guns, ammo, gunUp, outfit, bank, homes, raceBest, turf, friends, gear, survivalBest: Number(s.survivalBest) > 0 ? Math.floor(Number(s.survivalBest)) : undefined, rep, skills, login, progress: s.progress, v: s.v ?? SAVE_VERSION, milestone: [25, 50, 75, 100].includes(Number(s.milestone)) ? Number(s.milestone) : undefined, hour: typeof s.hour === 'number' && s.hour >= 0 && s.hour < 24 ? s.hour : undefined };
     } catch {
       this.freshStory = this.mode === 'story';
       return fallback;
@@ -922,6 +929,7 @@ export class Game {
       cash: this.cash,
       repairCost: 100 + Math.round((1 - (d?.ctrl.hp ?? 1)) * 400),
       respray: { cost: resprayCost(this.stars), state: this.stars === 0 ? 'none' : copNear ? 'police' : 'ok' },
+      register: { cost: 200, can: this.mode === 'story' && !!d && !d.owned && PLAYER_ROSTER.includes(d.kind) },
       unlocked: new Set(this.save.unlocked),
       selected: k,
       car: cp,
@@ -957,6 +965,14 @@ export class Game {
         this.driving!.ctrl.hp = 1;
         if (this.driving!.flat) { this.driving!.fixTire(); this.applyLook(this.driving!); }
         this.hud.toast(t('ui.toast.repaired'));
+        refresh();
+      },
+      onRegister: () => {
+        const v = this.driving;
+        if (!v || v.owned || !this.pay(200)) return;
+        v.owned = true; this.lastDriven = v;
+        this.popups.spawn(v.x, 3, v.z, bi('Yours now!', '이제 내 차예요!'), '#3dff8a');
+        this.hud.toast(bi('New plates: this car is yours. It stays where you park it, and you can save and repair it.', '번호판을 바꿨어요: 이 차는 이제 당신 차예요. 세워 둔 곳에 그대로 있고 수리와 보관이 돼요.'), 3600);
         refresh();
       },
       onRespray: () => {
@@ -1188,6 +1204,7 @@ export class Game {
     this.dialogue.update(dt);
     this.story.update(dt);
     this.beats.update(dt);
+    this.voices.update(dt);
     this.collectibles.update(dt);
     this.collectStars();
     this.updatePickups(dt);

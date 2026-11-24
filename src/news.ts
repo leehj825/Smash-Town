@@ -1,7 +1,7 @@
 import type { Game } from './game';
 import { bi, getLang } from './i18n';
 
-type Kind = 'murder' | 'wanted3' | 'wanted5' | 'escaped' | 'heist' | 'police' | 'race' | 'bounty' | 'blackout' | 'festival' | 'explosion' | 'turf' | 'fire' | 'theft' | 'riot' | 'crossfire' | 'truck';
+type Kind = 'murder' | 'wanted3' | 'wanted5' | 'escaped' | 'heist' | 'police' | 'race' | 'bounty' | 'blackout' | 'festival' | 'explosion' | 'turf' | 'fire' | 'theft' | 'riot' | 'crossfire' | 'truck' | 'rumor';
 const HEADLINES: Record<Kind, [string, string][]> = {
   murder: [
     ['A pedestrian was killed downtown. Police are looking for a suspect.', '시내에서 보행자가 숨졌습니다. 경찰이 용의자를 쫓고 있습니다.'],
@@ -36,6 +36,12 @@ const HEADLINES: Record<Kind, [string, string][]> = {
   fire: [
     ['Fire crews are battling a blaze in the street - keep clear.', '소방대가 길가의 화재를 진압하고 있습니다. 접근하지 마세요.'],
     ['Smoke over the city: a fire has broken out.', '도시 위로 연기가 피어오릅니다. 화재가 발생했습니다.'],
+  ],
+  rumor: [
+    ['Late-night callers say a mysterious figure called G has been pulling strings in Sunset Bay.', '심야 방송 청취자들이 말하길, G라는 정체불명의 인물이 선셋 베이를 뒤에서 움직이고 있대요.'],
+    ["Radio talk: Mayor Bigsby's police patrol times seem to leak. Who is selling them?", '라디오 소문: 빅스비 시장의 순찰 시간이 새고 있대요. 누가 팔고 있을까요?'],
+    ['DJ Rico: Sunset Bay has a new hero making Old Town loud... and somebody with deep pockets is not amused.', 'DJ 리코: 선셋 베이에 올드타운을 시끄럽게 만드는 새 영웅이 나타났어요... 돈 많은 누군가는 심기가 불편하대요.'],
+    ['Rumour on the airwaves: the Harbor Stash belongs to G. Festival night will be interesting.', '방송 소문: 항구 창고의 주인은 G래요. 축제의 밤이 흥미로워질 거예요.'],
   ],
   truck: [
     ['An armoured cash truck was hit in broad daylight. The robbers are on the run.', '현금 수송 장갑차가 대낮에 털렸습니다. 강도들은 도주 중입니다.'],
@@ -91,13 +97,13 @@ export class News {
 
   update(dt: number): void { this.cooldown = Math.max(0, this.cooldown - dt); }
 
-  report(kind: Kind, force = false): void {
+  report(kind: Kind, force = false, index?: number): void {
     if (this.cooldown > 0 && !force) return;
     const list = HEADLINES[kind];
-    const [en, ko] = list[Math.floor(Math.random() * list.length)];
+    const [en, ko] = list[index !== undefined ? Math.max(0, Math.min(list.length - 1, index)) : Math.floor(Math.random() * list.length)];
     this.cooldown = 30;
     this.log.push({ kind, en });
-    this.el.innerHTML = `<b>${bi('BREAKING NEWS', '속보')}</b> ${bi(en, ko)}`;
+    this.el.innerHTML = `<b>${kind === 'rumor' ? bi('ON THE RADIO', '라디오') : bi('BREAKING NEWS', '속보')}</b> ${bi(en, ko)}`;
     this.el.classList.add('show');
     window.clearTimeout(this.timer);
     this.timer = window.setTimeout(() => this.el.classList.remove('show'), 7000);

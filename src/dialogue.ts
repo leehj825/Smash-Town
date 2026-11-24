@@ -1,11 +1,12 @@
 import type { Game } from './game';
 import type { Human } from './humans';
 import { bi } from './i18n';
+import { AREAS } from './reputation';
 
 type Pair = [string, string]; // [English, Korean]
 
 /** What a line (or a choice) does when it is shown (or picked): a little standing, a friend, a gift, some cash. */
-export interface DEffect { rep?: number; friend?: [string, number]; gift?: 'donut'; cash?: number }
+export interface DEffect { rep?: number; friend?: [string, number]; gift?: 'donut'; cash?: number; watch?: number; mafia?: number; repAll?: number; ending?: string }
 export interface DChoice { label: Pair; next: string; fx?: DEffect }
 export interface DNode {
   id: string;
@@ -57,6 +58,10 @@ export class Dialogue {
     if (e.friend) G.npcs.befriend(e.friend[0], e.friend[1]);
     if (e.gift === 'donut') { G.gear.give('donut', 1); G.hud.toast(bi('You got a donut! (U eats it: health back)', '도넛을 받았어요! (U로 먹으면 체력 회복)'), 3000); }
     if (e.cash) G.addCash(e.cash, 'story');
+    if (e.watch) G.factions.add('watch', e.watch);
+    if (e.mafia) G.factions.add('mafia', e.mafia);
+    if (e.repAll) { const rep = (G.save.rep ??= {}); for (const a of AREAS) rep[a] = Math.max(-100, Math.min(100, (rep[a] ?? 0) + e.repAll)); }
+    if (e.ending) { G.save.ending = e.ending; G.saveDirty = true; }
   }
 
   private go(id: string): void {

@@ -13,6 +13,8 @@ export interface GarageModel {
   cash: number;
   repairCost: number;
   respray: { cost: number; state: 'none' | 'ok' | 'police' };
+  /** Fit new plates to the car on the stand (a stolen car becomes yours: it stays where you park it). */
+  register: { cost: number; can: boolean };
   unlocked: Set<VehicleKind>;
   selected: VehicleKind;
   car: CarProgress;
@@ -23,6 +25,7 @@ export interface GarageModel {
 export interface GarageHandlers {
   onRepair: () => void;
   onRespray: () => void;
+  onRegister: () => void;
   onBuy: (k: VehicleKind) => void;
   onSelect: (k: VehicleKind) => void;
   onUpgrade: (i: number) => void;
@@ -483,6 +486,7 @@ export class Hud {
       ${this.garageOnly ? '' : `<div class="gactions">
         <button class="big small" id="g-repair">${t('ui.garage.repair')} - ${money(m.repairCost)}</button>
         <button class="big small warnbtn" id="g-respray" ${rs.state === 'none' ? 'disabled' : ''}>${resprayLabel}</button>
+        ${m.register.can ? `<button class="big small" id="g-register">${bi('New plates: make it yours', '번호판 교체: 내 차로 등록')} - ${money(m.register.cost)}</button>` : ''}
       </div>`}
       <div class="gtabs">${tabs.map(([id, label]) => `<button class="seg gtab ${this.garageTab === id ? 'sel' : ''}" data-tab="${id}">${label}</button>`).join('')}</div>
       <div class="gbody">${body}</div>
@@ -491,6 +495,7 @@ export class Hud {
     const q = (sel: string) => this.garageEl.querySelectorAll<HTMLElement>(sel);
     this.garageEl.querySelector('#g-repair')?.addEventListener('click', () => h.onRepair());
     this.garageEl.querySelector('#g-respray')?.addEventListener('click', () => h.onRespray());
+    this.garageEl.querySelector('#g-register')?.addEventListener('click', () => h.onRegister());
     this.garageEl.querySelector('#g-close')!.addEventListener('click', () => h.onClose());
     q('.gtab').forEach((b) => b.addEventListener('click', () => { this.garageTab = b.dataset.tab as GarageTab; this.renderGarage(); }));
     q('.vbtn').forEach((b) => b.addEventListener('click', () => {

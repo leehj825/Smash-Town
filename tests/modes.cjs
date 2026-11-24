@@ -196,7 +196,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       out.paid = G.cash > 0 && G.cash < 600;
       // sirens: somebody called the police about the fight; lose them
       const D = G.dialogue;
-      for (let i = 0; i < 4 && !(D.active && D.node.id === 'z1'); i++) S.update(0.1);
+      for (let i = 0; i < 4 && !(D.active && D.node.id === 'z0'); i++) S.update(0.1);
       out.sirens = (D.active && D.node.id === 'z1') || S.stepKind() === 'escape';
       for (let i = 0; i < 6 && D.active; i++) D.advance(); G.state = 'play';
       S.update(0.1); out.escape = S.stepKind() === 'escape' && (G.stars === 1 || S.escapeT > 0);
@@ -267,6 +267,55 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(r.scaled && r.beat && r.once, 'the story mode pays a fraction for found money, and a text arrives once when you have saved up', JSON.stringify(r));
+    // the seven ideas: new plates, a slow-motion beat, street voices, a price on your head, radio rumours, and an ending you choose
+    r = await p.evaluate(() => {
+      const G = g(); const S = G.story; const D = G.dialogue; const H = G.humans; const out = {};
+      G.state = 'play'; G.stars = 0; G.heat = 0; G.skills.off = true; D.active = false; G.hud.hideDialog(); G.inside = null;
+      // 1. a stolen car becomes yours for $200
+      H.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0);
+      const v = G.spawnVehicle('taxi', 0xffc400, H.player.x + 2, H.player.z, 0, 'parked'); G.boardVehicle(v);
+      G.cash = 500; v.owned = false;
+      G.openGarage('garage');
+      const btn = document.getElementById('g-register');
+      out.offer = !!btn;
+      if (btn) btn.click();
+      out.owned = v.owned === true && G.cash === 300;
+      G.closeGarage(); G.removeVehicle(v); G.driving = null; G.onFoot = true; G.state = 'play';
+      // 2. a short slow-motion beat
+      G.slowMo(1); out.slow = G.slowUntil > performance.now();
+      // 4. a friendly street speaks
+      const said = []; const sp = G.popups.spawn.bind(G.popups); G.popups.spawn = (x, y, z, text, c) => { said.push(text); return sp(x, y, z, text, c); };
+      const area = G.reputation.area(H.player.x, H.player.z); (G.save.rep ??= {})[area] = 60;
+      const civ = H.list.find((h) => h.active && h.role === 0 && !h.named && !h.ally && !h.gang);
+      civ.x = H.player.x + 3; civ.z = H.player.z; civ.state = 1; civ.fleeing = false; civ.thief = false;
+      S.ch = 3; G.voices.t = 0; G.voices.update(0.1);
+      out.voice = said.some((t) => /Thanks|hero|lucky|고마|영웅|운이/.test(t));
+      G.popups.spawn = sp; G.save.rep = {};
+      // 5. a price on your head: hunters come from two stars
+      S.ch = 5; G.stars = 2; G.heat = 100; G.police.hunter = null; G.police.hunterTimer = 0; G.police.manage(0.1);
+      out.hunter = !!G.police.hunter;
+      for (const q of [...G.vehicles]) if (q.ai === 'police') G.removeVehicle(q); G.police.hunter = null; G.stars = 0; G.heat = 0;
+      S.ch = 2; G.police.hunterTimer = 0; G.stars = 2; G.police.manage(0.1); out.noHunterYet = !G.police.hunter; G.stars = 0; G.heat = 0;
+      for (const q of [...G.vehicles]) if (q.ai === 'police') G.removeVehicle(q);
+      // 6. radio rumours about G
+      G.news.log.length = 0; S.ch = 5; G.beats.rumorT = 0; G.beats.t = 0; G.beats.update(0.1);
+      out.rumor = G.news.log.some((e) => e.kind === 'rumor');
+      // 7. the ending: three choices, one remembered
+      S.dialog = null; D.active = false; G.hud.hideDialog(); G.setDialogOpen(false); G.state = 'play'; S.pendingTeaser = null;
+      S.done = false; S.ch = 9; S.step = 0; G.watch = 0;
+      const w0 = G.factions.get('watch');
+      S.completeChapter(S.chapter); S.update(0.1);
+      out.endStart = D.active && D.node.id === 'e1';
+      for (let i = 0; i < 3 && D.active && !(D.node && D.node.choices); i++) D.advance();
+      out.endChoices = !!D.node.choices && D.node.choices.length === 3;
+      D.choose(0);
+      out.endLaw = G.save.ending === 'law' && G.factions.get('watch') > w0;
+      for (let i = 0; i < 4 && D.active; i++) D.advance(); G.state = 'play';
+      out.endDone = !D.active && S.done === true;
+      G.save.ending = undefined; G.skills.off = false; G.cash = 0;
+      return out;
+    });
+    ok(r.offer && r.owned && r.slow && r.voice && r.hunter && r.noHunterYet && r.rumor && r.endStart && r.endChoices && r.endLaw && r.endDone, 'new plates, a slow-motion beat, street voices, a price on your head, radio rumours, and an ending you choose', JSON.stringify(r));
     await ctx.close();
 
     // a story saved before the intro existed skips it (chapters move up one place)

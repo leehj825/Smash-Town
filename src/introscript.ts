@@ -75,6 +75,7 @@ export const CASHBOX: DScript = {
 
 /** Sirens. */
 export const SIRENS: DScript = {
+  z0: { id: 'z0', who: ['Bonnie (shouting)', '보니 (외침)'], text: ['Cops! Somebody called it in. MOVE!', '경찰이야! 누가 신고했어. 뛰어!'], next: 'z1' },
   z1: { id: 'z1', who: ['You', '나'], text: ['Sirens... Bigsby has the police in his pocket. They are coming for ME.', '사이렌 소리... 빅스비가 경찰도 구워삶았나 봐. 나를 잡으러 오고 있어.'], next: 'z2' },
   z2: { id: 'z2', who: ['You', '나'], text: ['Run. Lose them. Then think.', '일단 도망쳐. 따돌리고 나서 생각하자.'] },
 };
@@ -111,4 +112,23 @@ export const TEASERS: Record<string, DScript> = {
   'The Harbor Stash': {
     x1: { id: 'x1', who: STRANGER, text: ['You found the stash. And my name. Festival night, ten o\'clock, the hall steps. Be there.', '창고를 찾았군. 내 이름도. 축제의 밤, 밤 열 시, 시청 계단. 나와.'] },
   },
+};
+
+// ---------------------------------------------------------------- the end: what to do with Bigsby
+
+const STORY_END: [string, string] = ['Festival Night', '축제의 밤'];
+export const ENDING: DScript = {
+  e1: { id: 'e1', who: STORY_END, text: ['Bigsby is on his knees on the hall steps. The whole of Old Town is watching: Donna, Mr. Park, Bonnie... and the police, waiting for you to decide.', '빅스비가 시청 계단에서 무릎을 꿇었어요. 올드타운 사람들이 모두 지켜봐요. 도나, 미스터 박, 보니... 그리고 당신의 결정을 기다리는 경찰까지.'], next: 'e2' },
+  e2: {
+    id: 'e2', who: ['You', '나'], text: ['(What do I do with him?)', '(저 사람을 어떻게 하지?)'],
+    choices: [
+      { label: ['Hand him to the police.', '경찰에 넘긴다.'], next: 'e3a', fx: { watch: 25, mafia: -10, repAll: 10, ending: 'law' } },
+      { label: ['Settle it myself, the old way.', '내 방식대로 직접 끝낸다.'], next: 'e3b', fx: { mafia: 25, watch: -15, repAll: 5, ending: 'fist' } },
+      { label: ['Make a deal: he pays Old Town back.', '거래한다: 올드타운에 보상하게 한다.'], next: 'e3c', fx: { cash: 2000, repAll: 5, watch: 5, mafia: 5, ending: 'deal' } },
+    ],
+  },
+  e3a: { id: 'e3a', who: ['Epilogue', '에필로그'], text: ['The police lead Bigsby away in front of everyone. The Watch cheers. Old Town sleeps soundly - and the Mafia notes your name with a frown.', '경찰이 모두가 보는 앞에서 빅스비를 데려가요. 시티 워치가 환호하고, 올드타운은 편히 잠들어요. 마피아는 찌푸린 얼굴로 당신 이름을 적어 둬요.'], next: 'e4' },
+  e3b: { id: 'e3b', who: ['Epilogue', '에필로그'], text: ['Bigsby is gone by morning, and nobody asks where. The streets belong to you now. The Watch watches you back - and the Mafia raises a glass.', '아침에 빅스비는 사라졌고, 아무도 어디 갔는지 묻지 않아요. 거리는 이제 당신 거예요. 시티 워치는 당신을 지켜보고, 마피아는 잔을 들어요.'], next: 'e4' },
+  e3c: { id: 'e3c', who: ['Epilogue', '에필로그'], text: ['Bigsby signs, pays, and slinks out of town. Old Town gets a new roof and a new park. Nobody is quite happy, and everybody is a little richer.', '빅스비는 서명하고 돈을 내고 슬그머니 마을을 떠나요. 올드타운은 새 지붕과 새 공원을 얻어요. 아무도 완전히 만족하진 않지만 모두 조금씩 부유해졌어요.'], next: 'e4' },
+  e4: { id: 'e4', who: ['Sunset Bay', '선셋 베이'], text: ['The story ends here. The city does not: Sunset Bay is yours to run, raid, race and rule.', '이야기는 여기서 끝나요. 도시는 끝나지 않아요. 선셋 베이는 당신이 달리고 싸우고 다스릴 곳이에요.'] },
 };
