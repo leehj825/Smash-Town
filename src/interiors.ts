@@ -6,7 +6,7 @@ import type { BoxCollider, World } from './world';
 // Enterable shops. Each room is a small set built far outside the city (a "hidden pocket"); stepping through a door fades out and
 // teleports the player there, so street traffic, police and cameras can never interfere. Walls are ordinary box colliders.
 
-export type ShopKind = 'donut' | 'gun' | 'clothes' | 'arcade' | 'motel' | 'bank' | 'garage' | 'home';
+export type ShopKind = 'donut' | 'gun' | 'clothes' | 'arcade' | 'motel' | 'bank' | 'garage' | 'home' | 'warehouse' | 'cityhall';
 export interface Room {
   id: ShopKind;
   en: string; ko: string;
@@ -25,6 +25,10 @@ export interface Room {
   desk?: { x: number; z: number };
   light: THREE.PointLight;
   beacon: Beacon;
+  /** A room that only the story opens (the harbor warehouse, City Hall): its door works only while a story step asks for it. */
+  story?: boolean;
+  /** Things to examine with F (papers, crates): where they are in the room and what they are called. */
+  inspects?: { id: string; x: number; z: number; en: string; ko: string }[];
 }
 
 const DEFS: { id: ShopKind; en: string; ko: string; color: number; css: string; floor: number; wall: number; frac: number }[] = [
@@ -36,11 +40,30 @@ const DEFS: { id: ShopKind; en: string; ko: string; color: number; css: string; 
   { id: 'garage', en: 'Garage', ko: '차고', color: 0x3dff8a, css: '#3dff8a', floor: 0x3a3d46, wall: 0x56606f, frac: -3 },
   { id: 'home', en: 'Your House', ko: '우리 집', color: 0x6bd1ff, css: '#6bd1ff', floor: 0xb08a5a, wall: 0xe9dcc6, frac: -3 },
   { id: 'motel', en: '24h Motel', ko: '24시 모텔', color: 0x7dff6a, css: '#7dff6a', floor: 0xcdb99a, wall: 0xd9c9a8, frac: -2 },
+  { id: 'warehouse', en: 'Harbor Warehouse', ko: '항구 창고', color: 0xff9a3d, css: '#ff9a3d', floor: 0x55535a, wall: 0x6b5a48, frac: -4 },
+  { id: 'cityhall', en: 'City Hall Lobby', ko: '시청 로비', color: 0xffd23a, css: '#ffd23a', floor: 0xcfc6b0, wall: 0x7a6a8a, frac: -5 },
 ];
+
+/** What can be examined in the story rooms (offsets from the room centre). */
+const INSPECTS: Partial<Record<ShopKind, { id: string; dx: number; dz: number; en: string; ko: string }[]>> = {
+  motel: [{ id: 'petition', dx: -4.2, dz: -3.6, en: 'the petition on the desk', ko: '책상 위의 청원서' }],
+  warehouse: [
+    { id: 'crate0', dx: -4.5, dz: -1.5, en: 'crate 1', ko: '상자 1' },
+    { id: 'crate1', dx: 0, dz: 1.8, en: 'crate 2', ko: '상자 2' },
+    { id: 'crate2', dx: 4.5, dz: -1.5, en: 'crate 3', ko: '상자 3' },
+    { id: 'desk', dx: 5.4, dz: -3.9, en: 'the foreman\'s desk', ko: '감독관의 책상' },
+  ],
+  cityhall: [
+    { id: 'desk', dx: 4.6, dz: -0.4, en: "the mayor's desk", ko: '시장의 책상' },
+    { id: 'cabinet', dx: -4.8, dz: -0.4, en: 'the filing cabinet', ko: '서류 캐비닛' },
+  ],
+};
 
 export class Interiors {
   readonly group = new THREE.Group();
   readonly rooms: Room[] = [];
+  /** Story rooms whose door is open right now (set by the story). */
+  readonly open = new Set<ShopKind>();
 
   constructor(world: World, scene: THREE.Scene) {
     scene.add(this.group);
@@ -111,6 +134,20 @@ export class Interiors {
       }
       if (d.id === 'bank') for (let i = 0; i < 3; i++) b.box(1.4, 1.1, 1.4, ox - 4.5 + i * 2, 0.55, oz + 2.8, 0xb7bcc7);
       if (d.id === 'motel') b.box(2.2, 0.7, 3.4, ox + 4.5, 0.35, oz + 2, 0xf4f4f4);
+      if (d.id === 'motel') b.box(2.0, 0.8, 0.9, ox - 4.2, 0.4, oz - 3.8, 0x8b5a2b);                                                              // a small desk with the petition
+      if (d.id === 'warehouse') {
+        for (const [cx, cz, s] of [[-4.5, -1.5, 1.6], [0, 1.8, 1.6], [4.5, -1.5, 1.6]] as [number, number, number][]) { b.box(s, s, s, ox + cx, s / 2, oz + cz, 0x8a6a3a); b.box(s + 0.1, 0.1, s + 0.1, ox + cx, s, oz + cz, 0x5a4326); } // the three crates
+        for (let i = 0; i < 4; i++) b.box(1.1, 1.1, 1.1, ox - 5.8 + (i % 2) * 1.2, 0.55 + Math.floor(i / 2) * 1.1, oz + 3.6, 0x7a5a2e);                    // stacked crates
+        b.box(2.2, 0.9, 1.1, ox + 5.4, 0.45, oz - 3.9, 0x6b6b72); b.box(0.5, 0.05, 0.4, ox + 5.2, 0.93, oz - 3.9, 0xf4f4f4);                              // foreman's desk
+        for (let k = 0; k < 6; k++) b.box(0.9, 0.03, 0.4, ox - 3 + k * 1.2, 0.03, oz + D / 2 - 0.5, k % 2 ? 0xffd23a : 0x222222);
+      }
+      if (d.id === 'cityhall') {
+        b.box(4.0, 0.03, 8, ox, 0.03, oz + 0.4, 0x9c2a3a);                                                                                              // red carpet
+        b.box(2.4, 0.95, 1.2, ox + 4.6, 0.48, oz - 0.4, 0x5a3a22); b.box(0.5, 0.05, 0.4, ox + 4.4, 1.0, oz - 0.4, 0xf4f4f4);                              // the mayor's desk
+        b.box(0.9, 1.7, 0.6, ox - 4.8, 0.85, oz - 0.4, 0x6b7280);                                                                                        // filing cabinet
+        for (const sx of [-1, 1]) b.cylinder(0.06, 0.06, 2.6, 6, ox + sx * 2.4, 1.3, oz - D / 2 + 0.9, 0xd8c36a);                                       // flag poles
+        b.box(1.0, 0.7, 0.04, ox - 2.4, 2.5, oz - D / 2 + 0.9, 0x2a4a8a); b.box(1.0, 0.7, 0.04, ox + 2.4, 2.5, oz - D / 2 + 0.9, 0xd62d3a);
+      }
       if (d.id === 'clothes') for (let i = 0; i < 4; i++) b.box(0.7, 1.8, 0.5, ox - 4.5 + i * 3, 0.9, oz + 2.8, [0xd93636, 0x3b82f6, 0x2fb87a, 0xf2a73b][i]);
       const mesh = new THREE.Mesh(b.build(), mat);
       this.group.add(mesh);
@@ -131,6 +168,8 @@ export class Interiors {
         id: d.id, en: d.en, ko: d.ko, color: d.color, css: d.css, door: { x: 0, z: 0, h: 0 },
         vault: d.id === 'bank' ? { x: ox - 4.6, z: oz - D / 2 + 1.6 } : undefined,
         ox, oz, counter: { x: ox, z: oz - 3.4 }, exit: { x: ox, z: oz + D / 2 - 0.9 }, desk: ownable ? { x: ox + 4.6, z: oz - 2.6 } : undefined, light, beacon,
+        story: d.frac === -4 || d.frac === -5,
+        inspects: INSPECTS[d.id]?.map((q) => ({ id: q.id, x: ox + q.dx, z: oz + q.dz, en: q.en, ko: q.ko })),
       });
     });
     this.placeDoors(world);
@@ -166,6 +205,11 @@ export class Interiors {
       const d = DEFS[k];
       let spot: { x: number; z: number; h: number };
       if (d.frac === -3) { r.beacon.visible = false; return; }
+      if (d.frac === -4 || d.frac === -5) { // story rooms: the door is at a story place, and only the story's own marker points at it
+        r.door = this.sidewalk(world, d.frac === -4 ? st.gate.x : st.hall.x, d.frac === -4 ? st.gate.z : st.hall.z);
+        r.beacon.visible = false;
+        return;
+      }
       if (d.frac === -1) spot = this.sidewalk(world, st.donna.x, st.donna.z);
       else if (d.frac === -2) spot = this.sidewalk(world, st.motel.x, st.motel.z);
       else {
@@ -182,6 +226,7 @@ export class Interiors {
   update(dt: number): void { for (const r of this.rooms) r.beacon.update(dt); }
   roomAt(x: number, z: number, r: number): Room | null {
     for (const room of this.rooms) {
+      if (room.story && !this.open.has(room.id)) continue;
       if (room.doors) { if (room.doors.some((d) => Math.hypot(d.x - x, d.z - z) < r)) return room; continue; }
       if (Math.hypot(room.door.x - x, room.door.z - z) < r) return room;
     }

@@ -13,7 +13,14 @@ export class Fires {
   private timer = 420;
   private flameT = 0;
 
-  constructor(private game: Game) {}
+  /** Chance that a blast sets the street alight. */
+  igniteChance = 0.7;
+
+  constructor(private game: Game) {
+    game.bus.on('explosion', (e) => {
+      if (this.list.length < 6 && Math.random() < this.igniteChance) this.ignite(e.x + (Math.random() - 0.5) * 6, e.z + (Math.random() - 0.5) * 6);
+    });
+  }
 
   /** Light a fire at a point (also used by tests and the fire crew's random calls). */
   ignite(x: number, z: number): Fire {
@@ -55,8 +62,8 @@ export class Fires {
 
   update(dt: number): void {
     const G = this.game;
-    if (G.state === 'play' && !G.inside) {
-      this.timer -= dt;
+    if (G.state === 'play' && !G.inside && G.clock.auto && G.sideOpen) {
+      this.timer -= dt * G.clock.trouble();
       if (this.timer <= 0) {
         this.timer = 480 + Math.random() * 420;
         const p = this.randomSpot();

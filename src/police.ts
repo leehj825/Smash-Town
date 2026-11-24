@@ -1,5 +1,6 @@
 import { PoliceBrain, TrafficBrain, type PoliceRole } from './ai';
 import type { Game } from './game';
+import { STORY_EXTRA } from './story';
 import { bi } from './i18n';
 import { STATS, type VehicleKind } from './vehicle';
 import type { GameVehicle } from './vehicles';
@@ -14,6 +15,8 @@ export const COMPOSITION: Record<number, [PoliceRole, number][]> = {
   5: [['cruiser', 4], ['interceptor', 2], ['swat', 2], ['armored', 2]],
 };
 
+/** What the police pay out when you beat them (small: fighting the law is a risk, not a job). */
+export const POLICE_PAY = { copKO: 20, car: 40, hunter: 400, heli: 400, survival: 0.25, dropCash: 30 };
 export const ROLE_KIND: Record<PoliceRole, VehicleKind> = { cruiser: 'police', interceptor: 'interceptor', swat: 'swat', armored: 'armored' };
 
 /**
@@ -21,7 +24,7 @@ export const ROLE_KIND: Record<PoliceRole, VehicleKind> = { cruiser: 'police', i
  * joins a four-star chase. (The heat, the stars and the busting itself still live in the game; this is the fleet.)
  */
 export class Police {
-  /** The black muscle car that joins a chase at four stars. Wreck it for a $1,500 bounty. */
+  /** The black muscle car that joins a chase at four stars. Wreck it for a bounty (see POLICE_PAY). */
   hunter: GameVehicle | null = null;
   hunterTimer = 20;
   /** Seconds until the next cruiser is sent. */
@@ -72,7 +75,7 @@ export class Police {
     v.police = new PoliceBrain('interceptor', G.rng);
     v.ctrl.stats = { ...v.ctrl.stats, maxSpeed: v.ctrl.stats.maxSpeed * 0.97 };
     this.hunter = v;
-    G.hud.toast(bi('A bounty hunter is after you!', '현상금 사냥꾼이 쫓아와요!'), 2600);
+    G.hud.toast(G.mode === 'story' && G.story.ch >= STORY_EXTRA + 3 ? bi("Bigsby's bounty hunter is after you!", '빅스비의 현상금 사냥꾼이 쫓아와요!') : bi('A bounty hunter is after you!', '현상금 사냥꾼이 쫓아와요!'), 2600);
     G.bus.emit({ type: 'hunterSpawned' });
   }
 
@@ -81,7 +84,9 @@ export class Police {
     const G = this.G;
     if (G.stars === 0) { this.hunterTimer = Math.max(this.hunterTimer, 15); return; }
     if (this.hunter && (!G.vehicles.includes(this.hunter) || this.hunter.ctrl.wrecked || this.hunter.ai !== 'police')) this.hunter = null;
-    if (G.stars >= 4 && !this.hunter) { this.hunterTimer -= dt; if (this.hunterTimer <= 0) { this.hunterTimer = 90; this.spawnHunter(); } }
+    // in the story, once Bigsby has put a price on your head (three chapters in), his hunters come from two stars
+    const huntStars = G.mode === 'story' && G.story.ch >= STORY_EXTRA + 3 ? 2 : 4;
+    if (G.stars >= huntStars && !this.hunter) { this.hunterTimer -= dt; if (this.hunterTimer <= 0) { this.hunterTimer = 90; this.spawnHunter(); } }
     const comp = COMPOSITION[G.stars];
     // while you are evading (police exist but are far behind) no reinforcements are sent, so a clean getaway is possible
     const evading = G.vehicles.some((v) => v.ai === 'police') && G.unseen > 2;

@@ -65,6 +65,16 @@ export class Transit {
     G.scene.add(mesh);
   }
 
+  /** A cop within 35 m (on foot or in a car) stops you using the metro while wanted. */
+  private watched(): boolean {
+    const G = this.game;
+    if (G.stars === 0) return false;
+    const p = G.humans.player;
+    for (const v of G.vehicles) if (v.ai === 'police' && !v.ctrl.wrecked && Math.hypot(v.x - p.x, v.z - p.z) < 35) return true;
+    for (const h of G.humans.list) if (h.active && h.role === 1 && !h.gang && Math.hypot(h.x - p.x, h.z - p.z) < 35) return true;
+    return false;
+  }
+
   /** The stop you are standing at (within 3.5 m), or -1. */
   near(): number {
     const p = this.game.humans.player;
@@ -76,7 +86,7 @@ export class Transit {
   prompt(i: number): string {
     if (i >= METRO) {
       const to = this.stations[(i - METRO + 2) % this.stations.length];
-      return this.game.stars > 0
+      return this.watched()
         ? bi('Metro - the police are watching you', '지하철 - 경찰이 지켜보고 있어요')
         : `${bi('[F] Metro express to', '[F] 지하철 급행:')} ${bi(to.name[0], to.name[1])} ${bi('Station', '역')} - $12`;
     }
@@ -89,10 +99,12 @@ export class Transit {
   ride(i: number): boolean {
     const G = this.game;
     if (i >= METRO) {
-      if (G.stars > 0) { G.hud.toast(bi('No metro while the police are after you', '경찰에 쫓기는 동안은 지하철을 탈 수 없어요'), 2200); return false; }
+      if (this.watched()) { G.hud.toast(bi('A cop is right on you - lose them first', '경찰이 바로 옆에 있어요 - 먼저 따돌리세요'), 2200); return false; }
       if (this.stations.length < 3 || !G.pay(12)) return false;
       const to = this.stations[(i - METRO + 2) % this.stations.length];
+      const wanted = G.stars > 0;
       G.travelTo(to.sx, to.sz, to.heading, `${bi(to.name[0], to.name[1])} ${bi('Station', '역')}`);
+      if (wanted) { G.coolHeat(9999, 0); G.hud.toast(bi('You slipped away on the metro!', '지하철로 감쪽같이 사라졌어요!'), 2600); }
       return true;
     }
     if (G.stars > 0) { G.hud.toast(bi('No bus while the police are after you', '경찰에 쫓기는 동안은 버스를 탈 수 없어요'), 2200); return false; }

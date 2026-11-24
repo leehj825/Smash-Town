@@ -41,6 +41,22 @@ export class Vfx {
   private e = new THREE.Euler();
   private zero = new THREE.Matrix4().makeScale(0, 0, 0);
 
+  private rings: { mesh: THREE.Mesh; t: number }[] = [];
+
+  /** A white ring that rushes outward along the ground from a blast. */
+  shockwave(x: number, z: number, size = 14): void {
+    let r = this.rings.find((q) => q.t <= 0);
+    if (!r) {
+      if (this.rings.length >= 4) return;
+      const mesh = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 28).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xfff1d0, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+      mesh.visible = false; mesh.frustumCulled = false;
+      this.group.add(mesh);
+      r = { mesh, t: 0 };
+      this.rings.push(r);
+    }
+    r.t = 0.5; r.mesh.visible = true; r.mesh.position.set(x, 0.25, z); r.mesh.userData.size = size;
+  }
+
   constructor() {
     for (const pool of [this.dust, this.smoke, this.fire, this.sparks, this.water, this.debris]) this.group.add(pool.mesh);
     const skidGeo = new THREE.PlaneGeometry(0.34, 0.9).rotateX(-Math.PI / 2);
@@ -107,6 +123,7 @@ export class Vfx {
     this.emitSmoke(x, 1.2, z, true, 12);
     this.emitSparks(x, 1, z, 14);
     this.emitDebris(x, 1, z, 0, 0, 0x2a2a2e, 10);
+    this.shockwave(x, z);
   }
 
   addSkid(x: number, z: number, heading: number): void {
@@ -120,6 +137,14 @@ export class Vfx {
   }
 
   update(dt: number): void {
+    for (const r of this.rings) {
+      if (r.t <= 0) continue;
+      r.t -= dt;
+      const k = 1 - Math.max(0, r.t) / 0.5;
+      r.mesh.scale.setScalar(1 + k * (r.mesh.userData.size ?? 14));
+      (r.mesh.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - k);
+      if (r.t <= 0) r.mesh.visible = false;
+    }
     this.dust.update(dt);
     this.smoke.update(dt);
     this.fire.update(dt);

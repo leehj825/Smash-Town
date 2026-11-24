@@ -19,6 +19,7 @@ export class Insides {
     G.progress.add('shops');
     G.fadeThen(() => {
       G.inside = room;
+      if (room.id === 'home') G.trophies.refresh(room);
       if (room.id === 'garage') G.hideouts.parkCarInBay(room);
       G.humans.setPlayerActive(true, room.exit.x, room.exit.z - 2.2, Math.PI);
       G.cameraRig.ignore = null;
@@ -32,10 +33,12 @@ export class Insides {
     const G = this.game;
     G.fadeThen(() => {
       const r = G.ret;
-      if (G.inside?.id === 'garage') G.hideouts.returnCarToStreet();
+      const car = G.inside?.id === 'garage' ? G.hideouts.returnCarToStreet() : null;
       G.inside = null;
       document.body.classList.remove('can-rob');
       G.humans.setPlayerActive(true, r.x, r.z, r.h);
+      // coming out of your garage you are back behind the wheel (and the door does not take you straight back in)
+      if (car && !car.ctrl.wrecked && G.vehicles.includes(car)) { G.boardVehicle(car); G.garageLock = true; }
       G.syncFoot();
       G.cameraRig.snap();
     });
@@ -55,6 +58,8 @@ export class Insides {
     });
     G.syncFoot();
     G.hideouts.spin(dt);
+    G.dialogue.update(dt);
+    G.story.updateInside(dt);
     G.popups.update(dt);
     G.slash.update(dt);
     G.guns.tick(dt);
@@ -65,6 +70,7 @@ export class Insides {
       if (Math.hypot(pl.x - room.exit.x, pl.z - room.exit.z) < 2.4) this.leave();
       else if (room.id === 'bank' && G.shops.vaultNear(room)) G.shops.startHeist();
       else if (room.id === 'home' && G.shops.wardrobeNear(room)) G.hideouts.wardrobe();
+      else if (G.story.inspectNear(room)) G.story.inspect(room);
       else if (G.shops.deskNear(room)) G.shops.deskAction(room);
       else if (Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4) G.shops.action(room);
     }
@@ -72,7 +78,7 @@ export class Insides {
     if (playing && room.id === 'arcade' && input.wasPressed('KeyH')) G.shops.startBowling();
     G.shops.updateBowling(dt, room);
     G.input.gunOut = false; G.cameraRig.aimMode = 0; G.guns.aimPoint = null; G.hud.setCrosshair(false); G.hud.setLockOn(false); G.hud.setGunOut(false);
-    G.hud.setPrompt(G.state === 'play' ? G.shops.prompt(room) : null);
+    G.hud.setPrompt(G.state === 'play' ? G.story.inspectPrompt(room) ?? G.shops.prompt(room) : null);
     document.body.classList.toggle('can-rob', G.shops.canRob(room) && Math.hypot(pl.x - room.counter.x, pl.z - room.counter.z) < 3.4);
     G.progress.tick(dt);
     G.updateLights();

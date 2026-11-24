@@ -75,7 +75,8 @@ export class Guns {
 
   constructor(private game: Game, owned: GunId[], reserve: Partial<Record<GunId, number>>, upgrades: Partial<Record<GunId, [number, number]>> = {}) {
     for (const k of GUN_ORDER) { const u = upgrades[k]; if (u) this.up[k] = [Math.max(0, Math.min(3, u[0] | 0)), Math.max(0, Math.min(3, u[1] | 0))]; }
-    this.owned = Array.from(new Set<GunId>(['pistol', ...owned])).filter((g) => GUN_ORDER.includes(g));
+    // (in the story you buy the pistol like everything else; in the other modes you always have it)
+    this.owned = Array.from(new Set<GunId>(game.mode === 'story' || game.mode === 'kids' ? owned : ['pistol', ...owned])).filter((g) => GUN_ORDER.includes(g));
     this.reserve = { pistol: 0, smg: 0, shotgun: 0, rocket: 0, paint: 0, grenade: 0, ...reserve };
     this.mag = { pistol: GUNS.pistol.mag, smg: GUNS.smg.mag, shotgun: GUNS.shotgun.mag, rocket: GUNS.rocket.mag, paint: GUNS.paint.mag, grenade: GUNS.grenade.mag };
     const tm = new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.9, fog: false });
@@ -588,7 +589,7 @@ export class Guns {
   private curX = 0;
   private curZ = 0;
 
-  private explode(x: number, z: number, R = 8, power = 1): void {
+  explode(x: number, z: number, R = 8, power = 1): void {
     const G = this.game;
     G.vfx.explosion(x, z);
     G.bus.emit({ type: 'explosion', x, z, byPlayer: true });

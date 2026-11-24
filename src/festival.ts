@@ -60,8 +60,9 @@ export class Festival {
       this.stayed += dt;
       if (this.stayed > 12) {
         this.paid = true;
-        G.addCash(400, 'other');
-        G.popups.spawn(px, 3, pz, bi('+$400 tips from the crowd', '+$400 관중 팁'), '#ff5db1');
+        const tip = G.scaled(400, 0.5);
+        G.addCash(tip, 'other');
+        G.popups.spawn(px, 3, pz, bi(`+$${tip} tips from the crowd`, `+$${tip} 관중 팁`), '#ff5db1');
       }
     }
     if (this.left <= 0) { this.beacon.visible = false; G.hud.toast(bi('The street party is over.', '거리 축제가 끝났어요.'), 2200); }

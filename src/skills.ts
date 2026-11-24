@@ -25,7 +25,7 @@ export class Skills {
 
   constructor(private game: Game) {
     const bus = game.bus;
-    bus.on('gunshot', () => this.add('shooting', 1));
+    bus.on('gunshot', (e) => { if (!e.ambient) this.add('shooting', 1); });
     bus.on('wantedLost', () => this.add('stealth', 14));
     bus.on('turfCaptured', () => { this.add('fighting', 40); this.add('charm', 10); });
     bus.on('helped', () => this.add('charm', 3));

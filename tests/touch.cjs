@@ -43,6 +43,19 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       ok(bad.has.length === 3, `reload, aim and auto buttons show with a gun out at ${name}`, bad.has.join(','));
       ok(bad.out.length === 0, `no overlaps at ${name}`, bad.out.join(', '));
       ok(bad.off.length === 0, `nothing off screen at ${name}`, bad.off.join(', '));
+      // a face-to-face conversation with two choices: the touch buttons step aside and the panel fits the screen
+      const dlg = await p.evaluate(() => {
+        const G = g(); G.state = 'play'; G.stars = 0;
+        G.dialogue.start({ a: { id: 'a', who: ['Mr. Park', '미스터 박'], text: ["I've only got $20 right now. Give me an hour, I'll earn the rest. A longer line to check the wrapping.", '지금 20달러밖에 없어요.'], choices: [{ label: ["I've only got $20 right now. Give me an hour, I'll earn the rest.", 'a'], next: 'b' }, { label: ['$40 for a roadside motel? That is highway robbery.', 'b'], next: 'b' }] }, b: { id: 'b', who: ['x', 'x'], text: ['y', 'y'] } }, 'a', null);
+        const d = document.getElementById('dialog').getBoundingClientRect();
+        const btns = [...document.querySelectorAll('#dlg-choices .dlg-choice')].map((e) => e.getBoundingClientRect());
+        const touchHidden = getComputedStyle(document.getElementById('touch')).visibility === 'hidden';
+        const inside = d.left >= 0 && d.top >= 0 && d.right <= innerWidth + 1 && d.bottom <= innerHeight + 1;
+        const out = { n: btns.length, touchHidden, inside, tall: d.height / innerHeight, btnsInside: btns.every((r) => r.top >= d.top - 1 && r.bottom <= d.bottom + 1) };
+        G.dialogue.choose(0); G.dialogue.advance();
+        return out;
+      });
+      ok(dlg.n === 2 && dlg.touchHidden && dlg.inside && dlg.btnsInside && dlg.tall < 0.8, `a conversation with choices fits and hides the touch buttons at ${name}`, JSON.stringify(dlg));
       await ctx.close();
     }
   } finally {

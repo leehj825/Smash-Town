@@ -14,7 +14,7 @@ export type GameEvent =
   /** The player's car ran a civilian over. */
   | { type: 'civRunOver'; x: number; z: number; killed: boolean }
   /** A gun went off. */
-  | { type: 'gunshot'; x: number; z: number }
+  | { type: 'gunshot'; x: number; z: number; /** Not the player's: other people's shooting (crossfire). */ ambient?: boolean }
   /** The wanted level went up to `stars`. */
   | { type: 'wantedRaised'; stars: number }
   /** The police lost you. */
@@ -33,6 +33,14 @@ export type GameEvent =
   | { type: 'helped'; x: number; z: number; amount: number }
   /** Something caught fire in the street. */
   | { type: 'fire'; x: number; z: number }
+  /** The armoured cash truck was wrecked and robbed. */
+  | { type: 'truckRobbed'; x: number; z: number }
+  /** A witness was talked out of calling the police. */
+  | { type: 'witnessSilenced'; x: number; z: number }
+  /** The police and a gang started shooting at each other. */
+  | { type: 'crossfire'; x: number; z: number }
+  /** Unrest broke out. */
+  | { type: 'riot'; x: number; z: number }
   /** A thief grabbed somebody's bag and is running. */
   | { type: 'theft'; x: number; z: number }
   | { type: 'hunterSpawned' }

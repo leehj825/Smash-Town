@@ -13,15 +13,19 @@ export interface GarageModel {
   cash: number;
   repairCost: number;
   respray: { cost: number; state: 'none' | 'ok' | 'police' };
+  /** Fit new plates to the car on the stand (a stolen car becomes yours: it stays where you park it). */
+  register: { cost: number; can: boolean };
   unlocked: Set<VehicleKind>;
   selected: VehicleKind;
   car: CarProgress;
   body: BodyProgress;
-  arms: { owned: GunId[]; reserve: Record<GunId, number>; up: Record<GunId, [number, number]> };
+  arms: { owned: GunId[]; reserve: Record<GunId, number>; up: Record<GunId, [number, number]>; stage: number; gate: Record<GunId, number> };
+  gear: { id: string; en: string; ko: string; icon: string; price: number; have: number; max: number; need: number; open: boolean }[];
 }
 export interface GarageHandlers {
   onRepair: () => void;
   onRespray: () => void;
+  onRegister: () => void;
   onBuy: (k: VehicleKind) => void;
   onSelect: (k: VehicleKind) => void;
   onUpgrade: (i: number) => void;
@@ -30,6 +34,7 @@ export interface GarageHandlers {
   onBody: (i: number) => void;
   onBuyGun: (g: GunId) => void;
   onBuyAmmo: (g: GunId) => void;
+  onBuyGear: (id: string) => void;
   onGunUp: (g: GunId, which: 0 | 1) => void;
   onClose: () => void;
 }
@@ -67,6 +72,7 @@ export class Hud {
   private pHealth = $('phealth-fill');
   private pArmor = $('parmor-fill');
   private wantedBanner = $('wanted-banner');
+  private wantedRadio = $('wanted-radio');
   private slots = Array.from(document.querySelectorAll<HTMLElement>('#weapon-slots .slot'));
   private lastFoot: boolean | null = null;
   private dialogEl = $('dialog');
@@ -77,6 +83,10 @@ export class Hud {
   private storyTitle = $('story-title');
   private storyText = $('story-text');
   private storyNav = $('story-nav');
+  private storyList = $('story-list');
+  private storyListKey = '';
+  /** True while the player has the objective pill expanded to show today's steps. */
+  storyOpen = false;
   private navArrow = $('nav-arrow');
   private navDist = $('nav-dist');
   private route: { x: number; z: number }[] | null = null;
@@ -88,12 +98,14 @@ export class Hud {
   constructor(private world: World) {
     this.setWanted(0);
     this.setCombo(0, 1);
+    this.storyPill.addEventListener('click', () => { this.storyOpen = !this.storyOpen; });
   }
 
   setWanted(n: number): void {
     if (n === this.lastStars) return;
     this.lastStars = n;
     this.stars.forEach((s, i) => s.classList.toggle('on', i < n));
+    for (let k = 0; k <= 5; k++) document.body.classList.toggle('heat-' + k, k === n);
   }
 
   setCash(v: number): void {
@@ -132,6 +144,24 @@ export class Hud {
     if (info) { this.storyTitle.textContent = info.title; this.storyText.textContent = info.text; }
   }
 
+  /** Expand the pill into the step list (tap the pill). Keeps its text in step with the story; collapsed it costs nothing. */
+  setStoryList(steps: { text: string; state: 'done' | 'now' | 'todo' }[] | null): void {
+    const show = this.storyOpen && !!steps && steps.length > 0 && !this.storyPill.hidden;
+    this.storyPill.classList.toggle('open', show);
+    this.storyList.hidden = !show;
+    if (!show) { this.storyListKey = ''; return; }
+    const key = steps!.map((x) => x.state + x.text).join('|');
+    if (key === this.storyListKey) return;
+    this.storyListKey = key;
+    this.storyList.innerHTML = '';
+    for (const x of steps!) {
+      const d = document.createElement('div');
+      d.className = x.state;
+      d.textContent = (x.state === 'done' ? '\u2713 ' : x.state === 'now' ? '\u25B6 ' : '\u25CB ') + x.text;
+      this.storyList.appendChild(d);
+    }
+  }
+
   /** Guide arrow in the story pill: `angle` is clockwise from straight ahead (radians); null hides it. */
   setNav(angle: number | null, text: string): void {
     this.storyNav.hidden = angle === null && !text;
@@ -159,12 +189,30 @@ export class Hud {
     this.starCount.textContent = `\u2605 ${n}/${total}`;
   }
 
-  showDialog(who: string, text: string, hint: string): void {
+  /** Called with 0 or 1 when the player picks one of the choices under a line. */
+  onDialogChoice: ((i: number) => void) | null = null;
+  private dlgChoices: HTMLElement | null = null;
+
+  showDialog(who: string, text: string, hint: string, choices?: string[]): void {
     this.dialogEl.hidden = false;
     document.body.classList.add('dialog-open');
     this.dlgWho.textContent = who;
     this.dlgText.textContent = text;
     this.dlgHint.textContent = hint;
+    if (!this.dlgChoices) {
+      this.dlgChoices = document.createElement('div');
+      this.dlgChoices.id = 'dlg-choices';
+      this.dialogEl.insertBefore(this.dlgChoices, this.dlgHint);
+    }
+    const box = this.dlgChoices;
+    box.innerHTML = '';
+    (choices ?? []).forEach((label, i) => {
+      const b = document.createElement('button');
+      b.className = 'dlg-choice';
+      b.textContent = `${i + 1}  ${label}`;
+      b.addEventListener('click', (e) => { e.stopPropagation(); this.onDialogChoice?.(i); });
+      box.appendChild(b);
+    });
   }
 
   hideDialog(): void {
@@ -263,6 +311,12 @@ export class Hud {
 
   setWantedBanner(on: boolean): void {
     this.wantedBanner.hidden = !on;
+  }
+
+  /** The police-radio line under the wanted banner (shares its slot); empty hides it. */
+  setRadio(text: string): void {
+    this.wantedRadio.hidden = !text;
+    if (this.wantedRadio.textContent !== text) this.wantedRadio.textContent = text;
   }
 
   update(f: Followable, hp: number, nitro: number, nitroActive: boolean, blips: Blip[], dt: number): void {
@@ -433,7 +487,7 @@ export class Hud {
         const g = GUNS[id];
         const has = m.arms.owned.includes(id);
         const res = g.infinite ? '\u221E' : String(m.arms.reserve[id]);
-        const buyBtn = has ? `<button class="seg" disabled>${bi('Owned', '보유')}</button>` : `<button class="seg gbuy" data-g="${id}">${money(g.price)}</button>`;
+        const buyBtn = has ? `<button class="seg" disabled>${bi('Owned', '보유')}</button>` : `<button class="seg gbuy" data-g="${id}">${m.arms.gate[id] > m.arms.stage ? `\u{1F512} ${bi('Stage', '단계')} ${m.arms.gate[id]}` : money(g.price)}</button>`;
         const tier = GUN_UP_TIER[id];
         const upBtn = (which: 0 | 1, label: string) => {
           const lv = m.arms.up[id][which];
@@ -444,7 +498,7 @@ export class Hud {
         const ups = upBtn(0, bi('Damage', '피해')) + upBtn(1, bi('Magazine', '탄창'));
         const ammoBtn = has && !g.infinite ? `<button class="seg gammo" data-g="${id}">+${g.pack} ${bi('ammo', '탄약')} ${money(g.packPrice)}</button>` : '';
         return `<div class="urow"><div><b>${g.icon} ${bi(g.en, g.ko)}</b> <span class="lv">${has ? `${bi('ammo', '탄약')} ${res}` : ''}</span><small>${bi('Magazine', '탄창')} ${g.mag} \u00B7 ${g.dmg ? bi('damage', '피해') + ' ' + g.dmg + (g.pellets > 1 ? 'x' + g.pellets : '') : bi('harmless fun', '무해한 장난감')}</small></div><div class="gbtns">${buyBtn}${ammoBtn}${ups}</div></div>`;
-      }).join('') + '</div>';
+      }).join('') + `<h3>${bi('Gear (Z use tool, G wheel, U donut, I armour)', '장비 (Z 도구 사용, G 휠, U 도넛, I 방탄복)')}</h3>` + m.gear.map((d) => `<div class="urow"><div><b>${d.icon} ${bi(d.en, d.ko)}</b> <span class="lv">${d.have}/${d.max}</span></div><button class="seg ggear" data-id="${d.id}" ${d.have >= d.max ? 'disabled' : ''}>${d.have >= d.max ? bi('Full', '가득') : !d.open ? `\u{1F512} ${bi('Stage', '단계')} ${d.need}` : money(d.price)}</button></div>`).join('') + '</div>';
     } else {
       body = '<div class="ulist">' + BODY_KEYS.map((k, i) => {
         const lv = m.body[k];
@@ -462,6 +516,7 @@ export class Hud {
       ${this.garageOnly ? '' : `<div class="gactions">
         <button class="big small" id="g-repair">${t('ui.garage.repair')} - ${money(m.repairCost)}</button>
         <button class="big small warnbtn" id="g-respray" ${rs.state === 'none' ? 'disabled' : ''}>${resprayLabel}</button>
+        ${m.register.can ? `<button class="big small" id="g-register">${bi('New plates: make it yours', '번호판 교체: 내 차로 등록')} - ${money(m.register.cost)}</button>` : ''}
       </div>`}
       <div class="gtabs">${tabs.map(([id, label]) => `<button class="seg gtab ${this.garageTab === id ? 'sel' : ''}" data-tab="${id}">${label}</button>`).join('')}</div>
       <div class="gbody">${body}</div>
@@ -470,6 +525,7 @@ export class Hud {
     const q = (sel: string) => this.garageEl.querySelectorAll<HTMLElement>(sel);
     this.garageEl.querySelector('#g-repair')?.addEventListener('click', () => h.onRepair());
     this.garageEl.querySelector('#g-respray')?.addEventListener('click', () => h.onRespray());
+    this.garageEl.querySelector('#g-register')?.addEventListener('click', () => h.onRegister());
     this.garageEl.querySelector('#g-close')!.addEventListener('click', () => h.onClose());
     q('.gtab').forEach((b) => b.addEventListener('click', () => { this.garageTab = b.dataset.tab as GarageTab; this.renderGarage(); }));
     q('.vbtn').forEach((b) => b.addEventListener('click', () => {
@@ -480,6 +536,7 @@ export class Hud {
     q('button.gbuy').forEach((b) => b.addEventListener('click', () => h.onBuyGun(b.dataset.g as GunId)));
     q('button.gup').forEach((b) => b.addEventListener('click', () => h.onGunUp(b.dataset.g as GunId, Number(b.dataset.w) as 0 | 1)));
     q('button.gammo').forEach((b) => b.addEventListener('click', () => h.onBuyAmmo(b.dataset.g as GunId)));
+    q('button.ggear').forEach((b) => b.addEventListener('click', () => h.onBuyGear(b.dataset.id!)));
     q('button.bup').forEach((b) => b.addEventListener('click', () => h.onBody(Number(b.dataset.i))));
     q('.swatch.paint').forEach((b) => b.addEventListener('click', () => h.onPaint(Number(b.dataset.c))));
     q('.swatch.neon').forEach((b) => b.addEventListener('click', () => h.onNeon(Number(b.dataset.c))));

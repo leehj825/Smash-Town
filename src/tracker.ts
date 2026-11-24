@@ -10,7 +10,7 @@ export class Progress {
   owned: OwnableShop[] = [];
   pending: Record<OwnableShop, number> = { donut: 0, motel: 0, arcade: 0 };
 
-  constructor(saved: ProgressSave | undefined, private notify: (msg: string) => void, private reward: (n: number) => void, private dirty: () => void) {
+  constructor(saved: ProgressSave | undefined, private notify: (msg: string) => void, private reward: (n: number) => number, private dirty: () => void, private hold: () => boolean = () => false) {
     for (const k of Object.keys(this.stats) as StatKey[]) { const v = Number(saved?.stats?.[k]); if (Number.isFinite(v) && v > 0) this.stats[k] = v; }
     this.ach = (saved?.ach ?? []).filter((id) => ACHIEVEMENTS.some((a) => a.id === id));
     this.owned = (saved?.owned ?? []).filter((id): id is OwnableShop => id in OWNABLE);
@@ -33,11 +33,12 @@ export class Progress {
   }
 
   private check(): void {
+    if (this.hold()) return; // (the story's opening: no achievement or daily-challenge money yet)
     for (const a of ACHIEVEMENTS) {
       if (!this.ach.includes(a.id) && this.stats[a.key] >= a.target) {
         this.ach.push(a.id);
-        this.reward(500);
-        this.notify(`★ ${a.en} | ${a.ko} +$500`);
+        const paid = this.reward(500);
+        this.notify(`★ ${a.en} | ${a.ko} +$${paid.toLocaleString('en-US')}`);
         this.dirty();
       }
     }
@@ -46,8 +47,8 @@ export class Progress {
       if (!q || this.daily.done.includes(id)) continue;
       if (this.stats[q.key] - this.daily.base[q.key] >= q.target) {
         this.daily.done.push(id);
-        this.reward(q.reward);
-        this.notify(`✓ ${q.en} | ${q.ko} +$${q.reward.toLocaleString('en-US')}`);
+        const paid = this.reward(q.reward);
+        this.notify(`✓ ${q.en} | ${q.ko} +$${paid.toLocaleString('en-US')}`);
         this.dirty();
       }
     }

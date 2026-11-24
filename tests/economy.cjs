@@ -27,8 +27,8 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     ok((await S(() => g().cashAmount)) === 2000, 'fresh game starts with $2,000');
 
     // income: smashing a prop pays and is tallied
-    const paid = await S(() => { const G = g(); const c = G.world.circles.find((q) => q.smash && !q.dead); const before = G.cashAmount; G.smashProp(c, 0, 0, 20, true); return { gain: G.cashAmount - before, props: G.earned.props }; });
-    ok(paid.gain > 0 && paid.props === paid.gain, 'smashing pays and is tallied', JSON.stringify(paid));
+    const paid = await S(() => { const G = g(); const c = G.world.circles.find((q) => q.smash && !q.dead); const before = G.cashAmount; G.smashProp(c, 0, 0, 20, true); return { gain: G.cashAmount - before, props: G.earned.props, n: G.progress.stats.smashes }; });
+    ok(paid.gain === 0 && paid.props === 0 && paid.n >= 1, 'smashing props earns no money, but is counted', JSON.stringify(paid));
     await S(() => g().addCash(100000, 'other'));
 
     // garage: tune-up

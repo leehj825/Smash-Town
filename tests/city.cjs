@@ -64,7 +64,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       for (let i = 0; i < 10; i++) G.update(0.05);
       return { spawned, gained: G.cash - cash0, cleared: !G.hunter };
     });
-    ok(hunt.spawned && hunt.gained >= 1500 && hunt.cleared, 'a bounty hunter joins a four-star chase and pays a bounty when wrecked', JSON.stringify(hunt));
+    ok(hunt.spawned && hunt.gained >= 400 && hunt.gained < 1500 && hunt.cleared, 'a bounty hunter joins a four-star chase and pays a bounty when wrecked', JSON.stringify(hunt));
     const race = await S(() => {
       const G = g(); const R = G.race;
       G.stars = 0; G.heat = 0; G.humans.setPlayerActive(false, 0, 0, 0);
@@ -90,12 +90,17 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       const stars = G.stars;
       const cash0 = G.cash;
       for (let i = 0; i < 400 && G.shops.heist; i++) G.shops.updateHeist(0.05, r);
+      const hot = G.truckHeist.hot; const escaping = G.truckHeist.phase === 'escape'; const cashHeld = G.cash === cash0;
+      G.inside = null;
+      G.stars = 0; G.truckHeist.update(0.1);
       const loot = G.cash - cash0;
       G.shops.startHeist(); // the vault is empty for a while
-      G.inside = null;
-      return { near, stars, loot, again: !!G.shops.heist };
+      const again = !!G.shops.heist;
+      // with C4 in the bag the door goes in half the time
+      G.shops.heistCooldown = 0; G.save.gear = { c4: 1 }; G.inside = r; G.shops.startHeist(); const quick = !!G.shops.heist && G.shops.heist.t === 8 && G.gear.count('c4') === 0; G.shops.heist = null; G.inside = null; G.save.gear = {}; G.stars = 0; G.heat = 0; G.hud.showGig(false);
+      return { near, stars, loot, hot, escaping, cashHeld, quick, again };
     });
-    ok(heist.near && heist.stars >= 3 && heist.loot >= 3500 && !heist.again, 'cracking the bank vault sets off the alarm, pays out, then the vault stays empty', JSON.stringify(heist));
+    ok(heist.near && heist.stars >= 3 && heist.hot >= 3500 && heist.escaping && heist.cashHeld && heist.loot >= 3500 && heist.quick && !heist.again, 'the bank vault: alarm, hot cash you must get away with before it pays out, C4 halves the time, then the vault stays empty', JSON.stringify(heist));
     const homeBuy = await S(() => {
       const G = g(); const h = G.world.homes[0];
       G.stars = 0; G.cash = 30000; G.save.homes = []; G.inside = null; G.driving = null; G.onFoot = true; G.state = 'play';
@@ -270,6 +275,379 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
     await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
     const mArr = await S(() => { const G = g(); const s2 = G.transit.stations[2]; const p = G.humans.player; return { d: Math.round(Math.hypot(p.x - s2.sx, p.z - s2.sz)) }; });
     ok(metro.n === 6 && metro.at === 1000 && metro.prompt && metro.ok && metro.cash === 88 && mArr.d < 3, 'the metro express rides two stations ahead for $12', JSON.stringify({ metro, mArr }));
+    const clk = await S(() => {
+      const G = g(); const C = G.clock;
+      const key = Object.keys(localStorage).find((k) => k.startsWith('smashtown.save')) || 'smashtown.save.v1';
+      const keep = localStorage.getItem(key);
+      localStorage.setItem(key, JSON.stringify({ cash: 777, unlocked: ['sports', 'sedan'], selected: 'sports' }));
+      const old = G.loadSave();
+      if (keep === null) localStorage.removeItem(key); else localStorage.setItem(key, keep);
+      const wasAuto = C.auto; C.auto = true;
+      C.hour = 16.9; G.env.setTime('noon', true); C.lastBand = null;
+      G.humans.pace = 1;
+      for (let i = 0; i < 20; i++) C.update(1);      // a game hour is 60 real seconds
+      const rush = C.rush; const paced = G.humans.pace > 1;
+      C.hour = 23; C.lastBand = null; C.update(0.1);
+      const night = C.phase === 'night' && C.band === 'night' && G.env.timeOfDay === 'night' && G.humans.pace < 1;
+      C.hour = 12; C.lastBand = null; C.update(0.1);
+      const noon = G.env.timeOfDay === 'noon';
+      C.setBand('sunset');
+      const sunset = Math.abs(C.hour - 18.5) < 0.01;
+      C.auto = wasAuto; G.env.setTime('noon', true); C.hour = 12;
+      return { oldCash: old.cash, oldV: old.v, rush, paced, night, noon, sunset, text: C.text() };
+    });
+    ok(clk.oldCash === 777 && clk.oldV === 2 && clk.rush && clk.paced && clk.night && clk.noon && clk.sunset, 'an old save loads into the current version, and the game clock drives the sky and the crowd', JSON.stringify(clk));
+    const comp = await S(() => {
+      const G = g(); const C = G.completion;
+      G.inside = null; G.state = 'play'; G.save.milestone = 0; G.cash = 0; G.skills.off = true;
+      const before = C.percent();
+      for (const z of G.gangs.zones) z.owner = 'player';
+      const after = C.percent();
+      G.save.milestone = 0; C.t = 0; C.update(0.1);
+      const paid = G.cash; const ms = G.save.milestone;
+      C.t = 0; C.update(0.1); const again = G.cash - paid;
+      for (const z of G.gangs.zones) z.owner = 'gang';
+      G.skills.off = false;
+      return { before, after, paid, ms, again, goals: C.goals().length, html: (() => { G.stats && 0; return true; })() };
+    });
+    ok(comp.after >= comp.before + 20 && comp.goals >= 8 && comp.paid >= 1000 && comp.ms >= 25 && comp.again === 0, 'city completion counts what you did, and pays each milestone once', JSON.stringify(comp));
+    const riot = await S(() => {
+      const G = g(); const R = G.riots; const P = G.patrol;
+      G.stars = 0; G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.save.rep = {}; G.fires.list.length = 0;
+      for (const j of [G.paramedic, G.firefighter, G.patrol]) if (j.onDuty) j.end('x', 0);
+      // unattended: fires start and it burns out
+      R.current = null; R.start(G.focusX + 100, G.focusZ);
+      const heard = G.bus.recent.some((e) => e.type === 'riot');
+      for (let i = 0; i < 105; i++) R.update(1);
+      const fires = G.fires.list.length; const ended = !R.current; const mafiaUp = G.factions.get('mafia') > 0;
+      // a patrol calms it
+      G.fires.list.length = 0;
+      P.update(0.05); P.cooldown = 0;
+      const sp = P.spot; G.humans.setPlayerActive(true, sp.x, sp.z, 0); P.update(0.05);
+      R.start(G.driving.x + 60, G.driving.z);
+      const called = P.calls.some((c) => c.why.length > 0 && Math.hypot(c.x - R.current.x, c.z - R.current.z) < 5);
+      const c = P.calls.find((q) => Math.hypot(q.x - R.current.x, q.z - R.current.z) < 5) || P.calls[0];
+      for (let i = 0; i < 12 && R.current; i++) { G.driving.ctrl.position.x = c.x; G.driving.ctrl.position.z = c.z; G.driving.ctrl.vx = G.driving.ctrl.vz = 0; P.update(0.5); }
+      const quelled = !R.current;
+      P.end('x', 0);
+      const watch = G.factions.get('watch');
+      G.progress.stats.patrols = 0; G.news.cooldown = 0; G.fires.list.length = 0; G.save.rep = {};
+      return { heard, fires, ended, mafiaUp, called, quelled, watch };
+    });
+    ok(riot.heard && riot.fires >= 3 && riot.ended && riot.mafiaUp && riot.called && riot.quelled && riot.watch > 0, 'a riot starts fires if ignored, becomes a patrol call, and is calmed by an officer', JSON.stringify(riot));
+    const xf = await S(() => {
+      const G = g(); const GA = G.gangs; const H = G.humans; const X = G.crossfire; const z = GA.zones[0];
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true;
+      for (const m of H.gangMembers()) H.removeGang(m);
+      for (const zz of GA.zones) zz.members = [];
+      z.owner = 'gang'; G.save.turf = []; G.fires.list.length = 0; G.fires.igniteChance = 1;
+      H.setPlayerActive(true, z.x + 55, z.z, 0); GA.update(0.1);
+      const crew = z.members.length;
+      G.stars = 3; G.heat = 90; const heat0 = G.heat;
+      X.copsNear = () => 1;
+      const n = { shots: 0, boom: 0, cross: 0 };
+      const off = [G.bus.on('gunshot', (e) => { if (e.ambient) n.shots++; }), G.bus.on('explosion', () => n.boom++), G.bus.on('crossfire', () => n.cross++)];
+      for (let i = 0; i < 70; i++) { H.player.x = z.x + 55; H.player.z = z.z; X.update(0.5); }
+      off.forEach((f) => f());
+      const out = { crew, ...n, fires: G.fires.list.length, cooled: G.heat < heat0, active: X.active() !== null || true };
+      G.fires.igniteChance = 0.7; G.fires.list.length = 0; G.stars = 0; G.heat = 0; G.skills.off = false;
+      for (const m of H.gangMembers()) H.removeGang(m);
+      for (const zz of GA.zones) zz.members = [];
+      G.news.cooldown = 0;
+      return out;
+    });
+    ok(xf.crew === 5 && xf.cross === 1 && xf.shots >= 10 && xf.boom >= 1 && xf.fires >= 1 && xf.cooled, 'lead the police into a gang block: they shoot each other, your heat drops, a blast starts a fire', JSON.stringify(xf));
+    const wit = await S(() => {
+      const G = g(); const W = G.witnesses; const H = G.humans;
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.cash = 100; G.skills.off = true; G.save.rep = {};
+      H.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0);
+      const civs = H.list.filter((h) => h.active && h.role === 0 && !h.named && !h.ally);
+      const out = { civs: civs.length };
+      const place = (h) => { h.x = H.player.x + 2; h.z = H.player.z; h.calling = 5; h.state = 0; };
+      const real = G.guns.current;
+      G.guns.current = () => null;
+      const a = civs[0]; place(a);
+      const sees = W.near() === a; const askBribe = /40/.test(W.prompt());
+      W.act(a);
+      out.bribe = { sees, askBribe, quiet: a.calling === 0, fled: a.fleeing, cash: G.cash };
+      G.guns.current = () => ({ id: 'pistol' });
+      const b = civs[1]; place(b);
+      const area = G.reputation.area(b.x, b.z);
+      const askScare = /Scare|겁/.test(W.prompt());
+      const repBefore = G.reputation.get(area);
+      W.act(b);
+      out.scare = { askScare, quiet: b.calling === 0, cash: G.cash, rep: G.reputation.get(area) - repBefore };
+      G.guns.current = real; G.skills.off = false; G.save.rep = {};
+      return out;
+    });
+    ok(wit.bribe.sees && wit.bribe.askBribe && wit.bribe.quiet && wit.bribe.fled && wit.bribe.cash === 60 && wit.scare.askScare && wit.scare.quiet && wit.scare.cash === 60 && wit.scare.rep === -1, 'a witness on the phone can be bribed for $40 or scared off with a gun, and the call never goes out', JSON.stringify(wit));
+    const tk = await S(() => {
+      const G = g(); const T = G.truckHeist; const H = G.humans;
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true; G.stars = 0; G.heat = 0; G.cash = 2000;
+      for (const j of [G.paramedic, G.firefighter, G.patrol]) if (j.onDuty) j.end('x', 0);
+      H.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0);
+      const started = T.start(); const afterPay = G.cash;
+      const truck = T.truck; const marked = T.markers().length === 1;
+      truck.ctrl.hp = 0; truck.ctrl.wrecked = true;
+      T.update(0.1);
+      const spilled = T.phase === 'loot' && T.bags.length === 8 && G.stars >= 3;
+      for (const b of T.bags) { H.player.x = b.x; H.player.z = b.z; T.update(0.1); }
+      const hot = T.hot; const escaping = T.phase === 'escape';
+      const cashBefore = G.cash;
+      G.stars = 0; T.update(0.1);
+      const paid = G.cash - cashBefore;
+      const ok1 = { started, afterPay, marked, spilled, hot, escaping, paid, back: T.phase === 'idle', stat: G.progress.stats.heists };
+      // a second job fails when you are busted: the hot cash is lost
+      T.cooldown = 0; T.start(true);
+      const t2 = T.truck; t2.ctrl.hp = 0; t2.ctrl.wrecked = true; T.update(0.1);
+      for (const b of T.bags) { H.player.x = b.x; H.player.z = b.z; T.update(0.1); }
+      const cash2 = G.cash; G.state = 'busted'; T.update(0.1); G.state = 'play';
+      const lost = T.phase === 'idle' && G.cash === cash2;
+      G.stars = 0; G.heat = 0; G.skills.off = false; G.news.cooldown = 0;
+      return { ...ok1, lost };
+    });
+    ok(tk.started && tk.afterPay === 1500 && tk.marked && tk.spilled && tk.hot >= 2000 && tk.escaping && tk.paid === tk.hot + 500 && tk.back && tk.lost, 'the cash truck job: plan, wreck it, grab the bags, lose the police to keep the money; busted loses it', JSON.stringify(tk));
+    const gear = await S(() => {
+      const G = g(); const GR = G.gear; const H = G.humans;
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true; G.cash = 5000; G.save.gear = {};
+      H.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0);
+      for (const id of ['smoke', 'smoke', 'c4', 'spikes', 'donut', 'vest']) GR.buy(id);
+      const bought = { smoke: GR.count('smoke'), c4: GR.count('c4'), cash: G.cash };
+      // smoke hides you: heat falls inside the cloud
+      GR.sel = 'smoke'; GR.useTool(); G.stars = 3; G.heat = 150; const h0 = G.heat;
+      const c = GR.clouds[0]; H.player.x = c.x; H.player.z = c.z;
+      for (let i = 0; i < 10; i++) GR.update(0.1);
+      const smoke = { left: GR.count('smoke'), cooled: G.heat < h0 };
+      G.stars = 0; G.heat = 0;
+      // a police car crossing a spike strip loses a tyre
+      GR.sel = 'spikes'; GR.useTool();
+      const st = GR.strips[0];
+      const car = G.spawnVehicle('police', 0x1a1a24, st.x, st.z, 0, 'parked'); car.ai = 'police';
+      GR.update(0.05);
+      const spikes = { flat: car.flat, gone: GR.strips.length === 0 };
+      G.removeVehicle(car);
+      // C4: plant, then detonate with the same key
+      GR.sel = 'c4'; let boom = 0; const off = G.bus.on('explosion', () => boom++);
+      GR.useTool(); const planted = GR.charges.length === 1; GR.useTool();
+      off();
+      const c4 = { planted, boom, left: GR.count('c4'), cleared: GR.charges.length === 0 };
+      // quick items
+      H.player.hp = 10; const donut = GR.quick('donut') && H.player.hp > 50;
+      H.armor = 0; const vest = GR.quick('vest') && H.armor === 50;
+      // the wheel slows time and closes again
+      GR.openWheel(); const slow = G.timeScale < 0.5 && GR.wheelOpen; const items = document.querySelectorAll('#wheel .wheel-item').length;
+      GR.closeWheel(); const back = G.timeScale === 1 && !GR.wheelOpen;
+      G.skills.off = false; G.save.gear = {}; G.fires.list.length = 0; G.news.cooldown = 0; G.stars = 0; G.heat = 0;
+      return { bought, smoke, spikes, c4, donut, vest, slow, items, back };
+    });
+    ok(gear.bought.smoke === 2 && gear.bought.cash === 5000 - 150 * 2 - 300 - 250 - 40 - 200 && gear.smoke.left === 1 && gear.smoke.cooled && gear.spikes.flat && gear.spikes.gone && gear.c4.planted && gear.c4.boom >= 1 && gear.c4.cleared && gear.donut && gear.vest && gear.slow && gear.items >= 4 && gear.back, 'gear: buy, smoke hides you, spikes flatten a police tyre, C4 blows on demand, donut and armour work, the wheel slows time', JSON.stringify(gear));
+    const esc = await S(() => {
+      const G = g(); const E = G.escapes; const H = G.humans; const out = {};
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true; G.stars = 0; G.heat = 0;
+      E.update(0.3);
+      // ramps stand on the wide roads and launch a car
+      out.ramps = E.ramps.length;
+      const r = E.ramps[0].ramp;
+      const car = G.spawnVehicle('sports', 0xff0000, r.x - r.dx * 14, r.z - r.dz * 14, Math.atan2(r.dx, r.dz), 'parked');
+      G.boardVehicle(car); car.ctrl.useRamps = true;
+      const c = car.ctrl; const seq0 = c.jumpSeq; let air = false;
+      for (let i = 0; i < 140; i++) { car.control.throttle = 1; car.control.handbrake = false; car.control.nitro = false; car.control.steer = 0; c.update(0.05, car.control, null); if (c.airborne) air = true; }
+      out.jump = air;
+      G.onFoot = true; G.driving = null; G.removeVehicle(car);
+      // vaulting a bench
+      const circ = G.world.circles.find((q) => q.smash && ['bench', 'trash', 'hydrant', 'newsstand'].includes(q.smash.type) && !q.dead);
+      const pl = H.player; H.setPlayerActive(true, circ.x - 0.7, circ.z, 0);
+      pl.speed = 6.5; pl.grounded = true; pl.y = 0; const v0 = pl.vaults;
+      H.resolveStatics(pl, 0.4);
+      out.vault = { n: pl.vaults - v0, up: pl.vy > 3 };
+      pl.vy = 0; pl.grounded = true; pl.y = 0;
+      // a park and a bike: the cruisers turn back
+      const park = G.world.lots.find((q) => q.district === 'park' || q.district === 'plaza' || q.district === 'beach');
+      out.alleys = !!park;
+      if (park) {
+        const px = (park.x0 + park.x1) / 2, pz = (park.z0 + park.z1) / 2;
+        const bike = G.spawnVehicle('scooter', 0x2fb87a, px, pz, 0, 'parked');
+        G.boardVehicle(bike);
+        const cop = G.spawnVehicle('police', 0x1a1a24, px + 25, pz, 0, 'parked'); cop.ai = 'police';
+        G.stars = 3; G.heat = 150; const h0 = G.heat;
+        for (let i = 0; i < 20; i++) { E.scanT = 0; E.update(0.2); }
+        out.alley = { gone: !G.vehicles.includes(cop), cooled: G.heat < h0 };
+        G.onFoot = true; G.driving = null; G.removeVehicle(bike);
+      }
+      G.stars = 0; G.heat = 0; G.skills.off = false; G.news.cooldown = 0;
+      return out;
+    });
+    ok(esc.ramps >= 2 && esc.jump && esc.vault.n === 1 && esc.vault.up && esc.alleys && esc.alley.gone && esc.alley.cooled, 'escapes: stunt ramps launch a car, you vault a bench at a sprint, and cruisers will not follow a bike across a park', JSON.stringify(esc));
+    const mw = await S(() => {
+      const G = g(); const T = G.transit; const H = G.humans;
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true; G.cash = 100;
+      for (const v of [...G.vehicles]) if (v.ai === 'police') G.removeVehicle(v);
+      const s0 = T.stations[0]; H.setPlayerActive(true, s0.sx, s0.sz, 0);
+      const at = T.near(); G.stars = 3; G.heat = 150;
+      const cop = G.spawnVehicle('police', 0x1a1a24, s0.sx + 10, s0.sz, 0, 'parked'); cop.ai = 'police';
+      const refused = !T.ride(at) && G.cash === 100;
+      G.removeVehicle(cop);
+      const rode = T.ride(at); const clean = G.stars === 0;
+      G.skills.off = false;
+      return { refused, rode, clean };
+    });
+    await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
+    ok(mw.refused && mw.rode && mw.clean, 'the metro refuses you with a cop on you, but whisks you away once you are clear', JSON.stringify(mw));
+    const ph = await S(() => {
+      const G = g(); const P = G.phone; const H = G.humans; const out = {};
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true; G.cash = 1000; G.stars = 0; G.heat = 0;
+      H.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0);
+      G.save.friends = {};
+      P.show(); const locked = [...document.querySelectorAll('#phone .phone-item')].filter((b) => b.disabled).length;
+      P.close();
+      G.save.friends = { dave: 3, kane: 3, rosa: 3 };
+      P.last = {};
+      const n0 = G.vehicles.length;
+      P.show();
+      const items = [...document.querySelectorAll('#phone .phone-item')];
+      const byText = (t) => items.find((b) => b.textContent.includes(t));
+      byText('Dave').click();                            // Dave brings the car
+      out.car = { added: G.vehicles.length > n0, owned: G.lastDriven && G.lastDriven.owned, cash: G.cash };
+      H.player.hp = 5; byText('Rosa').click();          // Rosa
+      out.rosa = H.player.hp === H.player.maxHp;
+      P.close();
+      out.locked = locked >= 3;
+      // Bonnie: hold a spot, follow again
+      G.buddy.hired = false; G.buddy.recruit('Bonnie');
+      const b = G.buddy.human; const spot = { x: b.x, z: b.z };
+      G.buddy.setHold(true); H.player.x = spot.x + 30; H.player.z = spot.z;
+      for (let i = 0; i < 40; i++) H.update(0.05, H.ctx);
+      out.hold = Math.hypot(b.x - spot.x, b.z - spot.z) < 6 && G.buddy.holding;
+      G.buddy.setHold(false); out.follow = !b.hold;
+      // riding along she covers you: a police car nearby takes damage and shots ring out
+      const cop = G.spawnVehicle('police', 0x1a1a24, H.player.x + 15, H.player.z, 0, 'parked'); cop.ai = 'police';
+      const car = G.spawnVehicle('sports', 0xff0000, H.player.x, H.player.z, 0, 'parked'); G.boardVehicle(car);
+      let shots = 0; const off = G.bus.on('gunshot', (e) => { if (e.ambient) shots++; });
+      const hp0 = cop.ctrl.hp;
+      for (let i = 0; i < 6; i++) G.buddy.update(1.2);
+      off();
+      out.cover = { shots: shots >= 3, dmg: cop.ctrl.hp < hp0 };
+      G.removeVehicle(cop); G.removeVehicle(car); G.onFoot = true; G.driving = null; G.buddy.dismiss();
+      G.save.friends = {}; G.skills.off = false;
+      return out;
+    });
+    ok(ph.locked && ph.car.added && ph.car.owned && ph.car.cash === 920 && ph.rosa && ph.hold && ph.follow && ph.cover.shots && ph.cover.dmg, 'the phone calls friends (car delivery, nurse), Bonnie holds a spot or follows, and covers you from the passenger seat', JSON.stringify(ph));
+    const dr = await S(() => {
+      const G = g(); const D = G.director; const C = G.challenge; const out = {};
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true; G.stars = 0; G.heat = 0; G.cash = 0;
+      G.humans.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0);
+      G.fires.list.length = 0; G.riots.current = null;
+      const wasAuto = G.clock.auto; G.clock.auto = true;
+      D.quiet = 0; D.cooldown = 0; D.throws = 0;
+      G.stars = 2; for (let i = 0; i < 100; i++) D.update(1);
+      const busyQuiet = D.quiet === 0 && D.throws === 0;
+      G.stars = 0; G.humans.combatTimer = 0;
+      for (let i = 0; i < 400 && D.throws === 0; i++) D.update(1);
+      out.director = { busyQuiet, threw: D.throws >= 1, last: D.last };
+      G.clock.auto = wasAuto;
+      G.fires.list.length = 0; G.riots.current = null; if (G.thieves.active) G.thieves.release(null);
+      if (G.truckHeist.active) G.truckHeist.end('x', false);
+      // survival challenge and chaos switches
+      const storyWas = G.story.done; G.story.done = true; out.unlocked = C.unlocked;
+      G.save.survivalBest = 0; G.stars = 0; G.cash = 0;
+      out.start = C.startSurvival(); out.stars = G.stars;
+      for (let i = 0; i < 25; i++) C.update(1);
+      G.stars = 0; C.update(0.1);
+      out.survival = { ended: !C.survival, best: C.best, cash: G.cash };
+      C.toggleChaos('moon'); out.moon = C.chaos.moon;
+      const g1 = Object.getPrototypeOf(C).constructor.gravityMul; C.toggleChaos('moon'); out.gravity = [g1, Object.getPrototypeOf(C).constructor.gravityMul];
+      G.guns.owned.includes('rocket') || G.guns.buyGun('rocket'); G.guns.reserve.rocket = 0; C.toggleChaos('rockets'); C.update(0.1); out.rockets = G.guns.reserve.rocket >= 6; C.toggleChaos('rockets');
+      out.rank = G.completion.rank()[0];
+      G.story.done = storyWas; G.stars = 0; G.heat = 0; G.skills.off = false; G.news.cooldown = 0; G.save.survivalBest = 0; G.hud.showGig(false);
+      return out;
+    });
+    ok(dr.director.busyQuiet && dr.director.threw && dr.unlocked && dr.start && dr.stars === 5 && dr.survival.ended && dr.survival.best >= 25 && dr.survival.cash >= 100 && dr.moon && dr.gravity[0] === 0.35 && dr.gravity[1] === 1 && dr.rockets && dr.rank, 'the director throws an event when it is quiet; survival, chaos switches and ranks work after the story', JSON.stringify(dr));
+    const fx = await S(() => {
+      const G = g(); const V = G.vfx;
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.stars = 0;
+      G.humans.setPlayerActive(true, G.world.spawn.x, G.world.spawn.z, 0);
+      const flash = document.getElementById('boomflash');
+      flash.classList.remove('go');
+      V.explosion(G.focusX + 10, G.focusZ);
+      G.bus.emit({ type: 'explosion', x: G.focusX + 10, z: G.focusZ, byPlayer: false });
+      const ring = V.rings.some((r) => r.t > 0 && r.mesh.visible);
+      for (let i = 0; i < 12; i++) V.update(0.05);
+      const ringGone = V.rings.every((r) => !r.mesh.visible);
+      G.hud.setWanted(4); const heat4 = document.body.classList.contains('heat-4');
+      G.hud.setWanted(0); const heat0 = !document.body.className.includes('heat-4');
+      G.hitStop = 0; G.news.cooldown = 0; G.fires.list.length = 0;
+      return { ring, ringGone, flash: flash.classList.contains('go'), heat4, heat0 };
+    });
+    ok(fx.ring && fx.ringGone && fx.flash && fx.heat4 && fx.heat0, 'a blast sends out a shockwave ring and a screen flash; the wanted level tints the screen edge', JSON.stringify(fx));
+    const bar = await S(() => {
+      const G = g(); const B = G.barricades; const out = {};
+      G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null; G.skills.off = true;
+      B.update(0.1);
+      out.n = B.list.length;
+      const b = B.list[0];
+      out.solid = G.world.boxes.includes(b.box);
+      const car = G.spawnVehicle('sports', 0xff0000, b.x, b.z - 6, 0, 'parked'); G.boardVehicle(car);
+      car.ctrl.vx = 0; car.ctrl.vz = 14; car.ctrl.position.z = b.z - 1.5; car.ctrl.position.x = b.x;
+      const hp0 = car.ctrl.hp;
+      B.update(0.05);
+      out.smashed = b.broken > 0 && !G.world.boxes.includes(b.box) && !b.mesh.visible;
+      out.slowed = car.ctrl.vz < 14 && car.ctrl.hp < hp0;
+      B.update(95);
+      out.rebuilt = b.broken === 0 && b.mesh.visible && G.world.boxes.includes(b.box);
+      G.onFoot = true; G.driving = null; G.removeVehicle(car); G.skills.off = false;
+      return out;
+    });
+    ok(bar.n >= 3 && bar.solid && bar.smashed && bar.slowed && bar.rebuilt, 'barricades stand at the edge of parks: a car at speed smashes through, and they are rebuilt later', JSON.stringify(bar));
+    const amb = await S(() => {
+      const G = g(); const A = G.audio; const st = { inCar: false, speedRatio: 0, throttle: 0, slip: 0, nitro: false, sirenDist: null };
+      const areas = [];
+      for (const a of ['harbor', 'beach', 'park', 'downtown']) {
+        A.setAmbience(a, a === 'park' ? 0.8 : 0, false);
+        for (let i = 0; i < 30; i++) A.update(0.1, st);
+        areas.push(A.ambArea === a);
+      }
+      A.setAmbience('downtown', 0, false);
+      return { areas, ctx: !!A.context };
+    });
+    ok(amb.areas.every(Boolean), 'the ambience (waves, birds, crickets, a ship horn) follows the district without errors', JSON.stringify(amb));
+    const petty = await S(() => {
+      const G = g(); const out = {};
+      G.inside = null; G.state = 'play'; G.stars = 0; G.heat = 0; G.skills.off = true;
+      // small stuff must not pile up into a star: it fades on its own
+      G.addHeat(20); out.pre = G.stars === 0 && G.heat > 0;
+      for (let i = 0; i < 40; i++) G.updateWanted(1);
+      out.faded = G.heat === 0 && G.stars === 0;
+      // clearing the junk for Donna is the quest, so it is no crime
+      const circ = () => G.world.circles.find((q) => q.smash && !q.dead);
+      G.story.ch = 0; G.story.step = 2; G.story.prog = 0; G.heat = 0; G.crimeT = 0;
+      G.smashProp(circ(), 0, 0, 8, true);
+      out.questFree = G.heat === 0 && G.story.prog === 1;
+      // the same smash outside the quest is a tiny crime
+      G.story.step = 0; G.smashProp(circ(), 0, 0, 8, true);
+      out.otherSmall = G.heat > 0 && G.heat < 10;
+      G.story.ch = 0; G.story.step = 0; G.story.prog = 0; G.heat = 0; G.stars = 0; G.skills.off = false;
+      return out;
+    });
+    ok(petty.pre && petty.faded && petty.questFree && petty.otherSmall, 'petty heat fades by itself, and smashing the quest junk is no crime', JSON.stringify(petty));
+    const gar = await S(() => {
+      const G = g(); const out = {};
+      G.inside = null; G.state = 'play'; G.stars = 0; G.heat = 0; G.garageLock = false;
+      const gr = G.world.garages[0];
+      const car = G.spawnVehicle('sports', 0xff0000, gr.x + 3, gr.z + 6, 0, 'parked'); G.boardVehicle(car);
+      car.ctrl.vx = car.ctrl.vz = 0;
+      for (let i = 0; i < 20; i++) G.updateGarageZones();
+      out.notAuto = !G.inside && !G.onFoot;           // driving up does not take you in
+      out.asks = G.garageNear();
+      G.enterExit();                                   // F says yes
+      out.fading = G.fading;
+      return out;
+    });
+    await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
+    const inGar = await S(() => { const G = g(); return { inside: G.inside && G.inside.id === 'garage', foot: G.onFoot }; });
+    await S(() => { const G = g(); const pl = G.humans.player; const r = G.inside; pl.x = r.exit.x; pl.z = r.exit.z; G.leaveBuilding(); });
+    await p.waitForFunction(() => !window.__smash.game.fading, null, { timeout: 30000 });
+    const outGar = await S(() => { const G = g(); const d = G.driving; const out = { outside: !G.inside, driving: !!d && !G.onFoot && d.kind === 'sports', locked: G.garageLock, notAgain: !G.garageNear() }; if (d) G.removeVehicle(d); G.driving = null; G.onFoot = true; G.garageLock = false; return out; });
+    ok(gar.notAuto && gar.asks && inGar.inside && outGar.outside && outGar.driving && outGar.locked && outGar.notAgain, 'a garage asks first (F), and coming out you are back in your car without being pulled back in', JSON.stringify({ gar, inGar, outGar }));
     const fish = await S(() => {
       const G = g(); const F = G.fishing;
       G.stars = 0; G.cash = 0; G.driving = null; G.onFoot = true; G.inside = null; G.state = 'play';
@@ -335,7 +713,9 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       GA.update(0.1);
       const crew = z.members.length;
       H.player.x = z.x + 10; H.player.z = z.z; GA.update(0.1);
-      const provoked = z.members.some((m) => m.hostile);
+      const calm = !z.members.some((m) => m.hostile);          // walking onto their turf is not a challenge
+      G.bus.emit({ type: 'gunshot', x: z.x + 10, z: z.z });     // your gunfire is
+      const provoked = calm && z.members.every((m) => m.hostile);
       const heatBefore = G.heat;
       for (const m of [...z.members]) H.gunHit(H.player, m, 999, 1, 0, true);
       const captured = z.owner === 'player';
@@ -391,10 +771,11 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
         P.update(0.05);
         const onDuty = P.onDuty && !!G.driving && G.driving.kind === kind;
         const heat = G.stars;
-        if (name === 'firefighter') G.fires.ignite(G.driving.x + 60, G.driving.z);
-        else G.bus.emit({ type: 'gunshot', x: G.driving.x + 60, z: G.driving.z });
+        G.fires.list.length = 0;
+        const lit = name === 'firefighter' ? G.fires.ignite(G.driving.x + 60, G.driving.z) : null;
+        if (name !== 'firefighter') G.bus.emit({ type: 'gunshot', x: G.driving.x + 60, z: G.driving.z });
         const calls = P.open;
-        const fire = name === 'firefighter' ? G.fires.list[0] : null;
+        const fire = lit;
         let guard = 0;
         while (P.onDuty && guard++ < 400) {
           if (!P.calls.length) P.addCall(G.driving.x + 40, G.driving.z, 'test');
@@ -447,13 +828,13 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       G.stars = 0; G.inside = null; G.state = 'play'; G.onFoot = true; G.driving = null;
       N.update(0.1);
       const placed = N.list.filter((q) => q.human).length;
-      const mia = N.list.find((q) => q.def.id === 'mia');
+      const donna = N.list.find((q) => q.def.id === 'donna');
       // neutral: she talks but gives nothing; friendly: a free donut; hostile: refuses
-      const spot = mia.pos; const area = R.area(spot.x, spot.z);
+      const spot = donna.pos; const area = R.area(spot.x, spot.z);
       G.save.rep = {};
       G.humans.setPlayerActive(true, spot.x + 1.5, spot.z, 0);
       const near = N.nearest(); const prompt = near ? N.prompt(near) : '';
-      G.humans.player.hp = 20; G.save.rep[area] = 50; mia.last = -999;
+      G.humans.player.hp = 20; G.save.rep[area] = 50; donna.last = -999;
       N.talk(near); const open = N.dialogOpen; for (let k = 0; k < 6 && N.dialogOpen; k++) N.advance(); N.errand = null;
       const healed = G.humans.player.hp >= G.humans.player.maxHp;
       G.humans.player.hp = 20; G.save.rep[area] = -60; N.clock = 1000;
@@ -461,10 +842,10 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       const stayedHurt = G.humans.player.hp === 20;
       // hurting people costs reputation where it happened; helping earns it back
       G.save.rep = {};
-      G.bus.emit({ type: 'civAssaulted', x: spot.x, z: spot.z }); G.bus.emit({ type: 'civKilled', x: spot.x, z: spot.z, human: mia.human, byPlayer: true, kids: true });
+      G.bus.emit({ type: 'civAssaulted', x: spot.x, z: spot.z }); G.bus.emit({ type: 'civKilled', x: spot.x, z: spot.z, human: donna.human, byPlayer: true, kids: true });
       const down = R.get(area);
       G.bus.emit({ type: 'helped', x: spot.x, z: spot.z, amount: 10 });
-      return { placed, near: !!near, prompt: /Mia|미아/.test(prompt), open, healed, refused, stayedHurt, down, up: R.get(area) };
+      return { placed, near: !!near, prompt: /Donna|도나/.test(prompt), open, healed, refused, stayedHurt, down, up: R.get(area) };
     });
     ok(npc.placed >= 5 && npc.near && npc.prompt && npc.open && npc.healed && npc.refused && npc.stayedHurt && npc.down === -8 && npc.up === 2, 'named people talk by your reputation (a favour, or a refusal) and reputation moves with what you do', JSON.stringify(npc));
     const errand = await S(() => {

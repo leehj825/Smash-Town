@@ -45,7 +45,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
 
     // helicopter at 5 stars; a rocket aimed at it brings it down
     const hc = await S(() => {
-      const G = g(); G.stars = 5; G.heat = 400; G.heli.cooldown = 0;
+      const G = g(); G.stars = 5; G.heat = 460; G.minHeat = 400; G.heli.cooldown = 0;
       G.updateHeli(6);
       return { active: G.heli.active, unseenZero: true };
     });
@@ -65,7 +65,7 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       for (let i = 0; i < 120 && h.active; i++) { h.x = pl.x + (f.x / L) * 40; h.z = pl.z + (f.z / L) * 40; gs.tick(0.05); }
       return { homing, down: !h.active, cashGain: G.cashAmount - cash0, cooldown: h.cooldown };
     });
-    ok(rk.homing && rk.down && rk.cashGain >= 1500 && rk.cooldown > 30, 'a rocket brings the helicopter down for $1,500', JSON.stringify(rk));
+    ok(rk.homing && rk.down && rk.cashGain >= 400 && rk.cashGain < 1500 && rk.cooldown > 30, 'a rocket brings the helicopter down for a small bounty', JSON.stringify(rk));
     await S(() => { g().stars = 0; g().heat = 0; g().updateHeli(1); });
 
     // riot cops: shields soak frontal hits, blasts ignore them

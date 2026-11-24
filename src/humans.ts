@@ -11,15 +11,17 @@ import type { GameVehicle } from './vehicles';
 import type { CircleCollider, Lot, World } from './world';
 
 export const Role = { Civ: 0, Cop: 1, Player: 2 } as const;
-const N = 77;
+import { Challenge } from './challenge';
+const N = 78;
+const LOW_PROPS = new Set(['bench', 'trash', 'hydrant', 'newsstand']);
 const COP_FIRST = 1, COP_LAST = 10;
 /** Gang members: their own pool of slots, so they never mix with the police. */
 const GANG_FIRST = 11, GANG_LAST = 16;
 /** Named people (see npcs.ts): civilians who stand in one place. */
-const NAMED_FIRST = 17, NAMED_LAST = 29;
+const NAMED_FIRST = 17, NAMED_LAST = 30;
 /** The one bodyguard friend (see buddy.ts). */
-const ALLY_SLOT = 30;
-const CIV_FIRST = 31;
+const ALLY_SLOT = 31;
+const CIV_FIRST = 32;
 const GROUND = 0.1;
 const SHIRTS = [0xe85a4f, 0x3b82f6, 0x2fb87a, 0xf2a73b, 0x8a5cd6, 0xf4a7b9, 0x66d1c9, 0xeceff4];
 const PANTS = [0x2c3e50, 0x4a4e59, 0x6b4f3a, 0x1f2d3d, 0x7f8c8d, 0x3b5a8c];
@@ -54,6 +56,10 @@ export class Human {
   phase = 0; speed = 0; fleeing = false;
   /** A bag snatcher on the run (see thieves.ts): sprints away along the pavement. */
   thief = false;
+  /** An ally told to hold a spot: stays near (holdX, holdZ) instead of following the player. */
+  hold = false; holdX = 0; holdZ = 0;
+  /** Props vaulted (a counter for tests and stats). */
+  vaults = 0;
   /** Seconds left of a pause in a stroll (looking at the phone, window shopping). */
   pauseT = 0;
   scale = 1;
@@ -111,7 +117,7 @@ export interface HumanHooks {
   onWitnessCall?: (h: Human) => void;
   onWitnessStart?: (h: Human) => void;
   onSwing: (att: Human, atk: Attack) => void;
-  onPickup: () => void;
+  onPickup: (kind: 'baton' | 'bat') => void;
   onStep: () => void;
   onWhiff: (att: Human) => void;
 }
@@ -131,7 +137,7 @@ export interface HumanCtx {
   time: number;
 }
 
-interface Pickup { active: boolean; x: number; z: number; t: number; mesh: THREE.Mesh }
+interface Pickup { active: boolean; x: number; z: number; t: number; mesh: THREE.Mesh; kind: 'baton' | 'bat' }
 
 /** All humans: the player, foot cops and civilians, as pooled slots drawn through instanced rig parts. */
 export class Humans {
@@ -140,6 +146,10 @@ export class Humans {
   readonly list: Human[] = [];
   readonly player: Human;
   unlockedBaton = false;
+  /** Kids Play: nobody is hurt or knocked down. People hit run away instead (cops too, but others take their place), and the player cannot be hurt. */
+  gentle = false;
+  /** The baseball bat: a new story starts without it and finds it in the first fight. */
+  batOwned = true;
   /** Which guns the player owns (pistol, SMG, shotgun, rocket, paintball). */
   guns: boolean[] = [true, false, false, false, false, false];
   /** Kids Play: nobody dies. Defeated cops and the player are only knocked out. */
@@ -149,6 +159,11 @@ export class Humans {
   copsDefeated = 0;
   /** How many of the walking civilians are out and about (fewer at night and in the rain); the rest are indoors. */
   civLimit = N - CIV_FIRST;
+  /** Set by the game clock: walking pace of strollers and the chance per second that one stops. */
+  pace = 1;
+  pauseRate = 0.04;
+  /** How fast a thief runs (the story's chase makes it a little slower than your sprint). */
+  thiefSpeed = 6.6;
   combatTimer = 0;
 
   private rng = makeRng(4242);
@@ -178,7 +193,7 @@ export class Humans {
       const mesh = new THREE.Mesh(baton, new THREE.MeshLambertMaterial({ color: 0x16161c, emissive: 0x3344ff, emissiveIntensity: 0.6, flatShading: true }));
       mesh.visible = false;
       this.group.add(mesh);
-      this.pickups.push({ active: false, x: 0, z: 0, t: 0, mesh });
+      this.pickups.push({ active: false, x: 0, z: 0, t: 0, mesh, kind: 'baton' });
     }
   }
 
@@ -274,6 +289,7 @@ export class Humans {
   ownedFlags(): boolean[] { return [0, 1, 2, 3, 4, 5, 6, 7, 8].map((s) => this.weaponOwned(s)); }
 
   weaponOwned(slot: number): boolean {
+    if (slot === 1) return this.batOwned;
     if (slot === 2) return this.unlockedBaton;
     if (slot >= 3) return !!this.guns[slot - 3];
     return true;
@@ -296,6 +312,8 @@ export class Humans {
     if (!this.weaponOwned(slot)) return;
     this.player.weapon = slot;
   }
+
+  inCombat(): boolean { return this.combatContext(); }
 
   private combatContext(): boolean {
     return this.combatTimer > 0 || this.player.state === St.Attack || this.player.state === St.Hit;
@@ -526,8 +544,21 @@ export class Humans {
     void landed;
   }
 
+  /** Kids Play: a hit does not hurt: whoever it lands on runs away. */
+  private scare(att: Human, t: Human, a: Attack, nx: number, nz: number): void {
+    t.flash = 0.14; t.attack = null; t.buffered = 0;
+    t.vx = nx * a.push * 0.4; t.vz = nz * a.push * 0.4;
+    if (t.role === Role.Cop) { t.leaving = true; t.leaveT = 6 + this.rng() * 3; t.hostile = false; }
+    else t.fleeing = true;
+    this.hooks.onHit(att, t, a, (att.x + t.x) / 2, t.y + 1.2, (att.z + t.z) / 2, false);
+  }
+
   private applyHit(att: Human, t: Human, a: Attack, nx: number, nz: number): boolean {
     if (t.invuln > 0) { if (t.role === Role.Player) this.hooks.onWhiff(att); return false; }
+    if (this.gentle) {
+      if (t.role === Role.Player) return false;
+      if (!t.ally) { this.scare(att, t, a, nx, nz); return true; }
+    }
     // a riot shield soaks most hits that come from the front
     const blocked = t.riot && !this.ignoreShield && Math.sin(t.heading) * -nx + Math.cos(t.heading) * -nz > 0.25;
     const dmg = (att.role === Role.Cop ? 8 : a.dmg * (att.role === Role.Player ? this.bodyPower * this.skillPower : 1)) * (blocked ? 0.2 : 1);
@@ -578,6 +609,7 @@ export class Humans {
       if (!t.active || t.role === Role.Player || t.state === St.Down || t.state === St.Dead) continue;
       if (Math.abs(t.x - cx) > r + 0.7 || Math.abs(t.z - cz) > r + 0.7) continue;
       if (Math.hypot(t.x - cx, t.z - cz) > r + 0.45) continue;
+      if (this.gentle) continue; // Kids Play: cars never touch people
       t.attack = null;
       const fast = Math.hypot(vx, vz) > 9;
       let killed = (t.role === Role.Cop || t.role === Role.Civ) && (t.hp -= fast || t.role === Role.Cop ? 40 : 12) <= 0;
@@ -601,10 +633,18 @@ export class Humans {
   }
 
   private dropBaton(x: number, z: number): void {
+    if (this.gentle) return;
     if (this.unlockedBaton) return;
     const p = this.pickups.find((q) => !q.active);
     if (!p) return;
-    p.active = true; p.x = x; p.z = z; p.t = 0; p.mesh.visible = true;
+    p.active = true; p.kind = 'baton'; p.x = x; p.z = z; p.t = 0; p.mesh.visible = true;
+  }
+
+  /** A baseball bat on the ground (the prize of the story's first fight). Walk over it to take it and wield it. */
+  dropBat(x: number, z: number): void {
+    const p = this.pickups.find((q) => !q.active);
+    if (!p) return;
+    p.active = true; p.kind = 'bat'; p.x = x; p.z = z; p.t = 0; p.mesh.visible = true;
   }
 
   // ------------------------------------------------------------------ cops
@@ -704,7 +744,7 @@ export class Humans {
       const d = Math.hypot(g.x - h.x, g.z - h.z);
       if (d < fd && (g.hostile || Math.hypot(g.x - p.x, g.z - p.z) < 14)) { fd = d; foe = g; }
     }
-    const tx = foe ? foe.x : p.x - Math.sin(p.heading) * 2.6, tz = foe ? foe.z : p.z - Math.cos(p.heading) * 2.6;
+    const tx = foe ? foe.x : h.hold ? h.holdX : p.x - Math.sin(p.heading) * 2.6, tz = foe ? foe.z : h.hold ? h.holdZ : p.z - Math.cos(p.heading) * 2.6;
     const dx = tx - h.x, dz = tz - h.z, dist = Math.hypot(dx, dz);
     const stop = foe ? 1.9 : 0.8;
     if (dist > stop) {
@@ -716,7 +756,7 @@ export class Humans {
       h.mvx *= Math.exp(-8 * dt); h.mvz *= Math.exp(-8 * dt);
       h.speed = Math.hypot(h.mvx, h.mvz); h.state = h.speed > 0.4 ? St.Walk : St.Idle;
       if (foe && h.cd <= 0 && dist < 2.4) { h.heading = Math.atan2(dx, dz); this.beginAttack(h, ATTACKS.cross); h.cd = 1.0; }
-      else if (!foe) h.heading += wrap(p.heading - h.heading) * Math.min(1, dt * 3);
+      else if (!foe) h.heading += wrap((h.hold ? Math.atan2(p.x - h.x, p.z - h.z) : p.heading) - h.heading) * Math.min(1, dt * 3);
     }
   }
 
@@ -793,7 +833,8 @@ export class Humans {
         h.mvx *= Math.exp(-8 * dt); h.mvz *= Math.exp(-8 * dt);
         h.speed = 0; h.state = St.Idle;
         if (dist < 26) h.heading += wrap(Math.atan2(dx, dz) - h.heading) * Math.min(1, dt * 3);
-        if (dist < 12 && this.ctx.playerActive) { h.hostile = true; this.provokeGang(h.x, h.z, 24); }
+        // pulling a gun on them within twelve metres is a challenge; just walking by is not
+        if (dist < 12 && this.ctx.playerActive && p.weapon >= 3) { h.hostile = true; this.provokeGang(h.x, h.z, 24); }
         return;
       }
       if (dist > 70 || !this.ctx.playerActive) { h.hostile = false; return; } // lost interest
@@ -802,8 +843,9 @@ export class Humans {
       h.leaveT -= dt;
       const a = Math.atan2(-dx, -dz);
       h.heading += wrap(a - h.heading) * Math.min(1, dt * 6);
-      h.mvx = Math.sin(h.heading) * 3.2; h.mvz = Math.cos(h.heading) * 3.2;
-      h.speed = 3.2; h.state = St.Walk;
+      const away = this.gentle ? 5.4 : 3.2; // Kids Play: they run
+      h.mvx = Math.sin(h.heading) * away; h.mvz = Math.cos(h.heading) * away;
+      h.speed = away; h.state = this.gentle ? St.Run : St.Walk;
       if (h.leaveT <= 0 || dist > 70) { h.active = false; this.hide(h); }
       return;
     }
@@ -854,7 +896,14 @@ export class Humans {
       const rr = r + c.r;
       if (Math.abs(dx) > rr || Math.abs(dz) > rr) continue;
       const d = Math.hypot(dx, dz);
-      if (d < rr && d > 1e-4) { h.x += (dx / d) * (rr - d); h.z += (dz / d) * (rr - d); }
+      if (d < rr && d > 1e-4) {
+        // low things (benches, bins, hydrants, stands) can be vaulted: sprint into one, or jump over it
+        if (h.role === Role.Player && c.smash && LOW_PROPS.has(c.smash.type)) {
+          if (h.y > 0.5) continue;
+          if (h.grounded && h.speed > 5.2 && h.state !== St.Dodge) { h.vy = 5.6; h.grounded = false; h.vaults++; continue; }
+        }
+        h.x += (dx / d) * (rr - d); h.z += (dz / d) * (rr - d);
+      }
     }
   }
 
@@ -886,7 +935,7 @@ export class Humans {
     if (h.y > gy + 0.05) h.grounded = false;
     if (!h.grounded || h.y > gy + 0.001) {
       h.peak = Math.max(h.peak, h.y);
-      h.vy -= GRAVITY * dt;
+      h.vy -= GRAVITY * Challenge.gravityMul * dt;
       h.y += h.vy * dt;
       if (h.y <= gy) {
         h.y = gy; h.vy = 0; h.grounded = true;
@@ -1025,8 +1074,8 @@ export class Humans {
     // everyday routine: now and then a stroller stops for a moment (phone, window shopping), unless something scary is going on
     if (h.pauseT > 0 && !h.fleeing && !h.thief) { h.pauseT -= dt; h.speed = 0; h.mvx = h.mvz = 0; return; }
     h.pauseT = 0;
-    if (!h.fleeing && !h.thief && this.rng() < dt * 0.04) h.pauseT = 2 + this.rng() * 5;
-    const v = h.thief ? 6.6 : h.fleeing ? 5.2 : h.pathSpeed;
+    if (!h.fleeing && !h.thief && this.rng() < dt * this.pauseRate) h.pauseT = 2 + this.rng() * 5;
+    const v = h.thief ? this.thiefSpeed : h.fleeing ? 5.2 : h.pathSpeed * this.pace;
     const p = this.perim(h.lot);
     h.s += h.dir * v * dt;
     const [nx, nz] = this.pointOn(p, h.s);
@@ -1090,8 +1139,8 @@ export class Humans {
       k.mesh.rotation.y = k.t * 2.2;
       if (this.ctx.playerActive && Math.hypot(this.player.x - k.x, this.player.z - k.z) < 1.5) {
         k.active = false; k.mesh.visible = false;
-        this.unlockedBaton = true;
-        this.hooks.onPickup();
+        if (k.kind === 'bat') { this.batOwned = true; this.player.weapon = 1; } else this.unlockedBaton = true;
+        this.hooks.onPickup(k.kind);
       }
     }
   }

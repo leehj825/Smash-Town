@@ -27,6 +27,7 @@ export class RoofDash {
 
   private centre(r: Roof): { x: number; z: number } { return { x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 }; }
   get active(): boolean { return this.step >= 0; }
+  hide(): void { this.startBeacon.visible = false; this.beacon.visible = false; }
 
   /** Marker positions for the maps. */
   markers(): { x: number; z: number; active: boolean }[] {
@@ -69,7 +70,7 @@ export class RoofDash {
     this.beacon.visible = false;
     this.cooldown = 60;
     g.hud.showGig(false);
-    if (ok) { g.addCash(2000, 'gigs'); g.hud.toast(bi('Rooftop Dash complete! +$2,000', '옥상 대시 성공! +$2,000'), 3000); }
+    if (ok) { const pay = g.scaled(2000, 0.4); g.addCash(pay, 'gigs'); g.hud.toast(bi(`Rooftop Dash complete! +$${pay.toLocaleString('en-US')}`, `옥상 대시 성공! +$${pay.toLocaleString('en-US')}`), 3000); }
     else g.hud.toast(bi('Rooftop Dash failed - out of time', '옥상 대시 실패 - 시간 초과'), 2600);
   }
 
@@ -91,7 +92,7 @@ export class RoofDash {
     const c = this.centre(r);
     if (g.onFoot && pl.roof === r && Math.hypot(pl.x - c.x, pl.z - c.z) < 4) {
       this.step++;
-      g.addCash(250, 'gigs');
+      g.addCash(g.scaled(250, 0.4), 'gigs');
       if (this.step >= this.chain.length) { this.end(true); return; }
       this.target();
       g.hud.toast(bi('Checkpoint! Next rooftop', '체크포인트! 다음 옥상'), 1600);

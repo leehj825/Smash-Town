@@ -19,13 +19,13 @@ import { Weather, type WeatherKind } from './weather';
 import { ControlsPanel, HowToPlay, StatsPanel, type Modal } from './overlays';
 import { settings, saveSettings } from './settings';
 import { SAVE_KEY, SLOT_KEY, currentSlot, slotSaveKey } from './game';
+import { MODE_KEY, DIFF_KEY } from './mode';
 import { setupTouch } from './touch';
 
 type Quality = 'high' | 'medium' | 'low';
 const QUALITY_KEY = 'smashtown.quality';
 const TIME_KEY = 'smashtown.time';
 const AUDIO_KEY = 'smashtown.audio';
-const KIDS_KEY = 'smashtown.kids';
 // ordinary civilian cars (police are never counted here)
 const TRAFFIC: Record<Quality, number> = { high: 18, medium: 12, low: 8 };
 
@@ -151,8 +151,11 @@ const savedQ = storedGet(QUALITY_KEY);
 applyQuality(savedQ === 'high' || savedQ === 'medium' || savedQ === 'low' ? savedQ : isMobile ? 'medium' : 'high');
 
 // ---------------------------------------------------------------- time of day / audio
+const clockEl = document.getElementById('clock');
+let lastClockBand = '';
 function applyTime(t: TimeOfDay, instant = false): void {
   env.setTime(t, instant);
+  (game as { clock?: { setBand(t: TimeOfDay): void } } | undefined)?.clock?.setBand(t);
   storedSet(TIME_KEY, t);
   document.querySelectorAll<HTMLElement>('.tod').forEach((b) => b.classList.toggle('sel', b.dataset.t === t));
 }
@@ -177,6 +180,17 @@ function applyWeather(m: 'auto' | WeatherKind): void {
   document.querySelectorAll<HTMLElement>('.weather').forEach((b) => b.classList.toggle('sel', b.dataset.w === m));
 }
 
+/** The sandbox phone's switches for the weather and the time of day. */
+const WEATHER_CYCLE: WeatherKind[] = ['clear', 'rain', 'fog', 'storm', 'snow'];
+game.sandboxHooks = {
+  weather: () => {
+    const next = WEATHER_CYCLE[(WEATHER_CYCLE.indexOf(weather.kind) + 1) % WEATHER_CYCLE.length];
+    applyWeather(next);
+    return next;
+  },
+  time: () => { const t = env.cycleTime(); applyTime(t); return t; },
+};
+
 function applyAudio(on: boolean): void {
   game.audio.setEnabled(on);
   radio.setEnabled(on && radioChoice() !== 'off');
@@ -190,14 +204,7 @@ document.querySelectorAll<HTMLElement>('.radio').forEach((b) => b.classList.togg
 const savedW = storedGet(WEATHER_KEY);
 applyWeather(savedW === 'clear' || savedW === 'rain' || savedW === 'fog' || savedW === 'storm' || savedW === 'snow' ? savedW : 'auto');
 
-/** Kids Play (default ON): nobody dies - defeated cops and the player are only knocked out. */
-function applyKids(on: boolean): void {
-  game.humans.kids = on;
-  storedSet(KIDS_KEY, on ? '1' : '0');
-  document.getElementById('dialog')!.addEventListener('click', () => game.advanceDialog());
-document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.classList.toggle('sel', (b.dataset.k === '1') === on));
-}
-applyKids(storedGet(KIDS_KEY) !== '0');
+document.getElementById('dialog')!.addEventListener('click', () => game.advanceDialog());
 
 // ---------------------------------------------------------------- UI wiring
 const titleEl = document.getElementById('title')!;
@@ -228,8 +235,58 @@ function buildSlots(): void {
     box.appendChild(b);
   }
 }
+document.body.classList.add('mode-' + game.mode);
+/** The two ways to play, side by side: the story (saved in a slot) and the free sandbox (everything unlocked, nothing saved). */
+function buildModes(): void {
+  const box = document.getElementById('modes');
+  if (!box) return;
+  box.innerHTML = '';
+  const defs: [string, string, string][] = [
+    ['story', bi('STORY', '스토리'), bi('start with nothing, grow', '맨몸으로 시작해 성장')],
+    ['sandbox', bi('FREE SANDBOX', '프리 샌드박스'), bi('everything unlocked, not saved', '모두 해금, 저장 안 됨')],
+    ['kids', bi('KIDS PLAY', '어린이 모드'), bi('fists only, everyone runs away', '주먹만, 모두 도망가요')],
+  ];
+  for (const [id, name, sub] of defs) {
+    const b = document.createElement('button');
+    const active = game.mode === 'sandbox' ? id === 'sandbox' : game.mode === 'kids' ? id === 'kids' : id === 'story';
+    b.className = active ? 'sel' : '';
+    b.innerHTML = `${name}<small>${sub}</small>`;
+    b.addEventListener('click', () => {
+      if (active) return;
+      try { localStorage.setItem(MODE_KEY, id); } catch { /* ignore */ }
+      location.reload();
+    });
+    box.appendChild(b);
+  }
+  const slots = document.getElementById('slots');
+  if (slots) slots.style.display = game.mode === 'sandbox' || game.mode === 'kids' ? 'none' : '';
+}
+/** Story difficulty (easy / normal / hard): shown only for the story mode; a change reloads the page like the mode does. */
+function buildDiffs(): void {
+  const box = document.getElementById('diffs');
+  if (!box) return;
+  box.innerHTML = '';
+  box.style.display = game.mode === 'story' ? '' : 'none';
+  const lab = document.createElement('span');
+  lab.textContent = bi('Difficulty', '난이도');
+  box.appendChild(lab);
+  const names = [bi('Easy', '쉬움'), bi('Normal', '보통'), bi('Hard', '어려움')];
+  names.forEach((nm, i) => {
+    const b = document.createElement('button');
+    b.className = i === game.difficulty ? 'sel' : '';
+    b.textContent = nm;
+    b.addEventListener('click', () => {
+      if (i === game.difficulty) return;
+      try { localStorage.setItem(DIFF_KEY, String(i)); } catch { /* ignore */ }
+      location.reload();
+    });
+    box.appendChild(b);
+  });
+}
 buildSlots();
-onLangChange(buildSlots);
+buildModes();
+buildDiffs();
+onLangChange(() => { buildSlots(); buildModes(); buildDiffs(); });
 
 function startGame(): void {
   if (state !== 'title') return;
@@ -238,7 +295,8 @@ function startGame(): void {
   titleEl.hidden = true;
   hudEl.hidden = false;
   if (!settings.tutorialDone) howto.open();
-  if (!navigator.webdriver) window.setTimeout(() => game.claimLogin(), 1200); // (automated test browsers skip the bonus so cash totals stay exact)
+  window.setTimeout(() => game.welcomeBack(), 900);
+  if (!navigator.webdriver && game.mode !== 'sandbox' && game.mode !== 'kids') window.setTimeout(() => game.claimLogin(), 1200); // (automated test browsers skip the bonus so cash totals stay exact)
   try {
     game.audio.init(); // needs a user gesture
     applyRadio(radioChoice());
@@ -263,7 +321,7 @@ function setPaused(p: boolean): void {
   if (p) {
     input.releaseMouse();
     const e = game.earned;
-    hud.setEarnings([[bi('Smashed props', '부순 물건'), e.props], [bi('Golden stars', '황금 별'), e.stars], [bi('Side jobs', '부업'), e.gigs], [bi('Story', '스토리'), e.story], [bi('Police & survival', '경찰·생존'), e.police], [bi('Other', '기타'), e.other]]);
+    hud.setEarnings([[bi('Golden stars', '황금 별'), e.stars], [bi('Side jobs', '부업'), e.gigs], [bi('Story', '스토리'), e.story], [bi('Police & survival', '경찰·생존'), e.police], [bi('Other', '기타'), e.other]]);
   }
 }
 document.getElementById('btn-play')!.addEventListener('click', startGame);
@@ -279,7 +337,6 @@ document.querySelectorAll<HTMLElement>('.lang').forEach((b) => b.addEventListene
 document.querySelectorAll<HTMLElement>('.quality').forEach((b) => b.addEventListener('click', () => { autoQuality = false; slowT = 0; applyQuality(b.dataset.q as Quality); }));
 document.querySelectorAll<HTMLElement>('.tod').forEach((b) => b.addEventListener('click', () => applyTime(b.dataset.t as TimeOfDay)));
 document.querySelectorAll<HTMLElement>('.audio').forEach((b) => b.addEventListener('click', () => applyAudio(b.dataset.a === '1')));
-document.querySelectorAll<HTMLElement>('.kids').forEach((b) => b.addEventListener('click', () => applyKids(b.dataset.k === '1')));
 const segSync = (cls: string, cur: number) =>
   document.querySelectorAll<HTMLElement>('.seg.' + cls).forEach((b) => b.classList.toggle('sel', Math.abs(Number(b.dataset.v) - cur) < 0.01));
 function wireSeg(cls: 'sens' | 'aimSens' | 'fov' | 'shake'): void {
@@ -433,6 +490,7 @@ function tick(): void {
     game.hitStop -= dt;
     dt = 0;
   }
+  dt *= game.timeScale * (performance.now() < game.slowUntil ? 0.3 : 1);
 
   if (autoQuality && state === 'playing' && !modal && rawDt > 0 && rawDt < 1) {
     slowT = rawDt > 1 / 24 ? slowT + rawDt : Math.max(0, slowT - rawDt * 2);
@@ -449,6 +507,12 @@ function tick(): void {
     const steps = Math.ceil(dt / (1 / 60));
     for (let i = 0; i < steps; i++) game.update(dt / steps);
     vfx.update(dt);
+    if (clockEl) {
+      const t = (game.mode === 'sandbox' ? 'SANDBOX ' : game.mode === 'kids' ? 'KIDS ' : '') + game.clock.text();
+      if (t !== clockEl.textContent) clockEl.textContent = t;
+      const b = game.clock.band;
+      if (b !== lastClockBand) { lastClockBand = b; document.querySelectorAll<HTMLElement>('.tod').forEach((el) => el.classList.toggle('sel', el.dataset.t === b)); }
+    }
   }
 
   cameraRig.update(state === 'title' ? 0.016 : dt || 0.0001, game.followable);
@@ -457,6 +521,7 @@ function tick(): void {
     game.blackout = true; blackoutT = 25 + Math.random() * 20;
     game.bus.emit({ type: 'blackout' });
   }
+  game.weatherKind = weather.kind;
   if (game.blackout) { blackoutT -= dt; if (blackoutT <= 0 || weather.kind !== 'storm') game.blackout = false; }
   weather.indoors = !!game.inside;
   game.humans.raining = weather.rainAmount > 0.3 && !game.inside;
