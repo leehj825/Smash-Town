@@ -19,6 +19,7 @@ export class Insides {
     G.progress.add('shops');
     G.fadeThen(() => {
       G.inside = room;
+      if (room.id === 'home') G.trophies.refresh(room);
       if (room.id === 'garage') G.hideouts.parkCarInBay(room);
       G.humans.setPlayerActive(true, room.exit.x, room.exit.z - 2.2, Math.PI);
       G.cameraRig.ignore = null;

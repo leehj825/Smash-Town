@@ -51,6 +51,8 @@ import { Dialogue } from './dialogue';
 import { StoryBeats } from './storybeats';
 import { Tips } from './tips';
 import { FriendStories } from './friendstories';
+import { NightMarket } from './nightmarket';
+import { Trophies } from './trophies';
 import { StreetVoices } from './streetvoices';
 import { Progression, GUN_STAGE } from './progression';
 import { STORY_EXTRA } from './story';
@@ -178,6 +180,10 @@ export class Game {
   beats!: StoryBeats;
   tips!: Tips;
   friendStories!: FriendStories;
+  market!: NightMarket;
+  trophies!: Trophies;
+  /** The current weather (the page sets it every frame): rain and storms pay delivery drivers more. */
+  weatherKind = 'clear';
   voices!: StreetVoices;
   progression!: Progression;
   /** A story game with no save yet: it starts on foot with almost nothing. */
@@ -336,6 +342,8 @@ export class Game {
     this.beats = new StoryBeats(this);
     this.tips = new Tips(this);
     this.friendStories = new FriendStories(this);
+    this.market = new NightMarket(this);
+    this.trophies = new Trophies(this);
     this.voices = new StreetVoices(this);
     this.progression = new Progression(this);
     if (this.mode === 'sandbox' || this.mode === 'kids') { this.noSave = true; this.story.done = true; }
@@ -1220,6 +1228,7 @@ export class Game {
     this.story.update(dt);
     this.beats.update(dt);
     this.tips.update(dt);
+    this.market.update(dt);
     this.voices.update(dt);
     this.collectibles.update(dt);
     this.collectStars();
@@ -1965,7 +1974,8 @@ export class Game {
     this.world.signMaterial.emissiveIntensity = 0.15 + n * 1.0;
     this.props.lampHeadMaterial.emissiveIntensity = 0.15 + n * 3.2;
     this.props.setNight(n);
-    VehicleFactory.sharedHead.emissiveIntensity = 0.6 + n * 2.6;
+    const nl = this.env.night; // a blackout takes the street lights, not the headlights
+    VehicleFactory.sharedHead.emissiveIntensity = 0.6 + nl * 2.6;
     const flash = Math.floor(this.time * 7) % 2 === 0;
     const sirens = this.stars > 0 || this.roadblocks.length > 0 || this.medics.active || this.paramedic.onDuty || this.firefighter.onDuty || this.patrol.onDuty;
     VehicleFactory.sirenRed.emissiveIntensity = sirens ? (flash ? 3.4 : 0.15) : 0.2;
@@ -1973,10 +1983,10 @@ export class Game {
     const d = this.driving;
     if (d) {
       const m = d.ctrl.model;
-      m.headMat.emissiveIntensity = 0.6 + n * 2.6;
+      m.headMat.emissiveIntensity = 0.6 + nl * 2.6;
       if (m.headGlow) {
-        m.headGlow.visible = n > 0.05;
-        (m.headGlow.material as THREE.MeshBasicMaterial).opacity = Math.min(0.6, n * 0.6);
+        m.headGlow.visible = nl > 0.05;
+        (m.headGlow.material as THREE.MeshBasicMaterial).opacity = Math.min(0.6, nl * 0.6);
       }
       if (m.blob) m.blob.visible = this.useBlob;
     }

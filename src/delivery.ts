@@ -25,6 +25,8 @@ export class DeliveryJob {
   /** The story's opening wants short walks: the distance range (metres) of an order from the last stop. null = the normal long ones. */
   range: [number, number] | null = null;
   payScale = 1;
+  /** Bad weather pays better: +25% in rain, +40% in a storm (not during the story opening, whose pay is fixed). */
+  weatherMul(): number { const G = this.game; if (G.mode === 'story' && !G.sideOpen) return 1; return G.weatherKind === 'storm' ? 1.4 : G.weatherKind === 'rain' ? 1.25 : 1; }
 
   constructor(private game: Game) {
     game.scene.add(this.pickup.group, this.drop.group);
@@ -105,7 +107,7 @@ export class DeliveryJob {
     G.hud.showGig(true, bi('DELIVERY', '배달'), `${bi('Order', '주문')} ${this.i + 1}/${this.stops.length} · ${Math.round(left)} m`, `${Math.max(0, Math.ceil(this.time))}s`);
     if (left < 7.5 && !G.story.blocksDelivery()) {
       const dist = Math.hypot(s.x - this.legStart.x, s.z - this.legStart.z);
-      const pay = Math.round((120 + dist * 0.35) * this.payScale);
+      const pay = Math.round((120 + dist * 0.35) * this.payScale * this.weatherMul());
       this.earned += pay;
       G.addCash(pay, 'gigs');
       G.popups.spawn(px, 3, pz, `+$${pay}`, '#ff8fb8');
@@ -113,7 +115,7 @@ export class DeliveryJob {
       this.legStart = { ...s };
       this.i++;
       if (this.i >= this.stops.length) {
-        const bonus = Math.round((150 + Math.max(0, this.time) * 4) * this.payScale);
+        const bonus = Math.round((150 + Math.max(0, this.time) * 4) * this.payScale * this.weatherMul());
         G.addCash(bonus, 'gigs');
         G.progress.add('gigs');
         G.progress.add('deliveries');

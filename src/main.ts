@@ -521,6 +521,7 @@ function tick(): void {
     game.blackout = true; blackoutT = 25 + Math.random() * 20;
     game.bus.emit({ type: 'blackout' });
   }
+  game.weatherKind = weather.kind;
   if (game.blackout) { blackoutT -= dt; if (blackoutT <= 0 || weather.kind !== 'storm') game.blackout = false; }
   weather.indoors = !!game.inside;
   game.humans.raining = weather.rainAmount > 0.3 && !game.inside;

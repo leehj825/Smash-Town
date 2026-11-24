@@ -465,6 +465,49 @@ const ok = (c, n, x = '') => { console.log(`${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' 
       return out;
     });
     ok(r.gated && r.started && r.stage1 && r.waits && r.stage2Ready && r.kaneNext && r.clue && r.noCard && r.stamps && r.box && r.power0 && r.capped && r.once && r.endClues && r.oneBlock && r.rival && r.lost, 'friend stories, a loyalty card, Bonnie gear, clues about G and a rival crew', JSON.stringify(r));
+    // batch three: the night market, trophies on the shelf, and bad weather that pays
+    r = await p.evaluate(async () => {
+      const G = g(); const H = G.humans; const out = {};
+      G.state = 'play'; G.stars = 0; G.heat = 0; G.inside = null; G.dialogue.active = false; G.hud.hideDialog(); G.skills.off = true;
+      G.story.done = false; G.story.ch = 5; G.save.clues = [];
+      // 1. the night market: stalls inside the plazas and the park, open only after dark, a snack or a rumour
+      Object.defineProperty(G.env, 'night', { get: () => 1, configurable: true });
+      G.market.t = 0; G.market.update(0.1);
+      out.stalls = G.market.stallCount > 0;
+      out.open = G.market.group.visible === true;
+      const st = G.market.stalls[0];
+      let spot = true;
+      for (const q of G.market.stalls) { const lot = G.world.lots.find((l) => q.x > l.x0 + 4 && q.x < l.x1 - 4 && q.z > l.z0 + 4 && q.z < l.z1 - 4); if (!lot) spot = false; }
+      out.inside = spot;
+      H.setPlayerActive(true, st.x + 1, st.z + 1, 0); G.onFoot = true; G.driving = null;
+      H.player.hp = H.player.maxHp * 0.5; G.cash = 100;
+      G.market.update(0.1);
+      out.snack = G.cash === 92 && H.player.hp > H.player.maxHp * 0.5;
+      st.cd = 0; H.player.hp = H.player.maxHp;
+      G.market.update(0.1);
+      out.rumour = G.save.clues.includes('market');
+      st.cd = 0; G.stars = 2; H.player.hp = 1; const c0 = G.cash; G.market.update(0.1); out.wanted = G.cash === c0; G.stars = 0;
+      delete G.env.night;
+      G.market.update(0.1);
+      out.closed = G.market.group.visible === false || G.env.night > 0.55;
+      // 2. trophies come from what you did
+      G.save.collected = Array.from({ length: 12 }, (_, i) => i); G.save.raceBest = [50, 0, 60]; G.save.turf = [0, 2]; G.story.done = false;
+      const t1 = G.trophies.counts();
+      out.counts = t1.stars === 2 && t1.cups === 2 && t1.flags === 2 && t1.statue === false;
+      const home = G.interiors.rooms.find((q) => q.id === 'home');
+      G.trophies.refresh(home);
+      out.shelf = !!G.trophies.mesh && G.trophies.mesh.parent === G.interiors.group;
+      G.save.collected = []; G.save.raceBest = []; G.save.turf = [];
+      // 3. rain and storms pay delivery drivers more
+      G.weatherKind = 'clear'; const m0 = G.delivery.weatherMul();
+      G.weatherKind = 'rain'; const m1 = G.delivery.weatherMul();
+      G.weatherKind = 'storm'; const m2 = G.delivery.weatherMul();
+      G.weatherKind = 'clear';
+      out.weather = m0 === 1 && m1 === 1.25 && m2 === 1.4;
+      G.story.done = true; G.skills.off = false;
+      return out;
+    });
+    ok(r.stalls && r.open && r.inside && r.snack && r.rumour && r.wanted && r.closed && r.counts && r.shelf && r.weather, 'the night market, trophies on the shelf, and bad weather that pays', JSON.stringify(r));
     await ctx.close();
 
     // a story saved before the intro existed skips it (chapters move up one place)
