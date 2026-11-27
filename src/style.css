@@ -452,3 +452,18 @@ body.mode-kids.is-touch .kidsrow { display: flex; }
   .title-panel button.big { font-size: 15px; padding: 8px 30px; margin-top: 4px; letter-spacing: 2px; }
 }
 html.big-ui .title-panel { zoom: 1; }
+
+/* ---- touch screens: the story pill, the job card and the prompt are small, so they do not cover the road ---- */
+.is-touch #story-pill { padding: 3px 10px; border-width: 1.5px; border-radius: 10px; }
+.is-touch #story-title { font-size: 8.5px; letter-spacing: .3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.is-touch #story-text { font-size: 11px; margin-top: 0; line-height: 1.2; }
+.is-touch #story-nav { margin-top: 1px; font-size: 11px; gap: 5px; }
+.is-touch #nav-arrow { font-size: 11px; line-height: 11px; height: 11px; width: 11px; }
+.is-touch #story-pill::after { line-height: 3px; }
+.is-touch #top-center { gap: 3px; top: 8px; max-width: min(380px, 44vw); }
+.is-touch #top-center #gig { display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; column-gap: 8px; padding: 3px 10px; border-width: 1.5px; border-radius: 10px; }
+.is-touch #gig-title { font-size: 9px; letter-spacing: 1px; }
+.is-touch #gig-obj { font-size: 11px; margin-top: 0; }
+.is-touch #gig-time { font-size: 13px; margin-top: 0; }
+.is-touch #prompt { bottom: 14%; padding: 4px 12px; font-size: 12px; border-width: 1.5px; border-radius: 8px; }
+.is-touch #toast { top: 78px; padding: 4px 12px; font-size: 12px; border-width: 1.5px; border-radius: 9px; max-width: 70vw; }
